@@ -11,7 +11,7 @@ to generate syntax-highlight parsers (codemirror modes) from a grammar specifica
 
 
 
-__Intendation and markup-style grammars are not implemented fully yet__
+__Indentation and markup-style grammars are not implemented fully yet__
 
 
 
