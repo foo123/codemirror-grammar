@@ -1,0 +1,259 @@
+<!doctype html>
+<html>
+    <head>
+        
+        <meta charset="utf-8">
+        
+        <link rel="stylesheet" href="codemirror/codemirror.css">
+        <link rel="stylesheet" href="codemirror/docs.css">
+        <style type="text/css">
+            .CodeMirror {border-top: 1px solid black; border-bottom: 1px solid black;}
+        </style>
+        
+        <script src="codemirror/codemirror.js"></script>
+        <script src="../src/codemirror_grammar.js"></script>
+        
+        <title>CodeMirror: Dynamic Python Grammar Demo</title>
+    </head>
+    <body>
+        
+        <h1>CodeMirror: Dynamic Python Grammar</h1>
+
+        <textarea id="code" name="code">
+# Literals
+1234
+0.0e101
+.123
+0b01010011100
+0o01234567
+0x0987654321abcdef
+7
+2147483647
+3L
+79228162514264337593543950336L
+0x100000000L
+79228162514264337593543950336
+0xdeadbeef
+3.14j
+10.j
+10j
+.001j
+1e100j
+3.14e-10j
+
+
+# String Literals
+'For\''
+"God\""
+"""so loved
+the world"""
+'''that he gave
+his only begotten\' '''
+'that whosoever believeth \
+in him'
+''
+
+# Identifiers
+__a__
+a.b
+a.b.c
+
+# Operators
++ - * / % & | ^ ~ < >
+== != <= >= <> << >> // **
+and or not in is
+
+# Delimiters
+() [] {} , : ` = ; @ .  # Note that @ and . require the proper context.
++= -= *= /= %= &= |= ^=
+//= >>= <<= **=
+
+# Keywords
+as assert break class continue def del elif else except
+finally for from global if import lambda pass raise
+return try while with yield
+
+# Python 2 Keywords (otherwise Identifiers)
+exec print
+
+# Python 3 Keywords (otherwise Identifiers)
+nonlocal
+
+# Types
+bool classmethod complex dict enumerate float frozenset int list object
+property reversed set slice staticmethod str super tuple type
+
+# Python 2 Types (otherwise Identifiers)
+basestring buffer file long unicode xrange
+
+# Python 3 Types (otherwise Identifiers)
+bytearray bytes filter map memoryview open range zip
+
+# Some Example code
+import os
+from package import ParentClass
+
+@nonsenseDecorator
+def doesNothing():
+    pass
+
+class ExampleClass(ParentClass):
+    @staticmethod
+    def example(inputStr):
+        a = list(inputStr)
+        a.reverse()
+        return ''.join(a)
+
+    def __init__(self, mixin = 'Hello'):
+        self.mixin = mixin
+
+        </textarea>
+        <p></p>
+
+        <script>
+        
+        // 1. an almost complete python grammar in simple JSON format
+        var python_grammar = {
+                
+                // prefix ID for regular expressions used in the grammar
+                "RegExpID" : "RegExp::",
+            
+                //
+                // style model
+                //
+            
+                // lang token type  -> CodeMirror (style) tag
+                "style" : {
+                      "error":       "error",
+                      "meta":        "meta",
+                      "comment":     "comment",
+                      "atom":        "atom",
+                      "keyword":     "keyword",
+                      "builtin":     "builtin",
+                      "operator":    "operator",
+                      "identifier":  "variable",
+                      "identifier2": "meta",
+                      "number":      "number",
+                      "string":      "string"
+                },
+
+                
+                //
+                // lexical model
+                //
+                
+                "indent" : { 
+                    "block-level" : {
+                        "keywords" : "catch do else elseif for foreach if switch try while".split(' '), 
+                        "delims" : [ ["{", "}"], ["(", ")"] ]
+                    },
+                    
+                    "statement-level" : {
+                        "delims" : [";", ":", ","]
+                    }
+                },
+            
+                // comments
+                "comments" : {
+                    "line" : "#",
+                    "block" : null
+                },
+                
+                // identifiers (ie. variables, function names, etc..)
+                // in order of matching
+                
+                
+                // general identifiers
+                "identifiers" : "RegExp::[_A-Za-z][_A-Za-z0-9]*" ,
+                // decorators
+                "identifiers2" : "RegExp::@[_A-Za-z][_A-Za-z0-9]*",
+
+                // numbers, in order of matching
+                "numbers" : [
+                    // floats
+                    "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?[jJ]?",
+                    "RegExp::\\d+\\.\\d*[jJ]?",
+                    "RegExp::\\.\\d+[jJ]?",
+                    // integers
+                    // hex
+                    "RegExp::0x[0-9a-fA-F]+[lL]?",
+                    // binary
+                    "RegExp::0b[01]+[lL]?",
+                    // octal
+                    "RegExp::0o[0-7]+[lL]?",
+                    // decimal
+                    "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?[lL]?[jJ]?",
+                    // just zero
+                    "RegExp::0(?![\\dx])"
+                ],
+
+                // strings
+                // start, end of string (can be the matched regex group ie. 1 )
+                "strings" : [ [ "RegExp::(['\"])", 1 ], ["RegExp::([rub]|(ur)|(br))?(['\"])", 4] ],
+                // begin and end of heredocs
+                "heredoc" : [ [ "'''" ], [ "\"\"\"" ], ["RegExp::([rub]|(ur)|(br))?('{3}|\"{3})", 4] ],
+                
+                // operators
+                "operators" : {
+                    "one" : [ "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!" ],
+                    "two" : [ "==", "!=", "<=", ">=", "<>", "<<", ">>", "//", "**" ],
+                    "words" : [ "and", "or", "not", "is", "in" ]
+                },
+                
+                // delimiters
+                "delimiters" : { 
+                    "one" : [ "(", ")", "[", "]", "{", "}", ",", ":", "`", "=", ";", "." ],
+                    "two" : [ "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=" ], 
+                    "three" : [ ">>=", "<<=", "//=", "**=" ] 
+                },
+                
+                // atoms
+                "atoms" : null,
+
+                // keywords
+                "keywords" : [
+                    "as", "assert", "break", "class", "continue",
+                    "def", "del", "elif", "else", "except", "finally",
+                    "for", "from", "global", "if", "import",
+                    "lambda", "pass", "raise", "return",
+                    "try", "while", "with", "yield"
+                ],
+                                      
+                // builtin functions, constructs, etc..
+                "builtins" : [
+                    "abs", "all", "any", "bin", "bool", "bytearray", "callable", "chr",
+                    "classmethod", "compile", "complex", "delattr", "dict", "dir", "divmod",
+                    "enumerate", "eval", "filter", "float", "format", "frozenset",
+                    "getattr", "globals", "hasattr", "hash", "help", "hex", "id",
+                    "input", "int", "isinstance", "issubclass", "iter", "len",
+                    "list", "locals", "map", "max", "memoryview", "min", "next",
+                    "object", "oct", "open", "ord", "pow", "property", "range",
+                    "repr", "reversed", "round", "set", "setattr", "slice",
+                    "sorted", "staticmethod", "str", "sum", "super", "tuple",
+                    "type", "vars", "zip", "__import__", "NotImplemented",
+                    "Ellipsis", "__debug__"
+                ]
+        };
+        
+        // 2. parse the grammar into a Codemirror syntax-highlight mode
+        var python_mode = CodeMirrorGrammar.getMode(python_grammar);
+        
+        // 3. register the mode with Codemirror
+        CodeMirror.defineMode("python", python_mode);
+        CodeMirror.defineMIME("application/x-httpd-python", "python");
+        
+        // use it!
+        var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+            lineNumbers: true,
+            matchBrackets: false,
+            mode: "application/x-httpd-python",
+            indentUnit: 4,
+            indentWithTabs: false,
+            enterMode: "keep",
+            tabMode: "shift"
+        });
+        editor.setSize(null, 500);
+        
+        </script>
+    </body>
+</html>

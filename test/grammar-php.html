@@ -1,26 +1,60 @@
-codemirror-grammar
-==================
+<!doctype html>
+<html>
+    <head>
+        
+        <meta charset="utf-8">
+        
+        <link rel="stylesheet" href="codemirror/codemirror.css">
+        <link rel="stylesheet" href="codemirror/docs.css">
+        <style type="text/css">
+            .CodeMirror {border-top: 1px solid black; border-bottom: 1px solid black;}
+        </style>
+        
+        <script src="codemirror/codemirror.js"></script>
+        <script src="../src/codemirror_grammar.js"></script>
+        
+        <title>CodeMirror: Dynamic PHP Grammar Demo</title>
+    </head>
+    <body>
+        
+        <h1>CodeMirror: Dynamic PHP Grammar</h1>
 
-__Transform a JSON grammar into a CodeMirror syntax-highlight parser (IN PROGRESS)__
+        <textarea id="code" name="code">
+$a = (isset($var) && NULL==$b) ? true : false;
+// this is a line comment
+#  this is also a line comment
+define("DEF", "123")
 
+/*
+    this is
+    a
+    multiline
+    comment
+*/
 
+$regex = r"2342442";
 
-A simple [CodeMirror](https://github.com/marijnh/codemirror) add-on
+$heredoc = <<<EOF
+a 
+    heredoc 
+string
 
-to generate syntax-highlight parsers (codemirror modes) from a grammar specification in JSON format.
+EOF;
 
+$s1 = `this is a string`;
+$s2 = "this is also a string with escaped \" ' quotes"; $foo123;
+$s3 = 'this is also a string with escaped " \' quotes';
 
+function a_function( &$v1, $v2 )
+{
+    static $num = (.0123 + 345) || 12;
+    global $int = 123;
+    return $this->is_a_method();
+}
+                </textarea>
+        <p></p>
 
-__Intendation and markup-style grammars are not implemented fully yet__
-
-
-
-###How to use:
-
-An example for PHP:
-
-
-```javascript
+        <script>
         
         // 1. an almost complete php grammar in simple JSON format
         var php_grammar = {
@@ -100,7 +134,7 @@ An example for PHP:
 
                 // strings
                 // start, end of string (can be the matched regex group ie. 1 )
-                "strings" : [ "RegExp::([`'\"])", 1 ],
+                "strings" : [ [ "RegExp::([`'\"])", 1 ], ["RegExp::([rub]|(ur)|(br))?(['\"])", 4] ],
                 // heredocs
                 // start, end of heredoc (can be the matched regex group ie. 1 )
                 "heredoc" : [ "RegExp::<<<([_A-Za-z][_A-Za-z0-9]*)", 1 ],
@@ -132,6 +166,8 @@ An example for PHP:
         // 2. parse the grammar into a Codemirror syntax-highlight mode
         var php_mode = CodeMirrorGrammar.getMode(php_grammar);
         
+        //console.log(php_grammar);
+        
         // 3. register the mode with Codemirror
         CodeMirror.defineMode("php", php_mode);
         CodeMirror.defineMIME("application/x-httpd-php", "php");
@@ -147,11 +183,7 @@ An example for PHP:
             tabMode: "shift"
         });
         editor.setSize(null, 500);
-
-```
-
-
-Result:
-
-![php-grammar](/test/grammar-php.png)
-
+        
+        </script>
+    </body>
+</html>
