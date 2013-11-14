@@ -1,0 +1,38 @@
+###################################################
+#
+#   The buildtools repository is at:
+#   https://github.com/foo123/scripts/buildtools
+#
+###################################################
+
+@DEPENDENCIES
+./src/header.js
+./src/utils/utils.js
+./src/utils/defaults.js
+./src/factories/types.js
+./src/factories/tokenizers.js
+./src/main.js
+./src/footer.js
+
+# TODO, allow some pre-process to take place
+#@PREPROCESS
+
+@MINIFY
+# Minify the Package
+@UGLIFY
+# Options for Node UglifyJS Compiler (if used, default), (mangle and compress)
+-m -c
+@CLOSURE
+# Options for Java Closure Compiler (if used)
+--language_in=ECMASCRIPT5_STRICT
+@YUI
+# Options for Java YUI Compressor Compiler (if used)
+--preserve-semi
+
+@ # dummy separator between blocks, it can be useful
+
+# TODO, allow some post-process to take place
+#@POSTPROCESS
+
+@OUT
+./build/codemirror_grammar.min.js

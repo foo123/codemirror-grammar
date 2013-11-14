@@ -11,7 +11,7 @@
         </style>
         
         <script src="codemirror/codemirror.js"></script>
-        <script src="../src/codemirror_grammar.js"></script>
+        <script src="../build/codemirror_grammar.js"></script>
         
         <title>CodeMirror: Dynamic Python Grammar Demo</title>
     </head>
@@ -120,47 +120,33 @@ class ExampleClass(ParentClass):
             
                 //
                 // style model
-                //
             
                 // lang token type  -> CodeMirror (style) tag
                 "style" : {
-                      "error":       "error",
-                      "meta":        "meta",
-                      "comment":     "comment",
-                      "atom":        "atom",
-                      "keyword":     "keyword",
-                      "builtin":     "builtin",
-                      "operator":    "operator",
-                      "identifier":  "variable",
-                      "identifier2": "meta",
-                      "number":      "number",
-                      "string":      "string"
+                    "error":       "error",
+                    "meta":        "meta",
+                    "comment":     "comment",
+                    "atom":        "atom",
+                    "keyword":     "keyword",
+                    "builtin":     "builtin",
+                    "operator":    "operator",
+                    "identifier":  "variable",
+                    "identifier2": "meta",
+                    "number":      "number",
+                    "string":      "string"
                 },
 
                 
                 //
                 // lexical model
-                //
                 
-                "indent" : { 
-                    "block-level" : {
-                        "keywords" : "catch do else elseif for foreach if switch try while".split(' '), 
-                        "delims" : [ ["{", "}"], ["(", ")"] ]
-                    },
-                    
-                    "statement-level" : {
-                        "delims" : [";", ":", ","]
-                    }
-                },
-            
                 // comments
                 "comments" : {
                     "line" : "#",
                     "block" : null
                 },
                 
-                // identifiers (ie. variables, function names, etc..)
-                // in order of matching
+                // identifiers, in order of matching
                 
                 
                 // general identifiers
@@ -240,13 +226,13 @@ class ExampleClass(ParentClass):
         
         // 3. register the mode with Codemirror
         CodeMirror.defineMode("python", python_mode);
-        CodeMirror.defineMIME("application/x-httpd-python", "python");
+        //CodeMirror.defineMIME("application/x-httpd-python", "python");
         
         // use it!
         var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
             lineNumbers: true,
             matchBrackets: false,
-            mode: "application/x-httpd-python",
+            mode: "python",
             indentUnit: 4,
             indentWithTabs: false,
             enterMode: "keep",
