@@ -780,15 +780,10 @@
                 
                 //
                 // Meta
-                if ( meta && (struct = matchAny(stream, meta)) ) 
+                if (meta && matchAny(stream, meta)) 
                 {
-                    var key = struct.key, val = struct.val, endmeta = metaEnd[key];
-                    
-                    // regex given, get the matched group for the ending of this heredoc
-                    if ( is_number(endmeta) )  endmeta = val[endmeta];
-                    
-                    state.tokenize = getBlockTokenizer(getMatcher(endmeta), T_META, style.meta);
-                    return state.tokenize(stream, state);
+                    state.lastToken = T_META;
+                    return style.meta;
                 }
                 
                 //
