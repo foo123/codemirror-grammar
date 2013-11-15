@@ -18,11 +18,6 @@
         },
         
         parseMarkupLikeGrammar : function(grammar, base) {
-            // todo
-            return null;
-        },
-        
-        parseProgrammingLikeGrammar : function(grammar, base) {
             var t1, t2, i, l, RegExpID, RegExpGroups;
             
             // grammar is parsed, return it
@@ -36,6 +31,10 @@
             RegExpGroups = grammar.RegExpGroups || {};
             grammar.RegExpGroups = null;
             delete grammar.RegExpGroups;
+            
+            grammar.type = null;
+            delete grammar.type;
+            grammar.isMarkup = true;
             
             // comments
             if (grammar.comments)
@@ -60,10 +59,151 @@
                 grammar.comments = { start: null, end: null };
             }
                 
-            // general blocks ( 3 types ), eg. heredocs, cdata, etc..
+            // general blocks ( 5 types ), eg. heredocs, cdata, etc..
             grammar.blocks = (grammar.blocks) ? getStartEndMatchersFor(grammar.blocks, RegExpID) : { start: null, end: null };
             grammar.blocks2 = (grammar.blocks2) ? getStartEndMatchersFor(grammar.blocks2, RegExpID) : { start: null, end: null };
             grammar.blocks3 = (grammar.blocks3) ? getStartEndMatchersFor(grammar.blocks3, RegExpID) : { start: null, end: null };
+            grammar.blocks4 = (grammar.blocks4) ? getStartEndMatchersFor(grammar.blocks4, RegExpID) : { start: null, end: null };
+            grammar.blocks5 = (grammar.blocks5) ? getStartEndMatchersFor(grammar.blocks5, RegExpID) : { start: null, end: null };
+            
+            // tags ( 3 types )
+            if (grammar.tags)
+            {
+                t1 = [];
+                t2 = [];
+                var tmp = make_array(grammar.tags);
+                for (i=0, l=tmp.length; i<l; i++)
+                {
+                    t1.push( [ tmp[i][0], tmp[i][1] ] );
+                    t2 = t2.concat( tmp[i][2] );
+                }
+                t1 = getStartEndMatchersFor(t1, RegExpID);
+                t2 = getMatchersFor(t2, RegExpID, RegExpGroups['tags']);
+                grammar.tags = { start: t1.start, tags: t2, end: t1.end };
+            }
+            else
+            {
+                grammar.tags = { start: null, tags: null, end: null };
+            }
+            grammar.tags2 = { start: null, tags: null, end: null };
+            grammar.tags3 = { start: null, tags: null, end: null };
+            
+            // attributes ( 3 types )
+            grammar.attributes = (grammar.attributes) ? getMatchersFor(grammar.attributes, RegExpID, RegExpGroups['attributes']) : null;
+            grammar.attributes2 = (grammar.attributes2) ? getMatchersFor(grammar.attributes2, RegExpID, RegExpGroups['attributes2']) : null;
+            grammar.attributes3 = (grammar.attributes3) ? getMatchersFor(grammar.attributes3, RegExpID, RegExpGroups['attributes3']) : null;
+            
+            // doctype
+            grammar.doctype = null;
+            
+            // strings ( 3 string types )
+            grammar.strings = (grammar.strings) ? getStartEndMatchersFor(grammar.strings, RegExpID) : { start: null, end: null };
+            grammar.strings2 = (grammar.strings2) ? getStartEndMatchersFor(grammar.strings2, RegExpID) : { start: null, end: null };
+            grammar.strings3 = (grammar.strings3) ? getStartEndMatchersFor(grammar.strings3, RegExpID) : { start: null, end: null };
+            
+            // general identifiers ( 5 identifier types ), eg. variables, etc..
+            grammar.identifiers = (grammar.identifiers) ? getMatchersFor(grammar.identifiers, RegExpID, RegExpGroups['identifiers']) : null;
+            grammar.identifiers2 = (grammar.identifiers2) ? getMatchersFor(grammar.identifiers2, RegExpID, RegExpGroups['identifiers2']) : null;
+            grammar.identifiers3 = (grammar.identifiers3) ? getMatchersFor(grammar.identifiers3, RegExpID, RegExpGroups['identifiers3']) : null;
+            grammar.identifiers4 = (grammar.identifiers4) ? getMatchersFor(grammar.identifiers4, RegExpID, RegExpGroups['identifiers4']) : null;
+            grammar.identifiers5 = (grammar.identifiers5) ? getMatchersFor(grammar.identifiers5, RegExpID, RegExpGroups['identifiers5']) : null;
+            
+            // numbers ( 3 number types )
+            grammar.numbers = (grammar.numbers) ? getMatchersFor(grammar.numbers, RegExpID, RegExpGroups['numbers']) : null;
+            grammar.numbers2 = (grammar.numbers2) ? getMatchersFor(grammar.numbers2, RegExpID, RegExpGroups['numbers2']) : null;
+            grammar.numbers3 = (grammar.numbers3) ? getMatchersFor(grammar.numbers3, RegExpID, RegExpGroups['numbers3']) : null;
+            
+            // atoms
+            grammar.atoms = (grammar.atoms) ? getMatchersFor(grammar.atoms, RegExpID, RegExpGroups['atoms']) : null;
+            
+            // meta
+            grammar.meta = (grammar.meta) ? getMatchersFor(grammar.meta, RegExpID, RegExpGroups['meta']) : null;
+            
+            // defs
+            grammar.defines = (grammar.defines) ? getMatchersFor(grammar.defines, RegExpID, RegExpGroups['defines']) : null;
+            
+            // keywords
+            grammar.keywords = (grammar.keywords) ? getMatchersFor(grammar.keywords, RegExpID, RegExpGroups['keywords']) : null;
+            
+            // builtins
+            grammar.builtins = (grammar.builtins) ? getMatchersFor(grammar.builtins, RegExpID, RegExpGroups['builtins']) : null;
+            
+            // assignments, eg for attributes
+            grammar.assignments = (grammar.assignments) ? getMatchersFor(grammar.assignments, RegExpID, RegExpGroups['assignments']) : null;
+            
+            grammar.operators = { one: null, two: null, words: null };
+            grammar.delimiters = { one: null, two: null, three: null };
+            /*
+            // operators
+            if (!grammar.operators) grammar.operators = { one: null, two: null, words: null };
+            grammar.operators.one = (grammar.operators.one) ? getMatchersFor(grammar.operators.one, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['one']) : null;
+            grammar.operators.two = (grammar.operators.two) ? getMatchersFor(grammar.operators.two, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['two']) : null;
+            grammar.operators.words = (grammar.operators.words) ? getMatchersFor(grammar.operators.words, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['words']) : null;
+            
+            // delimiters
+            if (!grammar.delimiters) grammar.delimiters = { one: null, two: null, three: null };
+            grammar.delimiters.one = (grammar.delimiters.one) ? getMatchersFor(grammar.delimiters.one, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['one']) : null;
+            grammar.delimiters.two = (grammar.delimiters.two) ? getMatchersFor(grammar.delimiters.two, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['two']) : null;
+            grammar.delimiters.three = (grammar.delimiters.three) ? getMatchersFor(grammar.delimiters.three, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['three']) : null;
+            */
+            
+            grammar.indent = null;
+            grammar.hasIndent = false;
+            
+            // this grammar is parsed
+            grammar.__parsed = true;
+            
+            return grammar;
+        },
+        
+        parseProgrammingLikeGrammar : function(grammar, base) {
+            var t1, t2, i, l, RegExpID, RegExpGroups;
+            
+            // grammar is parsed, return it
+            // avoid reparsing already parsed grammars
+            if (grammar.__parsed)  return grammar;
+            
+            grammar = extend(grammar, base);
+            RegExpID = grammar.RegExpID || null;
+            grammar.RegExpID = null;
+            delete grammar.RegExpID;
+            RegExpGroups = grammar.RegExpGroups || {};
+            grammar.RegExpGroups = null;
+            delete grammar.RegExpGroups;
+            
+            grammar.type = null;
+            delete grammar.type;
+            grammar.isMarkup = false;
+            
+            // comments
+            if (grammar.comments)
+            {
+                t1 = [];
+                if (grammar.comments.line)  
+                {
+                    t2 = make_array(grammar.comments.line);
+                    
+                    for (i=0, l=t2.length; i<l; i++)
+                        t1.push( [t2[i], null] );
+                }
+                if (grammar.comments.block)  
+                {
+                    t2 = make_array(grammar.comments.block);
+                    t1.push( [t2[0], ((t2[1]) ? t2[1] : t2[0])] );
+                }
+                grammar.comments = (t1.length) ? getStartEndMatchersFor(t1, RegExpID) : { start: null, end: null };
+            }
+            else
+            {
+                grammar.comments = { start: null, end: null };
+            }
+                
+            // general blocks ( 5 types ), eg. heredocs, cdata, etc..
+            grammar.blocks = (grammar.blocks) ? getStartEndMatchersFor(grammar.blocks, RegExpID) : { start: null, end: null };
+            grammar.blocks2 = (grammar.blocks2) ? getStartEndMatchersFor(grammar.blocks2, RegExpID) : { start: null, end: null };
+            grammar.blocks3 = (grammar.blocks3) ? getStartEndMatchersFor(grammar.blocks3, RegExpID) : { start: null, end: null };
+            grammar.blocks4 = (grammar.blocks4) ? getStartEndMatchersFor(grammar.blocks4, RegExpID) : { start: null, end: null };
+            grammar.blocks5 = (grammar.blocks5) ? getStartEndMatchersFor(grammar.blocks5, RegExpID) : { start: null, end: null };
             
             // strings ( 3 string types )
             grammar.strings = (grammar.strings) ? getStartEndMatchersFor(grammar.strings, RegExpID) : { start: null, end: null };
@@ -111,7 +251,7 @@
             grammar.delimiters.three = (grammar.delimiters.three) ? getMatchersFor(grammar.delimiters.three, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['three']) : null;
             
             // types of indent etc..
-            var hasIndent = false;
+            /*var hasIndent = false;
             if (grammar.indent) 
             {
                 if (!grammar.indent["block-level"]) grammar.indent["block-level"] = { keywords: null, delims: null };
@@ -174,7 +314,10 @@
             {
                 grammar.indent = null;
             }
-            grammar.hasIndent = hasIndent;
+            grammar.hasIndent = hasIndent;*/
+            
+            grammar.indent = null;
+            grammar.hasIndent = false;
             
             // this grammar is parsed
             grammar.__parsed = true;
@@ -187,7 +330,7 @@
             // build the grammar, ( grammar can extend another 'base' grammar ;) )
             grammar = self.parseGrammar(grammar, base);
             
-            console.log(grammar);
+            //console.log(grammar);
             
             var LOCALS = { 
                 // default return code, when no match found
@@ -195,33 +338,69 @@
                 DEFAULT: DEFAULT || null 
             };
             
-            // generate parser with token factories (closures make grammar, LOCALS etc.. available locally)
-            return function(conf, parserConf) {
-                
-                var tokenBase = tokenBaseFactory(grammar, LOCALS, conf, parserConf);
-                var token = tokenFactory(tokenBase, grammar, LOCALS, conf, parserConf);
-                var indentation = indentationFactory(LOCALS, conf, parserConf);
-                
-                // return the parser for the grammar
-                parser =  {
+            // markup-like grammar
+            if (grammar.isMarkup)
+            {
+                // generate parser with token factories (closures make grammar, LOCALS etc.. available locally)
+                return function(conf, parserConf) {
                     
-                    startState: function(basecolumn) {
-                          
-                          LOCALS.basecolumn = basecolumn;
-                          
-                          return {
-                              tokenize : null,
-                              lastToken : T_DEFAULT
-                          };
-                    },
+                    var tokenBase = tokenBaseMLFactory(grammar, LOCALS, conf, parserConf);
+                    var token = tokenFactory(tokenBase, grammar, LOCALS, conf, parserConf);
+                    var indentation = indentationFactory(LOCALS, conf, parserConf);
                     
-                    token: token,
+                    // return the parser for the grammar
+                    parser =  {
+                        
+                        startState: function(basecolumn) {
+                              
+                              LOCALS.basecolumn = basecolumn || 0;
+                              
+                              return {
+                                  tokenize : null,
+                                  lastToken : T_DEFAULT
+                              };
+                        },
+                        
+                        token: token,
 
-                    indent: indentation
+                        indent: indentation
+                        
+                    };
                     
+                    return parser;
                 };
-                
-                return parser;
-            };
+            }
+            // programming-like grammar
+            else
+            {
+                // generate parser with token factories (closures make grammar, LOCALS etc.. available locally)
+                return function(conf, parserConf) {
+                    
+                    var tokenBase = tokenBaseFactory(grammar, LOCALS, conf, parserConf);
+                    var token = tokenFactory(tokenBase, grammar, LOCALS, conf, parserConf);
+                    var indentation = indentationFactory(LOCALS, conf, parserConf);
+                    
+                    // return the parser for the grammar
+                    parser =  {
+                        
+                        startState: function(basecolumn) {
+                              
+                              LOCALS.basecolumn = basecolumn || 0;
+                              
+                              return {
+                                  tokenize : null,
+                                  lastToken : T_DEFAULT
+                              };
+                        },
+                        
+                        token: token,
+
+                        indent: indentation
+                        
+                    };
+                    
+                    return parser;
+                };
+            }
         }
     };

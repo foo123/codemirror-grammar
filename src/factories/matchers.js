@@ -139,5 +139,10 @@
                 if (m) return m;
             }
             return false;
+        },
+        
+        streamEat = function(stream, s) {
+            stream.pos += s.length;
+            return stream;
         }
     ;

@@ -161,59 +161,84 @@
         getTagTokenizer = function(endMatcher, LOCALS, nextTokenizer) {
             
             var DEFAULT = LOCALS.DEFAULT,
-                style = LOCALS.style;
+                style = LOCALS.style,
+                
+                tags = LOCALS.tags,
+                attributes = LOCALS.attributes,
+                assignments = LOCALS.assignments,
+                strings = LOCALS.strings,
+                stringsEnd = LOCALS.stringsEnd,
+                
+                foundTag = false,
+                tagName = ''
+                ;
             
             var tokenTag = function(stream, state) {
-                var struct, endblock;
                 
-                var lastToken = state.lastToken;
+                var struct, endblock, ok = false,
+                    lastToken = state.lastToken;
                 
-                if (stream.eatSpace())
+                if ( !foundTag && tags && (struct = matchAny(stream, tags)) )
                 {
+                    state.lastToken = T_TAG;
+                    foundTag = true;
+                    //tagName = struct.val;
+                    return style.tag;
+                }
+                
+                if ( foundTag )
+                {
+                    if ( stream.eatSpace() )
+                    {
+                        state.lastToken = T_DEFAULT;
+                        return DEFAULT;
+                    }
+                    
+                    if (
+                        //( (T_TAG | T_ATTRIBUTE | T_STRING | T_DEFAULT) & lastToken ) &&
+                        endMatcher(stream)
+                    )
+                    {
+                        state.tokenize = nextTokenizer || null;
+                        state.lastToken = T_ENDTAG;
+                        return style.tag;
+                    }
+                    
+                    if (
+                        //( T_DEFAULT & lastToken ) &&
+                        attributes && matchAny(stream, attributes)
+                    )
+                    {
+                        state.lastToken = T_ATTRIBUTE;
+                        return style.attribute;
+                    }
+                    
+                    if (
+                        //( T_ATTRIBUTE & lastToken ) &&
+                        assignments && matchAny(stream, assignments)
+                    )
+                    {
+                        state.lastToken = T_ASSIGNMENT;
+                        return DEFAULT;
+                    }
+                    
+                    if (
+                        //( T_ASSIGNMENT & lastToken ) &&
+                        strings && (struct = matchAny(stream, strings))
+                    )
+                    {
+                        state.tokenize = getStringTokenizer(getMatcher(stringsEnd[struct.key]), style.string, false, tokenTag);
+                        return state.tokenize(stream, state);
+                    }
+                    
                     state.lastToken = T_DEFAULT;
                     return DEFAULT;
                 }
-                
-                if (stream.match(/[a-zA-Z_][a-zA-Z_0-9\-]*\b/))
+                else
                 {
-                    state.lastToken = T_TAG;
-                    return style.tag;
+                    state.lastToken = T_ERROR;
+                    return style.error;
                 }
-                else if (
-                    ( (T_TAG | T_ATTRIBUTE | T_STRING | T_DEFAULT) & lastToken ) 
-                    && endMatcher(stream)
-                )
-                {
-                    state.tokenize = nextTokenizer || null;
-                    state.lastToken = T_ENDTAG;
-                    return style.tag;
-                }
-                else if (
-                    ( T_DEFAULT & lastToken )
-                    && attributes && matchAny(stream, attributes)
-                )
-                {
-                    state.lastToken = T_ATTRIBUTE;
-                    return style.attribute;
-                }
-                else if (
-                    ( T_ATTRIBUTE & lastToken )
-                    && assignments && matchAny(stream, assignments)
-                )
-                {
-                    state.lastToken = T_ASSIGNMENT;
-                    return DEFAULT;
-                }
-                else if (
-                    ( T_ASSIGNMENT & lastToken )
-                    && strings && matchAny(strings)
-                )
-                {
-                    state.tokenize = getStringTokenizer(getMatcher(stringEnd), style.string, false, tokenTag);
-                    return state.tokenize(stream, state);
-                }
-                state.lastToken = T_ERROR;
-                return style.error;
             };
             
             tokenTag.__type = T_TAG;
@@ -277,6 +302,10 @@
                 blocks2End = grammar.blocks2.end || null,
                 blocks3 = grammar.blocks3.start || null,
                 blocks3End = grammar.blocks3.end || null,
+                blocks4 = grammar.blocks4.start || null,
+                blocks4End = grammar.blocks4.end || null,
+                blocks5 = grammar.blocks5.start || null,
+                blocks5End = grammar.blocks5.end || null,
                 
                 strings = grammar.strings.start || null,
                 stringsEnd = grammar.strings.end || null,
@@ -316,7 +345,7 @@
             var tokenBase = function(stream, state) {
                 
                 var i, l, current, struct, endblock,
-                    ctx, ctxOffset, lineOffset;
+                    ctx;
                 
                 if (stream.eatSpace()) 
                 {
@@ -341,7 +370,7 @@
                 // Blocks, eg. heredocs
                 if ( blocks && (struct = matchAny(stream, blocks)) ) 
                 {
-                    endblock = blocksEnd[ struct.key];
+                    endblock = blocksEnd[struct.key];
                     
                     // regex given, get the matched group for the ending of this heredoc
                     if ( is_number(endblock) )  endblock = struct.val[endblock];
@@ -351,7 +380,7 @@
                 }
                 if ( blocks2 && (struct = matchAny(stream, blocks2)) ) 
                 {
-                    endblock = blocks2End[ struct.key];
+                    endblock = blocks2End[struct.key];
                     
                     // regex given, get the matched group for the ending of this heredoc
                     if ( is_number(endblock) )  endblock = struct.val[endblock];
@@ -361,12 +390,32 @@
                 }
                 if ( blocks3 && (struct = matchAny(stream, blocks3)) ) 
                 {
-                    endblock = blocks3End[ struct.key];
+                    endblock = blocks3End[struct.key];
                     
                     // regex given, get the matched group for the ending of this heredoc
                     if ( is_number(endblock) )  endblock = struct.val[endblock];
                     
                     state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block3);
+                    return state.tokenize(stream, state);
+                }
+                if ( blocks4 && (struct = matchAny(stream, blocks4)) ) 
+                {
+                    endblock = blocks4End[struct.key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block4);
+                    return state.tokenize(stream, state);
+                }
+                if ( blocks5 && (struct = matchAny(stream, blocks5)) ) 
+                {
+                    endblock = blocks5End[struct.key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block5);
                     return state.tokenize(stream, state);
                 }
                 
@@ -387,7 +436,6 @@
                     state.lastToken = T_NUMBER;
                     return style.number3;
                 }
-                
                 
                 //
                 // Strings
@@ -545,11 +593,70 @@
         
         tokenBaseMLFactory = function(grammar, LOCALS, conf) {
             
-            var DEFAULT = LOCALS.DEFAULT
+            var DEFAULT = LOCALS.DEFAULT,
+                
+                style = grammar.style,
+                
+                comments = grammar.comments.start || null,
+                commentsEnd = grammar.comments.end || null,
+                
+                blocks = grammar.blocks.start || null,
+                blocksEnd = grammar.blocks.end || null,
+                blocks2 = grammar.blocks2.start || null,
+                blocks2End = grammar.blocks2.end || null,
+                blocks3 = grammar.blocks3.start || null,
+                blocks3End = grammar.blocks3.end || null,
+                blocks4 = grammar.blocks4.start || null,
+                blocks4End = grammar.blocks4.end || null,
+                blocks5 = grammar.blocks5.start || null,
+                blocks5End = grammar.blocks5.end || null,
+                
+                strings = grammar.strings.start || null,
+                stringsEnd = grammar.strings.end || null,
+                strings2 = grammar.strings2.start || null,
+                strings2End = grammar.strings2.end || null,
+                strings3 = grammar.strings3.start || null,
+                strings3End = grammar.strings3.end || null,
+                
+                doctype = grammar.doctype,
+                
+                tagsStart = grammar.tags.start || null,
+                tags = grammar.tags.tags || null,
+                tagsEnd = grammar.tags.end || null,
+                
+                attributes = grammar.attributes,
+                attributes2 = grammar.attributes2,
+                attributes3 = grammar.attributes3,
+                
+                assignments = grammar.assignments,
+                
+                identifiers = grammar.identifiers,
+                identifiers2 = grammar.identifiers2,
+                identifiers3 = grammar.identifiers3,
+                identifiers4 = grammar.identifiers4,
+                identifiers5 = grammar.identifiers5,
+                
+                numbers = grammar.numbers,
+                numbers2 = grammar.numbers2,
+                numbers3 = grammar.numbers3,
+                
+                atoms = grammar.atoms,
+                meta = grammar.meta,
+                defs = grammar.defines,
+                keywords = grammar.keywords,
+                builtins = grammar.builtins,
+                operators = grammar.operators,
+                delims = grammar.delimiters,
+                
+                hasIndent = grammar.hasIndent,
+                indent = grammar.indent
             ;
             
             return function(stream, state) {
 
+                var i, l, current, struct, endblock,
+                    ctx;
+                
                 if (stream.eatSpace()) 
                 {
                     state.lastToken = T_DEFAULT;
@@ -560,20 +667,20 @@
                 // Comments
                 if ( comments && (struct = matchAny(stream, comments)) ) 
                 {
-                    var key = struct.key, val = struct.val, endcomment = commentsEnd[key];
+                    endblock = commentsEnd[struct.key];
                     
                     // regex given, get the matched group for the ending of this comment
-                    if ( is_number(endcomment) )  endcomment = val[endcomment];
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
                     
-                    state.tokenize = getBlockTokenizer(getMatcher(endcomment), T_COMMENT, style.comment);
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_COMMENT, style.comment);
                     return state.tokenize(stream, state);
                 }
                 
                 //
-                // Blocks, eg. cdata
+                // Blocks, eg. cdata, meta etc..
                 if ( blocks && (struct = matchAny(stream, blocks)) ) 
                 {
-                    endblock = blocksEnd[ struct.key];
+                    endblock = blocksEnd[struct.key];
                     
                     // regex given, get the matched group for the ending of this heredoc
                     if ( is_number(endblock) )  endblock = struct.val[endblock];
@@ -583,7 +690,7 @@
                 }
                 if ( blocks2 && (struct = matchAny(stream, blocks2)) ) 
                 {
-                    endblock = blocks2End[ struct.key];
+                    endblock = blocks2End[struct.key];
                     
                     // regex given, get the matched group for the ending of this heredoc
                     if ( is_number(endblock) )  endblock = struct.val[endblock];
@@ -593,7 +700,7 @@
                 }
                 if ( blocks3 && (struct = matchAny(stream, blocks3)) ) 
                 {
-                    endblock = blocks3End[ struct.key];
+                    endblock = blocks3End[struct.key];
                     
                     // regex given, get the matched group for the ending of this heredoc
                     if ( is_number(endblock) )  endblock = struct.val[endblock];
@@ -601,17 +708,73 @@
                     state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block3);
                     return state.tokenize(stream, state);
                 }
-                
-                //
-                // Doctype, etc..
-                if ( doctype && (struct = matchAny(stream, doctype)) ) 
+                if ( blocks4 && (struct = matchAny(stream, blocks4)) ) 
                 {
-                    var key = struct.key, val = struct.val, enddoctype = doctypeEnd[key];
+                    endblock = blocks4End[struct.key];
                     
                     // regex given, get the matched group for the ending of this heredoc
-                    if ( is_number(enddoctype) )  enddoctype = val[enddoctype];
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
                     
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block4);
+                    return state.tokenize(stream, state);
+                }
+                if ( blocks5 && (struct = matchAny(stream, blocks5)) ) 
+                {
+                    endblock = blocks5End[struct.key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block5);
+                    return state.tokenize(stream, state);
+                }
+                
+                //
+                // Doctypes, etc..
+                if ( doctype && matchAny(stream, doctype) ) 
+                {
                     state.tokenize = getDoctypeTokenizer(style.doctype);
+                    return state.tokenize(stream, state);
+                }
+                
+                //
+                // Atoms
+                if (atoms && matchAny(stream, atoms)) 
+                {
+                    state.lastToken = T_ATOM;
+                    return style.atom;
+                }
+                
+                //
+                // Strings
+                if ( strings && (struct = matchAny(stream, strings)) ) 
+                {
+                    endblock = stringsEnd[struct.key];
+                    
+                    // regex given, get the matched group for the ending of this string
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getStringTokenizer(getMatcher(endblock), style.string, false);
+                    return state.tokenize(stream, state);
+                }
+                if ( strings2 && (struct = matchAny(stream, strings2)) ) 
+                {
+                    endblock = strings2End[struct.key];
+                    
+                    // regex given, get the matched group for the ending of this string
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getStringTokenizer(getMatcher(endblock), style.string2, false);
+                    return state.tokenize(stream, state);
+                }
+                if ( strings3 && (struct = matchAny(stream, strings3)) ) 
+                {
+                    endblock = strings3End[struct.key];
+                    
+                    // regex given, get the matched group for the ending of this string
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getStringTokenizer(getMatcher(endblock), style.string3, false);
                     return state.tokenize(stream, state);
                 }
                 
@@ -629,24 +792,78 @@
                 }
                 
                 //
-                // Atoms
-                if (atoms && matchAny(stream, atoms)) 
+                // Tags
+                if ( tagsStart && (struct = matchAny(stream, tagsStart)) ) 
                 {
-                    state.lastToken = T_ATOM;
-                    return style.atom;
+                    endblock = tagsEnd[struct.key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    // pass any necessary data to the tokenizer
+                    LOCALS.style = style;
+                    LOCALS.tags = tags;
+                    LOCALS.attributes = attributes;
+                    LOCALS.assignments = assignments;
+                    LOCALS.strings = strings;
+                    LOCALS.stringsEnd = stringsEnd;
+                    
+                    state.tokenize = getTagTokenizer(getMatcher(endblock), LOCALS);
+                    return state.tokenize(stream, state);
                 }
                 
                 //
-                // Tags
-                if ( tags && (struct = matchAny(stream, tags)) ) 
+                // Defs
+                if (defs && matchAny(stream, defs)) 
                 {
-                    var key = struct.key, val = struct.val, endtag = tagEnd[key];
-                    
-                    // regex given, get the matched group for the ending of this heredoc
-                    if ( is_number(endtag) )  endtag = val[endtag];
-                    
-                    state.tokenize = getTagTokenizer(getMatcher(endtag), T_TAG, style.tag);
-                    return state.tokenize(stream, state);
+                     state.lastToken = T_DEF;
+                    return style.defines;
+                }
+                
+                //
+                // Keywords
+                if (keywords && matchAny(stream, keywords)) 
+                {
+                    current = stream.current();
+                    state.lastToken = T_KEYWORD;
+                    return style.keyword;
+                }
+                
+                //
+                // Builtins
+                if (builtins && matchAny(stream, builtins)) 
+                {
+                    current = stream.current();
+                    state.lastToken = T_BUILTIN;
+                    return style.builtin;
+                }
+                
+                //
+                // General Identifiers, variables etc..
+                if (identifiers && matchAny(stream, identifiers)) 
+                {
+                    state.lastToken = T_IDENTIFIER;
+                    return style.identifier;
+                }
+                if (identifiers2 && matchAny(stream, identifiers2)) 
+                {
+                    state.lastToken = T_IDENTIFIER;
+                    return style.identifier2;
+                }
+                if (identifiers3 && matchAny(stream, identifiers3)) 
+                {
+                    state.lastToken = T_IDENTIFIER;
+                    return style.identifier3;
+                }
+                if (identifiers4 && matchAny(stream, identifiers4)) 
+                {
+                    state.lastToken = T_IDENTIFIER;
+                    return style.identifier4;
+                }
+                if (identifiers5 && matchAny(stream, identifiers5)) 
+                {
+                    state.lastToken = T_IDENTIFIER;
+                    return style.identifier5;
                 }
                 
                 // bypass
@@ -663,11 +880,8 @@
             
             var DEFAULT = LOCALS.DEFAULT,
                 basecolumn = LOCALS.basecolumn || 0,
-                
                 indentUnit = conf.indentUnit,
-                
-                style = grammar.style,
-                
+                //style = grammar.style,
                 hasIndent = grammar.hasIndent
             ;
             
@@ -737,13 +951,12 @@
             
             var DEFAULT = LOCALS.DEFAULT,
                 basecolumn = LOCALS.basecolumn || 0,
-                
                 indentUnit = conf.indentUnit
             ;
             
             return function(state, textAfter) {
-                
                 var ctx;
+                // TODO
                 return CodeMirror.Pass;
             };
         }

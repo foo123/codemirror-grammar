@@ -49,10 +49,11 @@ function a_function( &$v1, $v2 )
     global $int = 123;
     return $this->is_a_method();
 }
-                </textarea>
+        </textarea>
         <p></p>
 
         <script>
+        // <![CDATA[
         
         // 1. an almost complete php grammar in simple JSON format
         var php_grammar = {
@@ -174,8 +175,6 @@ function a_function( &$v1, $v2 )
         // 2. parse the grammar into a Codemirror syntax-highlight mode
         var php_mode = CodeMirrorGrammar.getMode(php_grammar);
         
-        //console.log(php_grammar);
-        
         // 3. register the mode with Codemirror
         CodeMirror.defineMode("php", php_mode);
         //CodeMirror.defineMIME("application/x-httpd-php", "php");
@@ -192,6 +191,7 @@ function a_function( &$v1, $v2 )
         });
         editor.setSize(null, 500);
         
+        // ]]>
         </script>
     </body>
 </html>

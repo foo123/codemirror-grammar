@@ -53,10 +53,11 @@ code {
   font-size: 80%;
   color: #418A8A;
 }
-                </textarea>
+        </textarea>
         <p></p>
 
         <script>
+        // <![CDATA[
         
         // 1. a partial css grammar in simple JSON format
         var css_grammar = {
@@ -216,8 +217,6 @@ code {
         // 2. parse the grammar into a Codemirror syntax-highlight mode
         var css_mode = CodeMirrorGrammar.getMode(css_grammar);
         
-        //console.log(php_grammar);
-        
         // 3. register the mode with Codemirror
         CodeMirror.defineMode("css", css_mode);
         //CodeMirror.defineMIME("text/css", "css");
@@ -234,6 +233,7 @@ code {
         });
         editor.setSize(null, 500);
         
+        // ]]>
         </script>
     </body>
 </html>

@@ -39,6 +39,8 @@
                 "block":       "string",
                 "block2":      "string",
                 "block3":      "string",
+                "block4":      "string",
+                "block5":      "string",
                 "delimiter":   "meta"
             },
 
@@ -53,6 +55,8 @@
             "blocks" : null,
             "blocks2" : null,
             "blocks3" : null,
+            "blocks4" : null,
+            "blocks5" : null,
             
             // general identifiers, in order of matching
             "identifiers" : null,
@@ -124,12 +128,14 @@
                 "atom":        "atom",
                 "keyword":     "keyword",
                 "builtin":     "builtin",
-                "attribute":   "attribute",
+                "operator":    "operator",
+                "assignment":  null,
                 "tag":         "tag",
                 "tag2":        "tag",
                 "tag3":        "tag",
-                "tag4":        "tag",
-                "tag5":        "tag",
+                "attribute":   "attribute",
+                "attribute2":  "attribute",
+                "attribute3":  "attribute",
                 "identifier":  "variable",
                 "identifier2": "variable",
                 "identifier3": "variable",
@@ -144,6 +150,8 @@
                 "block":       "string",
                 "block2":      "string",
                 "block3":      "string",
+                "block4":      "string",
+                "block5":      "string",
                 "delimiter":   "meta"
             },
 
@@ -158,13 +166,13 @@
             "blocks" : null,
             "blocks2" : null,
             "blocks3" : null,
+            "blocks4" : null,
+            "blocks5" : null,
             
             // general tags, in order of matching
             "tags" : null,
             "tags2" : null,
             "tags3" : null,
-            "tags4" : null,
-            "tags5" : null,
             
             "autoclose" : null,
             
@@ -205,6 +213,12 @@
             
             // builtin functions, constructs, etc..
             "builtins" : null,
+            
+            // assignments
+            "assignments" : null,
+            
+            // operators
+            "operators" : { "one" : null, "two" : null, "words" : null },
             
             // delimiters
             "delimiters" : { "one" : null, "two" : null, "three" : null },

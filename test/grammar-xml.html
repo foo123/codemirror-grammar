@@ -1,0 +1,175 @@
+<!doctype html>
+<html>
+    <head>
+        
+        <meta charset="utf-8">
+        
+        <link rel="stylesheet" href="codemirror/codemirror.css">
+        <link rel="stylesheet" href="codemirror/docs.css">
+        <style type="text/css">
+            .CodeMirror {border-top: 1px solid black; border-bottom: 1px solid black;}
+        </style>
+        
+        <script src="codemirror/codemirror.js"></script>
+        <script src="../build/codemirror_grammar.js"></script>
+        
+        <title>CodeMirror: Dynamic XML Grammar Demo</title>
+    </head>
+    <body>
+        
+        <h1>CodeMirror: Dynamic XML Grammar</h1>
+
+        <textarea id="code" name="code">
+&lt;html style="color: green"&gt;
+  &lt;!-- this is a comment --&gt;
+  &lt;head&gt;
+    &lt;title&gt;HTML Example&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    The indentation tries to be &lt;em&gt;somewhat &amp;quot;do what
+    I mean&amp;quot;&lt;/em&gt;... but might not match your style.
+  &lt;/body&gt;
+&lt;/html&gt;
+        </textarea>
+        <p></p>
+
+        <script>
+        // <![CDATA[
+        
+        // 1. a partial xml grammar in simple JSON format
+        var xml_grammar = {
+                
+                "type" : "markup-like",
+                
+                // prefix ID for regular expressions used in the grammar
+                "RegExpID" : "RegExp::",
+            
+                // lists of (simple/string) tokens to be grouped into one regular expression,
+                // else matched one by one, 
+                // this is usefull for speed fine-tuning the parser
+                "RegExpGroups" : {
+                    "operators" : { "one" : false, "two" : false, "words" : false },
+                    "delimiters" : { "one" : false, "two" : false, "three" : false }
+                },
+            
+                //
+                // style model
+            
+                // lang token type  -> CodeMirror (style) tag
+                // the mapping here is used to match the codemirror css demo color scheme
+                "style" : {
+                    "error":       "error",
+                    "comment":     "comment",
+                    "meta":        "meta",
+                    "defines":     "def",
+                    "atom":        "atom",
+                    "keyword":     "keyword",
+                    "builtin":     "builtin",
+                    "operator":    "operator",
+                    "tag":         "tag",
+                    "attribute":   "attribute",
+                    "number":      "number",
+                    "number2":     "number",
+                    "string":      "string",
+                    // cdata
+                    "block":       "atom",
+                    // meta
+                    "block2":       "meta"
+                },
+
+                
+                //
+                // lexical model
+                
+                // comments
+                "comments" : {
+                    "line" : null,
+                    "block" : [ "<!--", "-->" ]
+                },
+                
+                // blocks, 
+                // cdata block
+                "blocks" : [ "<![CDATA[", "]]>" ],
+                // meta block
+                "blocks2" : [ "RegExp::<\\?[\\w\\._\\-]", "?>" ],
+                
+                // tags, in order of matching
+                "tags" : [
+                    // start, end, tagname identifier
+                    [ "</", ">", "RegExp::[_a-zA-Z][_a-zA-Z0-9\\-]*" ],
+                    [ "<", ">", "RegExp::[_a-zA-Z][_a-zA-Z0-9\\-]*" ]
+                ],
+                
+                // attributes, in order of matching
+                "attributes" : "RegExp::[_a-zA-Z][_a-zA-Z0-9\\-]*",
+                
+                // assignments, eg attribute assignments
+                "assignments" : [ "=" ],
+            
+                // numbers, in order of matching
+                "numbers" : [
+                    // floats
+                    "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?",
+                    "RegExp::\\d+\\.\\d*",
+                    "RegExp::\\.\\d+",
+                    // integers
+                    // decimal
+                    "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?",
+                    // just zero
+                    "RegExp::0(?![\\dx])"
+                ],
+                
+                "numbers2" : [
+                    // hex colors
+                    "RegExp::#[0-9a-fA-F]+"
+                ],
+
+                // strings
+                // start, end of string (can be the matched regex group ie. 1 )
+                "strings" : [
+                    [ "\"" ],
+                    [ "'" ]
+                ],
+                
+                // atoms
+                "atoms" : [
+                    "RegExp::&[a-zA-Z][a-zA-Z0-9]*;",
+                    "RegExp::&#[\\d]+;",
+                    "RegExp::&#x[a-fA-F\\d]+;"
+                ],
+                
+                // meta
+                "meta" : null,
+
+                // defs
+                "defines" : null,
+
+                // keywords
+                "keywords" : null,
+                                      
+                // builtin functions, constructs, etc..
+                "builtins" : null
+        };
+        
+        // 2. parse the grammar into a Codemirror syntax-highlight mode
+        var xml_mode = CodeMirrorGrammar.getMode(xml_grammar);
+        
+        // 3. register the mode with Codemirror
+        CodeMirror.defineMode("xml", xml_mode);
+        
+        // use it!
+        var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+            lineNumbers: true,
+            matchBrackets: true,
+            mode: "xml",
+            indentUnit: 4,
+            indentWithTabs: false,
+            enterMode: "keep",
+            tabMode: "shift"
+        });
+        editor.setSize(null, 500);
+        
+        // ]]>
+        </script>
+    </body>
+</html>

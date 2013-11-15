@@ -10,8 +10,10 @@ A simple [CodeMirror](https://github.com/marijnh/codemirror) add-on
 to generate syntax-highlight parsers (codemirror modes) from a grammar specification in JSON format.
 
 
+__Support for markup-like grammars is added__  ( see for example [/test/grammar-xml.html](/test/grammar-xml.html) )
 
-__Indentation and markup-like grammars are not implemented fully yet__
+
+__Highlight Indentation is not implemented fully yet__
 
 
 
@@ -166,4 +168,13 @@ An example for PHP:
 Result:
 
 ![php-grammar](/test/grammar-php.png)
+
+
+###Other Working examples:
+
+![css-grammar](/test/grammar-css.png)
+
+![python-grammar](/test/grammar-python.png)
+
+![xml-grammar](/test/grammar-xml.png)
 
