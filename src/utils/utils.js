@@ -1,6 +1,6 @@
     
     // IE8- mostly
-    if ( !Array.prototype.indexOf ) 
+    /*if ( !Array.prototype.indexOf ) 
     {
         var Abs = Math.abs;
         
@@ -35,11 +35,9 @@
             }
             return -1;
         };
-    }
+    }*/
     
-    var ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
-    
-        slice = Array.prototype.slice, 
+    var slice = Array.prototype.slice, 
         
         hasKey = Object.prototype.hasOwnProperty,
         
@@ -49,8 +47,16 @@
             return ('number'==typeof(n) || n instanceof Number);
         },
         
+        is_char = function(c) {
+            return (c && ('string'==typeof(c) || c instanceof String) && 1 == c.length);
+        },
+        
         is_string = function(s) {
             return (s && ('string'==typeof(s) || s instanceof String));
+        },
+        
+        is_regex = function(r) {
+            return (r && ("[object RegExp]"==Str.call(r) || r instanceof RegExp));
         },
         
         is_array = function(a) {
@@ -114,52 +120,5 @@
                 }
             }
             return o;
-        },
-        
-        getRegexp = function(rstr, rxid)  {
-            if ( is_number(rstr) ) return rstr;
-            
-            var l = (rxid) ? rxid.length : 0;
-            
-            if ( l && rxid == rstr.substr(0, l) )
-                return new RegExp("^" + rstr.substr(l) + "");
-            
-            else
-                return rstr;
-        },
-        
-        getCombinedRegexp = function(words)  {
-            for (var i=0, l=words.length; i<l; i++) words[i] = words[i].replace(ESC, '\\$1');
-            return new RegExp("^((" + words.join(")|(") + "))\\b");
-        },
-        
-        streamMatchAny = function(stream, rs, eat) {
-            eat = (undef===eat) ? true : eat;
-            var i, l=rs.length;
-            for (i=0; i<l; i++)
-                if (stream.match(rs[i], eat)) return true;
-            return false;
-        },
-        
-        streamGetMatchAny = function(stream, rs, eat) {
-            eat = (undef===eat) ? true : eat;
-            var i, l=rs.length, m;
-            for (i=0; i<l; i++)
-            {
-                m = stream.match(rs[i], eat);
-                if (m) return is_string( rs[i] ) ? rs[i] : m;
-            }
-            return false;
-        },
-        
-        streamGetMatchAnyWithKey = function(stream, rs, eat) {
-            eat = (undef===eat) ? true : eat;
-            var i, l=rs.length, m;
-            for (i=0; i<l; i++)
-            {
-                m = stream.match(rs[i], eat);
-                if (m) return { key: i, val: (is_string( rs[i] ) ? rs[i] : m) };
-            }
-            return false;
         }
     ;

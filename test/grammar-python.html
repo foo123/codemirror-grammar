@@ -118,6 +118,16 @@ class ExampleClass(ParentClass):
                 // prefix ID for regular expressions used in the grammar
                 "RegExpID" : "RegExp::",
             
+                // lists of (simple/string) tokens to be grouped into one regular expression,
+                // else matched one by one, 
+                // this is usefull for speed fine-tuning the parser
+                "RegExpGroups" : {
+                    "keywords" : true,
+                    "builtins" : true,
+                    "operators" : { "one" : true, "two" : true, "words" : true },
+                    "delimiters" : { "one" : true, "two" : true, "three" : true }
+                },
+            
                 //
                 // style model
             
@@ -126,14 +136,14 @@ class ExampleClass(ParentClass):
                     "error":       "error",
                     "meta":        "meta",
                     "comment":     "comment",
-                    "atom":        "atom",
                     "keyword":     "keyword",
                     "builtin":     "builtin",
                     "operator":    "operator",
                     "identifier":  "variable",
-                    "identifier2": "meta",
                     "number":      "number",
-                    "string":      "string"
+                    "string":      "string",
+                    // heredocs
+                    "block":       "string"
                 },
 
                 
@@ -146,13 +156,17 @@ class ExampleClass(ParentClass):
                     "block" : null
                 },
                 
-                // identifiers, in order of matching
-                
+                // blocks, in this case heredocs
+                // begin and end of heredocs
+                "blocks" : [ 
+                    // if no end given, end is same as start of block
+                    [ "'''" ], 
+                    [ "\"\"\"" ], 
+                    [ "RegExp::([rubRUB]|(ur)|(br)|(UR)|(BR))?('{3}|\"{3})", 6 ] 
+                ],
                 
                 // general identifiers
-                "identifiers" : "RegExp::[_A-Za-z][_A-Za-z0-9]*" ,
-                // decorators
-                "identifiers2" : "RegExp::@[_A-Za-z][_A-Za-z0-9]*",
+                "identifiers" : "RegExp::[_A-Za-z][_A-Za-z0-9]*",
 
                 // numbers, in order of matching
                 "numbers" : [
@@ -175,9 +189,10 @@ class ExampleClass(ParentClass):
 
                 // strings
                 // start, end of string (can be the matched regex group ie. 1 )
-                "strings" : [ [ "RegExp::(['\"])", 1 ], ["RegExp::([rub]|(ur)|(br))?(['\"])", 4] ],
-                // begin and end of heredocs
-                "heredoc" : [ [ "'''" ], [ "\"\"\"" ], ["RegExp::([rub]|(ur)|(br))?('{3}|\"{3})", 4] ],
+                "strings" : [ 
+                    [ "RegExp::(['\"])", 1 ], 
+                    [ "RegExp::([rubRUB]|(ur)|(br)|(UR)|(BR))?(['\"])", 6 ] 
+                ],
                 
                 // operators
                 "operators" : {
@@ -193,8 +208,8 @@ class ExampleClass(ParentClass):
                     "three" : [ ">>=", "<<=", "//=", "**=" ] 
                 },
                 
-                // atoms
-                "atoms" : null,
+                // meta, decorators
+                "meta" : "RegExp::@[_A-Za-z][_A-Za-z0-9]*",
 
                 // keywords
                 "keywords" : [

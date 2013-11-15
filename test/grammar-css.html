@@ -64,6 +64,21 @@ code {
                 // prefix ID for regular expressions used in the grammar
                 "RegExpID" : "RegExp::",
             
+                // lists of (simple/string) tokens to be grouped into one regular expression,
+                // else matched one by one, 
+                // this is usefull for speed fine-tuning the parser
+                "RegExpGroups" : {
+                    "identifiers" : true,
+                    "identifiers2" : true,
+                    "atoms" : true,
+                    "meta" : true,
+                    "defines" : true,
+                    "keywords" : true,
+                    "builtins" : true,
+                    "operators" : { "one" : true, "two" : true, "words" : false },
+                    "delimiters" : { "one" : true, "two" : true, "three" : true }
+                },
+            
                 //
                 // style model
             
@@ -80,9 +95,9 @@ code {
                     "operator":    "operator",
                     "identifier":  "variable-2",
                     "identifier2": "keyword",
-                    "identifier3": "variable-2",
-                    "identifier4": "builtin",
-                    "identifier5": "qualifier",
+                    "identifier3": "builtin",
+                    "identifier4": "qualifier",
+                    "identifier5": "variable-2",
                     "number":      "number",
                     "number2":     "builtin",
                     "string":      "string"
@@ -110,13 +125,16 @@ code {
                     "!important",
                     "only"
                 ],
-                // general identifiers
-                "identifiers3" : "RegExp::[_A-Za-z][_A-Za-z0-9]*",
+                
                 // css ids
-                "identifiers4" : "RegExp::#[_A-Za-z][_A-Za-z0-9]*",
+                "identifiers3" : "RegExp::#[_A-Za-z][_A-Za-z0-9]*",
+                
                 // css classes
-                "identifiers5" : "RegExp::\\.[_A-Za-z][_A-Za-z0-9]*",
+                "identifiers4" : "RegExp::\\.[_A-Za-z][_A-Za-z0-9]*",
 
+                // general identifiers
+                "identifiers5" : "RegExp::[_A-Za-z][_A-Za-z0-9]*",
+                
                 // numbers, in order of matching
                 "numbers" : [
                     // floats
@@ -129,6 +147,7 @@ code {
                     // just zero
                     "RegExp::0(?![\\dx])(em|px|%|pt)?"
                 ],
+                
                 "numbers2" : [
                     // hex colors
                     "RegExp::#[0-9a-fA-F]+"

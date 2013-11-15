@@ -4,29 +4,26 @@
     var    
         //
         // token types
-        T_ERROR = -1,
-        T_DEFAULT = 0,
-        T_META = 1,
-        T_DEF = 2,
-        T_ATOM = 3,
-        T_KEYWORD = 4,
-        T_BUILTIN = 5,
-        T_COMMENT = 6,
-        T_OP = 7,
-        T_DELIM = 8,
-        T_STRING = 9,
-        T_HEREDOC = 10,
-        T_NUMBER = 11,
-        T_IDENTIFIER = 12,
-        T_PROPERTY = 13,
-        T_QUALIFIER = 14,
-        T_ATTRIBUTE = 15,
-        T_AUTOCLOSEDTAG = 16,
-        T_IMPLICITLYCLOSEDTAG = 17,
-        T_TAG = 18,
-        T_ENDTAG = 19,
-        T_CDATA = 20,
-        T_DOCTYPE = 21,
+        T_DEFAULT = 1,
+        T_META = 2,
+        T_COMMENT = 4,
+        T_DEF = 8,
+        T_ATOM = 16,
+        T_KEYWORD = 32,
+        T_BUILTIN = 64,
+        T_STRING = 128,
+        T_IDENTIFIER = 256,
+        T_NUMBER = 512,
+        T_TAG = 1024,
+        T_ATTRIBUTE = 2048,
+        T_ASSIGNMENT = 4096,
+        T_ENDTAG = 8192,
+        T_ERROR = 16384,
+        
+        T_BLOCK = 32768,
+        T_DOCTYPE = 65536,
+        T_OP = 131072,
+        T_DELIM = 262144,
         
         //
         // indentation types
@@ -40,6 +37,12 @@
         //
         // tokenizer types
         T_TOKENBASE = 200,
-        T_TOKENBASEML = 220,
-        T_TOKEN = 210
+        T_TOKENBASEML = 210,
+        T_TOKEN = 220,
+        
+        //
+        // matcher types
+        T_CHAR = 300,
+        T_STR = 310,
+        T_REGEX = 320
     ;

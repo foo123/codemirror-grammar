@@ -12,7 +12,7 @@
     var VERSION = "0.1";
     
     // IE8- mostly
-    if ( !Array.prototype.indexOf ) 
+    /*if ( !Array.prototype.indexOf ) 
     {
         var Abs = Math.abs;
         
@@ -47,11 +47,9 @@
             }
             return -1;
         };
-    }
+    }*/
     
-    var ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
-    
-        slice = Array.prototype.slice, 
+    var slice = Array.prototype.slice, 
         
         hasKey = Object.prototype.hasOwnProperty,
         
@@ -61,8 +59,16 @@
             return ('number'==typeof(n) || n instanceof Number);
         },
         
+        is_char = function(c) {
+            return (c && ('string'==typeof(c) || c instanceof String) && 1 == c.length);
+        },
+        
         is_string = function(s) {
             return (s && ('string'==typeof(s) || s instanceof String));
+        },
+        
+        is_regex = function(r) {
+            return (r && ("[object RegExp]"==Str.call(r) || r instanceof RegExp));
         },
         
         is_array = function(a) {
@@ -126,53 +132,6 @@
                 }
             }
             return o;
-        },
-        
-        getRegexp = function(rstr, rxid)  {
-            if ( is_number(rstr) ) return rstr;
-            
-            var l = (rxid) ? rxid.length : 0;
-            
-            if ( l && rxid == rstr.substr(0, l) )
-                return new RegExp("^" + rstr.substr(l) + "");
-            
-            else
-                return rstr;
-        },
-        
-        getCombinedRegexp = function(words)  {
-            for (var i=0, l=words.length; i<l; i++) words[i] = words[i].replace(ESC, '\\$1');
-            return new RegExp("^((" + words.join(")|(") + "))\\b");
-        },
-        
-        streamMatchAny = function(stream, rs, eat) {
-            eat = (undef===eat) ? true : eat;
-            var i, l=rs.length;
-            for (i=0; i<l; i++)
-                if (stream.match(rs[i], eat)) return true;
-            return false;
-        },
-        
-        streamGetMatchAny = function(stream, rs, eat) {
-            eat = (undef===eat) ? true : eat;
-            var i, l=rs.length, m;
-            for (i=0; i<l; i++)
-            {
-                m = stream.match(rs[i], eat);
-                if (m) return is_string( rs[i] ) ? rs[i] : m;
-            }
-            return false;
-        },
-        
-        streamGetMatchAnyWithKey = function(stream, rs, eat) {
-            eat = (undef===eat) ? true : eat;
-            var i, l=rs.length, m;
-            for (i=0; i<l; i++)
-            {
-                m = stream.match(rs[i], eat);
-                if (m) return { key: i, val: (is_string( rs[i] ) ? rs[i] : m) };
-            }
-            return false;
         }
     ;
     
@@ -183,6 +142,11 @@
             
             // prefix ID for regular expressions used in the grammar
             "RegExpID" : null,
+            
+            // lists of (simple/string) tokens to be grouped into one regular expression,
+            // else matched one by one, 
+            // this is usefull for speed fine-tuning the parser
+            "RegExpGroups" : null,
             
             //
             // style model
@@ -208,7 +172,9 @@
                 "string":      "string",
                 "string2":     "string",
                 "string3":     "string",
-                "heredoc":     "string",
+                "block":       "string",
+                "block2":      "string",
+                "block3":      "string",
                 "delimiter":   "meta"
             },
 
@@ -219,30 +185,39 @@
             // comments
             "comments" : { "line" : null, "block" : null },
             
-            // identifiers (ie. variables, function names, etc..)
-            // in order of matching
+            // general blocks, eg heredocs, cdata, etc..
+            "blocks" : null,
+            "blocks2" : null,
+            "blocks3" : null,
+            
+            // general identifiers, in order of matching
             "identifiers" : null,
             "identifiers2" : null,
             "identifiers3" : null,
             "identifiers4" : null,
             "identifiers5" : null,
             
-            "attributes" : null,
-            "properties" : null,
-            
             // numbers, in order of matching
             "numbers" : null,
             "numbers2" : null,
             "numbers3" : null,
 
-            // strings
+            // strings, in order of matching
             "strings" : null,
             "strings2" : null,
             "strings3" : null,
-            "heredoc" : null,
+            
+            // general attributes, in order of matching
+            //"attributes" : null,
+            //"attributes2" : null,
+            //"attributes3" : null,
+            //"properties" : null,
             
             // operators
             "operators" : { "one" : null, "two" : null, "words" : null },
+            
+            // delimiters
+            "delimiters" : { "one" : null, "two" : null, "three" : null },
             
             // atoms
             "atoms" : null,
@@ -259,9 +234,6 @@
             // builtin functions, constructs, etc..
             "builtins" : null,
             
-            // delimiters
-            "delimiters" : { "one" : null, "two" : null, "three" : null },
-            
             // how are scoped blocks defined (possible values are : indent startchars, dedent endchars, etc.. )
             "indent" : null
         },
@@ -270,6 +242,11 @@
             
             // prefix ID for regular expressions used in the grammar
             "RegExpID" : null,
+            
+            // lists of (simple/string) tokens to be grouped into one regular expression,
+            // else matched one by one, 
+            // this is usefull for speed fine-tuning the parser
+            "RegExpGroups" : null,
             
             //
             // style model
@@ -300,7 +277,9 @@
                 "string":      "string",
                 "string2":     "string",
                 "string3":     "string",
-                "cdata":       "string",
+                "block":       "string",
+                "block2":      "string",
+                "block3":      "string",
                 "delimiter":   "meta"
             },
 
@@ -311,24 +290,32 @@
             // comments
             "comments" : { "line" : null, "block" : null },
             
-            "autoclose" : null,
+            // general blocks, eg heredocs, cdata, etc..
+            "blocks" : null,
+            "blocks2" : null,
+            "blocks3" : null,
             
-            // tags, in order of matching
+            // general tags, in order of matching
             "tags" : null,
             "tags2" : null,
             "tags3" : null,
             "tags4" : null,
             "tags5" : null,
             
-            // identifiers, in order of matching
+            "autoclose" : null,
+            
+            // general attributes, in order of matching
+            "attributes" : null,
+            "attributes2" : null,
+            "attributes3" : null,
+            //"properties" : null,
+            
+            // general identifiers, in order of matching
             "identifiers" : null,
             "identifiers2" : null,
             "identifiers3" : null,
             "identifiers4" : null,
             "identifiers5" : null,
-            
-            "attributes" : null,
-            "properties" : null,
             
             // numbers, in order of matching
             "numbers" : null,
@@ -339,7 +326,6 @@
             "strings" : null,
             "strings2" : null,
             "strings3" : null,
-            "cdata" : null,
             
             // atoms
             "atoms" : null,
@@ -369,29 +355,26 @@
     var    
         //
         // token types
-        T_ERROR = -1,
-        T_DEFAULT = 0,
-        T_META = 1,
-        T_DEF = 2,
-        T_ATOM = 3,
-        T_KEYWORD = 4,
-        T_BUILTIN = 5,
-        T_COMMENT = 6,
-        T_OP = 7,
-        T_DELIM = 8,
-        T_STRING = 9,
-        T_HEREDOC = 10,
-        T_NUMBER = 11,
-        T_IDENTIFIER = 12,
-        T_PROPERTY = 13,
-        T_QUALIFIER = 14,
-        T_ATTRIBUTE = 15,
-        T_AUTOCLOSEDTAG = 16,
-        T_IMPLICITLYCLOSEDTAG = 17,
-        T_TAG = 18,
-        T_ENDTAG = 19,
-        T_CDATA = 20,
-        T_DOCTYPE = 21,
+        T_DEFAULT = 1,
+        T_META = 2,
+        T_COMMENT = 4,
+        T_DEF = 8,
+        T_ATOM = 16,
+        T_KEYWORD = 32,
+        T_BUILTIN = 64,
+        T_STRING = 128,
+        T_IDENTIFIER = 256,
+        T_NUMBER = 512,
+        T_TAG = 1024,
+        T_ATTRIBUTE = 2048,
+        T_ASSIGNMENT = 4096,
+        T_ENDTAG = 8192,
+        T_ERROR = 16384,
+        
+        T_BLOCK = 32768,
+        T_DOCTYPE = 65536,
+        T_OP = 131072,
+        T_DELIM = 262144,
         
         //
         // indentation types
@@ -405,8 +388,157 @@
         //
         // tokenizer types
         T_TOKENBASE = 200,
-        T_TOKENBASEML = 220,
-        T_TOKEN = 210
+        T_TOKENBASEML = 210,
+        T_TOKEN = 220,
+        
+        //
+        // matcher types
+        T_CHAR = 300,
+        T_STR = 310,
+        T_REGEX = 320
+    ;
+    
+    //
+    // matcher factories
+    var ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
+    
+        getRegexp = function(rstr, rxid)  {
+            if ( !rstr || is_number(rstr) ) return rstr;
+            
+            var l = (rxid) ? rxid.length : 0;
+            
+            if ( l && rxid == rstr.substr(0, l) )
+                return new RegExp("^" + rstr.substr(l) + "");
+            
+            else
+                return rstr;
+        },
+        
+        getCombinedRegexp = function(words)  {
+            for (var i=0, l=words.length; i<l; i++) words[i] = words[i].replace(ESC, '\\$1');
+            return new RegExp("^((" + words.join(")|(") + "))\\b");
+        },
+        
+        getMatcher = function(r, i) {
+            // get a fast customized matcher for < r >
+            
+            // manipulate the codemirror stream directly for speed,
+            // if codemirror code for stream matching changes,
+            // only this part of the code needs to be adapted
+            var matcher, strlen;
+            
+            i = i || 0;
+            
+            if (is_number(r))  
+            {
+                return r;
+            }
+            else if (is_char(r))
+            {
+                //strlen = r.length;
+                matcher = function(stream, eat/*, ignoreCase*/) {
+                    
+                    // manipulate the codemirror stream directly for speed
+                    eat = (false !== eat);
+                    var ch = r; //(ignoreCase) ? r.toLowerCase() : r;
+                    var sch = stream.string.charAt(stream.pos) || '';
+                    var sch2 = sch; //(ignoreCase) ? sch.toLowerCase() : sch;
+                    if (ch == sch) 
+                    {
+                        if (eat) stream.pos += 1;
+                        return { key: i, val: sch };
+                    }
+                    return false;
+                };
+                matcher.__type = T_CHAR;
+                return matcher;
+            }
+            else if (is_string(r))
+            {
+                strlen = r.length;
+                matcher = function(stream, eat/*, ignoreCase*/) {
+                    
+                    // manipulate the codemirror stream directly for speed
+                    eat = (false !== eat);
+                    var cased = r; //(ignoreCase) ? r.toLowerCase() : r;
+                    var str = stream.string.substr(stream.pos, strlen);
+                    var str2 = str; //(ignoreCase) ? str.toLowerCase() : str;
+                    if (cased == str2) 
+                    {
+                        if (eat) stream.pos += strlen;
+                        return { key: i, val: str };
+                    }
+                    return false;
+                };
+                matcher.__type = T_STR;
+                return matcher;
+            }
+            else if (is_regex(r))
+            {
+                matcher = function(stream, eat) {
+                    
+                    // manipulate the codemirror stream directly for speed
+                    eat = (false !== eat);
+                    var match = stream.string.slice(stream.pos).match(r);
+                    if (!match || match.index > 0) return false;
+                    if (eat) stream.pos += match[0].length;
+                    return { key: i, val: match };
+                };
+                matcher.__type = T_REGEX;
+                return matcher;
+            }
+            else
+            {
+                return r;
+            }
+            
+        },
+        
+        getMatchersFor = function(tokens, RegExpID, isRegExpGroup) {
+            if (isRegExpGroup)
+            {   
+                return [ getMatcher( getCombinedRegexp( make_array(tokens) ) ) ];
+            }
+            else
+            {
+                var tmp, i, l;
+                
+                tmp = make_array(tokens);
+                
+                for (i=0, l=tmp.length; i<l; i++)
+                    tmp[i] = getMatcher( getRegexp( tmp[i], RegExpID ), i );
+                
+                return tmp;
+            }
+        },
+        
+        getStartEndMatchersFor = function(tokens, RegExpID) {
+            var tmp, i, l, start, end, t1, t2;
+            
+            // build start/end mappings
+            start=[]; end=[];
+            tmp = make_array(tokens);
+            if ( !is_array(tmp[0]) ) tmp = [tmp]; // array of arrays
+            for (i=0, l=tmp.length; i<l; i++)
+            {
+                t1 = getMatcher( getRegexp( tmp[i][0], RegExpID ), i );
+                t2 = (tmp[i].length>1) ? getMatcher( getRegexp( tmp[i][1], RegExpID ), i ) : t1;
+                start.push( t1 );
+                end.push( t2 );
+            }
+            return { start: start, end: end };
+        },
+        
+        matchAny = function(stream, matchers, eat) {
+            var i, l=matchers.length, m;
+            for (i=0; i<l; i++)
+            {
+                // each one is a custom matcher in its own
+                m = matchers[i](stream, eat);
+                if (m) return m;
+            }
+            return false;
+        }
     ;
     
     //
@@ -419,7 +551,7 @@
         },
         
         getIndentation = function(state) {
-            return state.__indents[0];
+            return state.indents[0];
         },
         
         /*doIndent = function(state, type, col, current, conf_indentUnit) {
@@ -500,18 +632,18 @@
             }
         },*/
         
-        tokenBlockFactory = function(delim, type, style, nextTokenizer) {
+        getBlockTokenizer = function(endMatcher, type, style, nextTokenizer) {
             
             var tokenBlock;
             
-            if (null == delim)
+            if (null == endMatcher)
             {
                 // single line block, eg. single-line comment
                 tokenBlock = function(stream, state) {
                     
                     stream.skipToEnd();
                     state.tokenize = nextTokenizer || null;
-                    state.__lastToken = type;
+                    state.lastToken = type;
                     return style;
                 };
             }
@@ -522,7 +654,7 @@
                     var found = false;
                     while (!stream.eol()) 
                     {
-                        if (stream.match(delim)) 
+                        if (endMatcher(stream)) 
                         {
                             found = true;
                             break;
@@ -530,7 +662,7 @@
                         else stream.next();
                     }
                     if (found) state.tokenize = nextTokenizer || null;
-                    state.__lastToken = type;
+                    state.lastToken = type;
                     return style;
                 };
             }
@@ -539,24 +671,28 @@
             return tokenBlock;
         },
         
-        tokenStringFactory = function(delim, style, multiLineStrings, nextTokenizer) {
+        getStringTokenizer = function(endMatcher, style, multiLineStrings, nextTokenizer) {
             
             var tokenString = function(stream, state) {
                 
                 var escaped = false, next, end = false;
-                while ((next = stream.next()) != null) 
+                while (!stream.eol()) 
                 {
-                    if (next == delim && !escaped) 
+                    if (endMatcher(stream) && !escaped) 
                     {
                         end = true; 
                         break;
+                    }
+                    else
+                    {
+                        next = stream.next();
                     }
                     escaped = !escaped && next == "\\";
                 }
                 if (end || !(escaped || multiLineStrings)) 
                     state.tokenize = nextTokenizer || null;
                 
-                state.__lastToken = T_STRING;
+                state.lastToken = T_STRING;
                 return style;
             };
             
@@ -564,49 +700,69 @@
             return tokenString;
         },
         
-        tokenTagFactory = function(delim, style, nextTokenizer) {
+        getTagTokenizer = function(endMatcher, LOCALS, nextTokenizer) {
             
-            var DEFAULT = null;
+            var DEFAULT = LOCALS.DEFAULT,
+                style = LOCALS.style;
             
             var tokenTag = function(stream, state) {
+                var struct, endblock;
+                
+                var lastToken = state.lastToken;
                 
                 if (stream.eatSpace())
                 {
-                    state.__lastToken = T_DEFAULT;
+                    state.lastToken = T_DEFAULT;
                     return DEFAULT;
                 }
                 
-                if (stream.match(delim))
+                if (stream.match(/[a-zA-Z_][a-zA-Z_0-9\-]*\b/))
                 {
-                    state.tokenize = nextTokenizer || null;
-                    state.__lastToken = T_ENDTAG;
+                    state.lastToken = T_TAG;
                     return style.tag;
                 }
-                else if (stream.match(attributes))
+                else if (
+                    ( (T_TAG | T_ATTRIBUTE | T_STRING | T_DEFAULT) & lastToken ) 
+                    && endMatcher(stream)
+                )
                 {
-                    state.__lastToken = T_ATTRIBUTE;
+                    state.tokenize = nextTokenizer || null;
+                    state.lastToken = T_ENDTAG;
+                    return style.tag;
+                }
+                else if (
+                    ( T_DEFAULT & lastToken )
+                    && attributes && matchAny(stream, attributes)
+                )
+                {
+                    state.lastToken = T_ATTRIBUTE;
                     return style.attribute;
                 }
-                else if (stream.match(attribute_assignments))
+                else if (
+                    ( T_ATTRIBUTE & lastToken )
+                    && assignments && matchAny(stream, assignments)
+                )
                 {
-                    type = "equals";
-                    state.__lastToken = T_DEFAULT;
+                    state.lastToken = T_ASSIGNMENT;
                     return DEFAULT;
                 }
-                else if (stream.match(strings))
+                else if (
+                    ( T_ASSIGNMENT & lastToken )
+                    && strings && matchAny(strings)
+                )
                 {
-                    state.tokenize = tokenStringFactory(stringEnd, style.string, false, tokenTag);
+                    state.tokenize = getStringTokenizer(getMatcher(stringEnd), style.string, false, tokenTag);
                     return state.tokenize(stream, state);
                 }
-                state.__lastToken = T_DEFAULT;
-                return DEFAULT;
+                state.lastToken = T_ERROR;
+                return style.error;
             };
             
             tokenTag.__type = T_TAG;
             return tokenTag;
         },
 
-        tokenDoctypeFactory = function(style, nextTokenizer) {
+        getDoctypeTokenizer = function(style, nextTokenizer) {
             
             var tokenDoctype = function(stream, state) {
                 
@@ -638,7 +794,7 @@
                     }
                 }
                 
-                state.__lastToken = T_DOCTYPE;
+                state.lastToken = T_DOCTYPE;
                 return style;
             };
             
@@ -654,11 +810,15 @@
                
                 style = grammar.style,
                 
-                heredoc = grammar.heredoc.start || null,
-                heredocEnd = grammar.heredoc.end || null,
-                
                 comments = grammar.comments.start || null,
                 commentsEnd = grammar.comments.end || null,
+                
+                blocks = grammar.blocks.start || null,
+                blocksEnd = grammar.blocks.end || null,
+                blocks2 = grammar.blocks2.start || null,
+                blocks2End = grammar.blocks2.end || null,
+                blocks3 = grammar.blocks3.start || null,
+                blocks3End = grammar.blocks3.end || null,
                 
                 strings = grammar.strings.start || null,
                 stringsEnd = grammar.strings.end || null,
@@ -677,13 +837,13 @@
                 numbers2 = grammar.numbers2,
                 numbers3 = grammar.numbers3,
                 
-                operators = grammar.operators,
                 atoms = grammar.atoms,
                 meta = grammar.meta,
                 defs = grammar.defines,
                 keywords = grammar.keywords,
                 builtins = grammar.builtins,
-                delims = grammar.delimiters.
+                operators = grammar.operators,
+                delims = grammar.delimiters,
                 
                 hasIndent = grammar.hasIndent,
                 indent = grammar.indent//,
@@ -697,200 +857,171 @@
             
             var tokenBase = function(stream, state) {
                 
-                var i, l, current, struct, 
+                var i, l, current, struct, endblock,
                     ctx, ctxOffset, lineOffset;
-                
-                // Handle indentation changes
-                // start of line
-                /*if (hasIndent && stream.sol()) 
-                {
-                    ctx = getIndentation(state);
-                    ctxOffset = ctx.offset;
-                    if (stream.eatSpace()) 
-                    {
-                        lineOffset = stream.indentation();
-                        
-                        if (lineOffset > ctxOffset) 
-                        {
-                            LOCALS.indentInfo = T_DO_INDENT;
-                        } 
-                        else if (lineOffset < ctxOffset) 
-                        {
-                            LOCALS.indentInfo = T_DO_DEDENT;
-                        }
-                        return ret(state, T_DEFAULT, DEFAULT);
-                    } 
-                    else 
-                    {
-                        if (ctxOffset > 0) 
-                        {
-                            doDedent(state, stream);
-                        }
-                    }
-                }*/
                 
                 if (stream.eatSpace()) 
                 {
-                    state.__lastToken = T_DEFAULT;
+                    state.lastToken = T_DEFAULT;
                     return DEFAULT;
                 }
                 
                 //
-                // Heredocs
-                if (heredoc) 
+                // Comments
+                if ( comments && (struct = matchAny(stream, comments)) ) 
                 {
-                    struct = streamGetMatchAnyWithKey(stream, heredoc);
-                    if (struct)
-                    {
-                        var key = struct.key, val = struct.val, endheredoc = heredocEnd[key];
-                        
-                        // regex given, get the matched group for the ending of this heredoc
-                        if ( is_number(endheredoc) )  endheredoc = val[endheredoc];
-                        
-                        state.tokenize = tokenBlockFactory(endheredoc, T_HEREDOC, style.heredoc);
-                        return state.tokenize(stream, state);
-                    }
+                    endblock = commentsEnd[struct.key];
+                    
+                    // regex given, get the matched group for the ending of this comment
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_COMMENT, style.comment);
+                    return state.tokenize(stream, state);
                 }
                 
                 //
-                // Comments
-                if (comments) 
+                // Blocks, eg. heredocs
+                if ( blocks && (struct = matchAny(stream, blocks)) ) 
                 {
-                    struct = streamGetMatchAnyWithKey(stream, comments);
-                    if (struct)
-                    {
-                        var key = struct.key, val = struct.val, endcomment = commentsEnd[key];
-                        
-                        // regex given, get the matched group for the ending of this comment
-                        if ( is_number(endcomment) )  endcomment = val[endcomment];
-                        
-                        state.tokenize = tokenBlockFactory(endcomment, T_COMMENT, style.comment);
-                        return state.tokenize(stream, state);
-                    }
+                    endblock = blocksEnd[ struct.key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block);
+                    return state.tokenize(stream, state);
+                }
+                if ( blocks2 && (struct = matchAny(stream, blocks2)) ) 
+                {
+                    endblock = blocks2End[ struct.key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block2);
+                    return state.tokenize(stream, state);
+                }
+                if ( blocks3 && (struct = matchAny(stream, blocks3)) ) 
+                {
+                    endblock = blocks3End[ struct.key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block3);
+                    return state.tokenize(stream, state);
                 }
                 
                 //
                 // Numbers
-                if (numbers && streamMatchAny(stream, numbers))
+                if (numbers && matchAny(stream, numbers))
                 {
-                    state.__lastToken = T_NUMBER;
+                    state.lastToken = T_NUMBER;
                     return style.number;
                 }
-                if (numbers2 && streamMatchAny(stream, numbers2))
+                if (numbers2 && matchAny(stream, numbers2))
                 {
-                    state.__lastToken = T_NUMBER;
+                    state.lastToken = T_NUMBER;
                     return style.number2;
                 }
-                if (numbers3 && streamMatchAny(stream, numbers3))
+                if (numbers3 && matchAny(stream, numbers3))
                 {
-                    state.__lastToken = T_NUMBER;
+                    state.lastToken = T_NUMBER;
                     return style.number3;
                 }
                 
                 
                 //
                 // Strings
-                if (strings) 
+                if ( strings && (struct = matchAny(stream, strings)) ) 
                 {
-                    struct = streamGetMatchAnyWithKey(stream, strings);
-                    if (struct)
-                    {
-                        var key = struct.key, val = struct.val, endstring = stringsEnd[key];
-                        
-                        // regex given, get the matched group for the ending of this string
-                        if ( is_number(endstring) )  endstring = val[endstring];
-                        
-                        state.tokenize = tokenStringFactory(endstring, style.string, multiLineStrings);
-                        return state.tokenize(stream, state);
-                    }
+                    endblock = stringsEnd[struct.key];
+                    
+                    // regex given, get the matched group for the ending of this string
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getStringTokenizer(getMatcher(endblock), style.string, multiLineStrings);
+                    return state.tokenize(stream, state);
                 }
-                if (strings2) 
+                if ( strings2 && (struct = matchAny(stream, strings2)) ) 
                 {
-                    struct = streamGetMatchAnyWithKey(stream, strings2);
-                    if (struct)
-                    {
-                        var key = struct.key, val = struct.val, endstring = strings2End[key];
-                        
-                        // regex given, get the matched group for the ending of this string
-                        if ( is_number(endstring) )  endstring = val[endstring];
-                        
-                        state.tokenize = tokenStringFactory(endstring, style.string2, multiLineStrings);
-                        return state.tokenize(stream, state);
-                    }
+                    endblock = strings2End[struct.key];
+                    
+                    // regex given, get the matched group for the ending of this string
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getStringTokenizer(getMatcher(endblock), style.string2, multiLineStrings);
+                    return state.tokenize(stream, state);
                 }
-                if (strings3) 
+                if ( strings3 && (struct = matchAny(stream, strings3)) ) 
                 {
-                    struct = streamGetMatchAnyWithKey(stream, strings3);
-                    if (struct)
-                    {
-                        var key = struct.key, val = struct.val, endstring = strings3End[key];
-                        
-                        // regex given, get the matched group for the ending of this string
-                        if ( is_number(endstring) )  endstring = val[endstring];
-                        
-                        state.tokenize = tokenStringFactory(endstring, style.string3, multiLineStrings);
-                        return state.tokenize(stream, state);
-                    }
+                    endblock = strings3End[struct.key];
+                    
+                    // regex given, get the matched group for the ending of this string
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getStringTokenizer(getMatcher(endblock), style.string3, multiLineStrings);
+                    return state.tokenize(stream, state);
                 }
                 
                 //
                 // multi-character Delimiters
                 if ( delims &&
-                    (   (delims.three && stream.match(delims.three)) || 
-                        (delims.two && stream.match(delims.two))    )
+                    (   (delims.three && matchAny(stream, delims.three)) || 
+                        (delims.two && matchAny(stream, delims.two))    )
                 ) 
                 {
-                    state.__lastToken = T_DELIM;
+                    state.lastToken = T_DELIM;
                     return style.delimiter;
                 }
                 
                 //
                 // Operators
                 if ( operators && 
-                    (   ( operators.two && stream.match(operators.two) ) ||
-                        ( operators.one && stream.match(operators.one) ) ||
-                        ( operators.words && stream.match(operators.words) )    )
+                    (   ( operators.two && matchAny(stream, operators.two) ) ||
+                        ( operators.one && matchAny(stream, operators.one) ) ||
+                        ( operators.words && matchAny(stream, operators.words) )    )
                 )
                 {
-                    state.__lastToken = T_OP;
+                    state.lastToken = T_OP;
                     return style.operator;
                 }
                 
                 //
                 // single-character Delimiters
-                if (delims && delims.one && stream.match(delims.one)) 
+                if (delims && delims.one && matchAny(stream, delims.one)) 
                 {
-                    state.__lastToken = T_DELIM;
+                    state.lastToken = T_DELIM;
                     return style.delimiter;
                 }
                 
                 //
                 // Atoms
-                if (atoms && stream.match(atoms)) 
+                if (atoms && matchAny(stream, atoms)) 
                 {
-                    state.__lastToken = T_ATOM;
+                    state.lastToken = T_ATOM;
                     return style.atom;
                 }
                 
                 //
                 // Meta
-                if (meta && stream.match(meta)) 
+                if (meta && matchAny(stream, meta)) 
                 {
-                    state.__lastToken = T_META;
+                    state.lastToken = T_META;
                     return style.meta;
                 }
                 
                 //
                 // Defs
-                if (defs && stream.match(defs)) 
+                if (defs && matchAny(stream, defs)) 
                 {
-                     state.__lastToken = T_DEF;
+                     state.lastToken = T_DEF;
                     return style.defines;
                }
                 
                 //
                 // Keywords
-                if (keywords && stream.match(keywords)) 
+                if (keywords && matchAny(stream, keywords)) 
                 {
                     current = stream.current();
                     /*if (blockKeywords[current]) 
@@ -898,13 +1029,13 @@
                         state.__indentType = T_BLOCK_LEVEL;
                         state.__indentDelim = "keyword_" + current;
                     }*/
-                    state.__lastToken = T_KEYWORD;
+                    state.lastToken = T_KEYWORD;
                     return style.keyword;
                 }
                 
                 //
                 // Builtins
-                if (builtins && stream.match(builtins)) 
+                if (builtins && matchAny(stream, builtins)) 
                 {
                     current = stream.current();
                     /*if (blockKeywords[current])
@@ -912,41 +1043,41 @@
                         state.__indentType = T_BLOCK_LEVEL;
                         state.__indentDelim = "builtin_" + current;
                     }*/
-                    state.__lastToken = T_BUILTIN;
+                    state.lastToken = T_BUILTIN;
                     return style.builtin;
                 }
                 
                 //
-                // identifiers, variables etc..
-                if (identifiers && streamMatchAny(stream, identifiers)) 
+                // General Identifiers, variables etc..
+                if (identifiers && matchAny(stream, identifiers)) 
                 {
-                    state.__lastToken = T_IDENTIFIER;
+                    state.lastToken = T_IDENTIFIER;
                     return style.identifier;
                 }
-                if (identifiers2 && streamMatchAny(stream, identifiers2)) 
+                if (identifiers2 && matchAny(stream, identifiers2)) 
                 {
-                    state.__lastToken = T_IDENTIFIER;
+                    state.lastToken = T_IDENTIFIER;
                     return style.identifier2;
                 }
-                if (identifiers3 && streamMatchAny(stream, identifiers3)) 
+                if (identifiers3 && matchAny(stream, identifiers3)) 
                 {
-                    state.__lastToken = T_IDENTIFIER;
+                    state.lastToken = T_IDENTIFIER;
                     return style.identifier3;
                 }
-                if (identifiers4 && streamMatchAny(stream, identifiers4)) 
+                if (identifiers4 && matchAny(stream, identifiers4)) 
                 {
-                    state.__lastToken = T_IDENTIFIER;
+                    state.lastToken = T_IDENTIFIER;
                     return style.identifier4;
                 }
-                if (identifiers5 && streamMatchAny(stream, identifiers5)) 
+                if (identifiers5 && matchAny(stream, identifiers5)) 
                 {
-                    state.__lastToken = T_IDENTIFIER;
+                    state.lastToken = T_IDENTIFIER;
                     return style.identifier5;
                 }
                 
                 // bypass
                 stream.next();
-                state.__lastToken = T_DEFAULT;
+                state.lastToken = T_DEFAULT;
                 return DEFAULT;
             };
             
@@ -963,106 +1094,106 @@
 
                 if (stream.eatSpace()) 
                 {
-                    state.__lastToken = T_DEFAULT;
+                    state.lastToken = T_DEFAULT;
                     return DEFAULT;
                 }
                 
                 //
-                // Cdata
-                if (cdata) 
+                // Comments
+                if ( comments && (struct = matchAny(stream, comments)) ) 
                 {
-                    struct = streamGetMatchAnyWithKey(stream, cdata);
-                    if (struct)
-                    {
-                        var key = struct.key, val = struct.val, endcdata = cdataEnd[key];
-                        
-                        // regex given, get the matched group for the ending of this heredoc
-                        if ( is_number(endcdata) )  endcdata = val[endcdata];
-                        
-                        state.tokenize = tokenBlockFactory(endcdata, T_CDATA, style.cdata);
-                        return state.tokenize(stream, state);
-                   }
+                    var key = struct.key, val = struct.val, endcomment = commentsEnd[key];
+                    
+                    // regex given, get the matched group for the ending of this comment
+                    if ( is_number(endcomment) )  endcomment = val[endcomment];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endcomment), T_COMMENT, style.comment);
+                    return state.tokenize(stream, state);
                 }
                 
                 //
-                // Comments
-                if (comments) 
+                // Blocks, eg. cdata
+                if ( blocks && (struct = matchAny(stream, blocks)) ) 
                 {
-                    struct = streamGetMatchAnyWithKey(stream, comments);
-                    if (struct)
-                    {
-                        var key = struct.key, val = struct.val, endcomment = commentsEnd[key];
-                        
-                        // regex given, get the matched group for the ending of this comment
-                        if ( is_number(endcomment) )  endcomment = val[endcomment];
-                        
-                        state.tokenize = tokenBlockFactory(endcomment, T_COMMENT, style.comment);
-                        return state.tokenize(stream, state);
-                    }
+                    endblock = blocksEnd[ struct.key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block);
+                    return state.tokenize(stream, state);
+                }
+                if ( blocks2 && (struct = matchAny(stream, blocks2)) ) 
+                {
+                    endblock = blocks2End[ struct.key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block2);
+                    return state.tokenize(stream, state);
+                }
+                if ( blocks3 && (struct = matchAny(stream, blocks3)) ) 
+                {
+                    endblock = blocks3End[ struct.key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endblock) )  endblock = struct.val[endblock];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endblock), T_BLOCK, style.block3);
+                    return state.tokenize(stream, state);
                 }
                 
                 //
                 // Doctype, etc..
-                if (doctype) 
+                if ( doctype && (struct = matchAny(stream, doctype)) ) 
                 {
-                    struct = streamGetMatchAnyWithKey(stream, doctype);
-                    if (struct)
-                    {
-                        var key = struct.key, val = struct.val, enddoctype = doctypeEnd[key];
-                        
-                        // regex given, get the matched group for the ending of this heredoc
-                        if ( is_number(enddoctype) )  enddoctype = val[enddoctype];
-                        
-                        state.tokenize = tokenDoctypeFactory(style.doctype);
-                        return state.tokenize(stream, state);
-                    }
+                    var key = struct.key, val = struct.val, enddoctype = doctypeEnd[key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(enddoctype) )  enddoctype = val[enddoctype];
+                    
+                    state.tokenize = getDoctypeTokenizer(style.doctype);
+                    return state.tokenize(stream, state);
                 }
                 
                 //
                 // Meta
-                if (meta) 
+                if ( meta && (struct = matchAny(stream, meta)) ) 
                 {
-                    struct = streamGetMatchAnyWithKey(stream, meta);
-                    if (struct)
-                    {
-                        var key = struct.key, val = struct.val, endmeta = metaEnd[key];
-                        
-                        // regex given, get the matched group for the ending of this heredoc
-                        if ( is_number(endmeta) )  endmeta = val[endmeta];
-                        
-                        state.tokenize = tokenBlockFactory(endmeta, T_META, style.meta);
-                        return state.tokenize(stream, state);
-                    }
-                }
-                
-                //
-                // Tags
-                if (tags) 
-                {
-                    struct = streamGetMatchAnyWithKey(stream, tags);
-                    if (struct)
-                    {
-                        var key = struct.key, val = struct.val, endtag = tagEnd[key];
-                        
-                        // regex given, get the matched group for the ending of this heredoc
-                        if ( is_number(endtag) )  endtag = val[endtag];
-                        
-                        state.tokenize = tokenTagFactory(endtag, T_TAG, style.tag);
-                        return state.tokenize(stream, state);
-                    }
+                    var key = struct.key, val = struct.val, endmeta = metaEnd[key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endmeta) )  endmeta = val[endmeta];
+                    
+                    state.tokenize = getBlockTokenizer(getMatcher(endmeta), T_META, style.meta);
+                    return state.tokenize(stream, state);
                 }
                 
                 //
                 // Atoms
-                if (atoms && stream.match(atoms)) 
+                if (atoms && matchAny(stream, atoms)) 
                 {
-                    state.__lastToken = T_ATOM;
+                    state.lastToken = T_ATOM;
                     return style.atom;
+                }
+                
+                //
+                // Tags
+                if ( tags && (struct = matchAny(stream, tags)) ) 
+                {
+                    var key = struct.key, val = struct.val, endtag = tagEnd[key];
+                    
+                    // regex given, get the matched group for the ending of this heredoc
+                    if ( is_number(endtag) )  endtag = val[endtag];
+                    
+                    state.tokenize = getTagTokenizer(getMatcher(endtag), T_TAG, style.tag);
+                    return state.tokenize(stream, state);
                 }
                 
                 // bypass
                 stream.next();
-                state.__lastToken = T_DEFAULT;
+                state.lastToken = T_DEFAULT;
                 return DEFAULT;
             };
             
@@ -1079,15 +1210,7 @@
                 
                 style = grammar.style,
                 
-                hasIndent = grammar.hasIndent//,
-                /*indent = grammar.indent,
-                indentBlockLevel = indent["block-level"] || {},
-                indentStatementLevel = indent["statement-level"] || {},
-                indentBlockDelims = indentBlockLevel.delims.start || null,
-                indentBlockDelimsEnd = indentBlockLevel.delims.end || null,
-                mainIndentBlockStartDelim = (indentBlockDelims) ? indentBlockDelims[0] : null,
-                mainIndentBlockEndDelim = (indentBlockDelimsEnd) ? indentBlockDelimsEnd[0] : null,
-                indentStatementDelims = indentStatementLevel.delims || []*/
+                hasIndent = grammar.hasIndent
             ;
             
             var tokenMain = function(stream, state) {
@@ -1101,7 +1224,7 @@
                 if ( null == state.tokenize ) state.tokenize = tokenBase;
                 
                 codeStyle = state.tokenize(stream, state);
-                tokType = state.__lastToken;
+                tokType = state.lastToken;
                 current = stream.current();
                 
                 return codeStyle;
@@ -1152,29 +1275,18 @@
             return tokenMain;
         },
         
-        indentationFactory = function(tokenBase, grammar, LOCALS, conf/*, parserConf*/) {
+        indentationFactory = function(LOCALS, conf/*, parserConf*/) {
             
             var DEFAULT = LOCALS.DEFAULT,
                 basecolumn = LOCALS.basecolumn || 0,
                 
-                indentUnit = conf.indentUnit,
-                
-                hasIndent = grammar.hasIndent
+                indentUnit = conf.indentUnit
             ;
             
             return function(state, textAfter) {
                 
                 var ctx;
-                
                 return CodeMirror.Pass;
-                /*
-                if ( !hasIndent ) return CodeMirror.Pass;
-                
-                if ( state.tokenize != tokenBase )
-                    return (state.tokenize.__type == T_STRING ? CodeMirror.Pass : 0;
-                
-                ctx = getIndentation(state);
-                return ctx.offset;*/
             };
         }
     ;
@@ -1203,7 +1315,7 @@
         },
         
         parseProgrammingLikeGrammar : function(grammar, base) {
-            var i, l, tmp, t1, t2, RegExpID, start, end;
+            var t1, t2, i, l, RegExpID, RegExpGroups;
             
             // grammar is parsed, return it
             // avoid reparsing already parsed grammars
@@ -1213,202 +1325,82 @@
             RegExpID = grammar.RegExpID || null;
             grammar.RegExpID = null;
             delete grammar.RegExpID;
+            RegExpGroups = grammar.RegExpGroups || {};
+            grammar.RegExpGroups = null;
+            delete grammar.RegExpGroups;
             
             // comments
             if (grammar.comments)
             {
-                // build comments start/end mappings
-                start=[]; end=[];
-                
+                t1 = [];
                 if (grammar.comments.line)  
                 {
-                    tmp = make_array(grammar.comments.line);
+                    t2 = make_array(grammar.comments.line);
                     
-                    for (i=0, l=tmp.length; i<l; i++)
-                    {
-                        start.push( getRegexp( tmp[i], RegExpID ) );
-                        end.push( null );
-                    }
+                    for (i=0, l=t2.length; i<l; i++)
+                        t1.push( [t2[i], null] );
                 }
                 if (grammar.comments.block)  
                 {
-                    tmp = make_array(grammar.comments.block);
-                    
-                    t1 = getRegexp( tmp[0], RegExpID );
-                    t2 = (tmp[1]) ? getRegexp( tmp[1], RegExpID ) : t1;
-                    start.push( t1 );
-                    end.push( t2 );
+                    t2 = make_array(grammar.comments.block);
+                    t1.push( [t2[0], ((t2[1]) ? t2[1] : t2[0])] );
                 }
-                
-                grammar.comments = { start: start, end: end };
+                grammar.comments = (t1.length) ? getStartEndMatchersFor(t1, RegExpID) : { start: null, end: null };
             }
             else
             {
                 grammar.comments = { start: null, end: null };
             }
                 
-            // heredocs
-            if (grammar.heredoc && grammar.heredoc.length)
-            {
-                // build heredoc start/end mappings
-                start=[]; end=[];
-                
-                tmp = grammar.heredoc;
-                
-                if (is_array(tmp) && !is_array(tmp[0])) tmp = [tmp];  // array of arrays
-                
-                for (i=0, l=tmp.length; i<l; i++)
-                {
-                    t1 = getRegexp( tmp[i][0], RegExpID );
-                    t2 = (tmp[i][1]) ? getRegexp( tmp[i][1], RegExpID ) : t1;
-                    start.push( t1 );
-                    end.push( t2 );
-                }
-                
-                grammar.heredoc = {start: start, end: end};
-            }
-            else
-            {
-                grammar.heredoc = {start: null, end: null};
-            }
+            // general blocks ( 3 types ), eg. heredocs, cdata, etc..
+            grammar.blocks = (grammar.blocks) ? getStartEndMatchersFor(grammar.blocks, RegExpID) : { start: null, end: null };
+            grammar.blocks2 = (grammar.blocks2) ? getStartEndMatchersFor(grammar.blocks2, RegExpID) : { start: null, end: null };
+            grammar.blocks3 = (grammar.blocks3) ? getStartEndMatchersFor(grammar.blocks3, RegExpID) : { start: null, end: null };
             
-            // identifiers
-            if (grammar.identifiers)
-            {
-                tmp = make_array(grammar.identifiers);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.identifiers = tmp
-            }
-            if (grammar.identifiers2)
-            {
-                tmp = make_array(grammar.identifiers2);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.identifiers2 = tmp
-            }
-            if (grammar.identifiers3)
-            {
-                tmp = make_array(grammar.identifiers3);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.identifiers3 = tmp;
-            }
-            if (grammar.identifiers4)
-            {
-                tmp = make_array(grammar.identifiers4);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.identifiers4 = tmp;
-            }
-            if (grammar.identifiers5)
-            {
-                tmp = make_array(grammar.identifiers5);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.identifiers5 = tmp;
-            }
+            // strings ( 3 string types )
+            grammar.strings = (grammar.strings) ? getStartEndMatchersFor(grammar.strings, RegExpID) : { start: null, end: null };
+            grammar.strings2 = (grammar.strings2) ? getStartEndMatchersFor(grammar.strings2, RegExpID) : { start: null, end: null };
+            grammar.strings3 = (grammar.strings3) ? getStartEndMatchersFor(grammar.strings3, RegExpID) : { start: null, end: null };
             
-            // numbers
-            if (grammar.numbers)
-            {
-                tmp = make_array(grammar.numbers);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.numbers = tmp;
-            }
-            if (grammar.numbers2)
-            {
-                tmp = make_array(grammar.numbers2);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.numbers2 = tmp;
-            }
-            if (grammar.numbers3)
-            {
-                tmp = make_array(grammar.numbers3);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.numbers3 = tmp;
-            }
+            // general identifiers ( 5 identifier types ), eg. variables, etc..
+            grammar.identifiers = (grammar.identifiers) ? getMatchersFor(grammar.identifiers, RegExpID, RegExpGroups['identifiers']) : null;
+            grammar.identifiers2 = (grammar.identifiers2) ? getMatchersFor(grammar.identifiers2, RegExpID, RegExpGroups['identifiers2']) : null;
+            grammar.identifiers3 = (grammar.identifiers3) ? getMatchersFor(grammar.identifiers3, RegExpID, RegExpGroups['identifiers3']) : null;
+            grammar.identifiers4 = (grammar.identifiers4) ? getMatchersFor(grammar.identifiers4, RegExpID, RegExpGroups['identifiers4']) : null;
+            grammar.identifiers5 = (grammar.identifiers5) ? getMatchersFor(grammar.identifiers5, RegExpID, RegExpGroups['identifiers5']) : null;
             
-            // strings
-            if (grammar.strings) 
-            {
-                // build strings start/end mappings
-                start=[]; end=[];
-                tmp = make_array(grammar.strings);
-                if ( !is_array(tmp[0]) ) tmp = [tmp]; // array of arrays
-                for (i=0, l=tmp.length; i<l; i++)
-                {
-                    t1 = getRegexp( tmp[i][0], RegExpID );
-                    t2 = (tmp[i][1]) ? getRegexp( tmp[i][1], RegExpID ) : t1;
-                    start.push( t1 );
-                    end.push( t2 );
-                }
-                grammar.strings = { start: start, end: end };
-            }
-            else
-            {
-                grammar.strings = { start: null, end: null };
-            }
-            if (grammar.strings2) 
-            {
-                // build strings start/end mappings
-                start=[]; end=[];
-                tmp = make_array(grammar.strings2);
-                if ( !is_array(tmp[0]) ) tmp = [tmp]; // array of arrays
-                for (i=0, l=tmp.length; i<l; i++)
-                {
-                    t1 = getRegexp( tmp[i][0], RegExpID );
-                    t2 = (tmp[i][1]) ? getRegexp( tmp[i][1], RegExpID ) : t1;
-                    start.push( t1 );
-                    end.push( t2 );
-                }
-                grammar.strings2 = { start: start, end: end };
-            }
-            else
-            {
-                grammar.strings2 = { start: null, end: null };
-            }
-            if (grammar.strings3) 
-            {
-                // build strings start/end mappings
-                start=[]; end=[];
-                tmp = make_array(grammar.strings3);
-                if ( !is_array(tmp[0]) ) tmp = [tmp]; // array of arrays
-                for (i=0, l=tmp.length; i<l; i++)
-                {
-                    t1 = getRegexp( tmp[i][0], RegExpID );
-                    t2 = (tmp[i][1]) ? getRegexp( tmp[i][1], RegExpID ) : t1;
-                    start.push( t1 );
-                    end.push( t2 );
-                }
-                grammar.strings3 = { start: start, end: end };
-            }
-            else
-            {
-                grammar.strings3 = { start: null, end: null };
-            }
+            // numbers ( 3 number types )
+            grammar.numbers = (grammar.numbers) ? getMatchersFor(grammar.numbers, RegExpID, RegExpGroups['numbers']) : null;
+            grammar.numbers2 = (grammar.numbers2) ? getMatchersFor(grammar.numbers2, RegExpID, RegExpGroups['numbers2']) : null;
+            grammar.numbers3 = (grammar.numbers3) ? getMatchersFor(grammar.numbers3, RegExpID, RegExpGroups['numbers3']) : null;
             
-            // keywords, builtins, etc..
-            grammar.atoms = (grammar.atoms) ? getCombinedRegexp( make_array(grammar.atoms) ) : null;
-            grammar.defines = (grammar.defines) ? getCombinedRegexp( make_array(grammar.defines) ) : null;
-            grammar.meta = (grammar.meta) ? getCombinedRegexp( make_array(grammar.meta) ) : null;
-            grammar.keywords = (grammar.keywords) ? getCombinedRegexp( make_array(grammar.keywords) ) : null;
-            grammar.builtins = (grammar.builtins) ? getCombinedRegexp( make_array(grammar.builtins) ) : null;
+            // atoms
+            grammar.atoms = (grammar.atoms) ? getMatchersFor(grammar.atoms, RegExpID, RegExpGroups['atoms']) : null;
+            
+            // meta
+            grammar.meta = (grammar.meta) ? getMatchersFor(grammar.meta, RegExpID, RegExpGroups['meta']) : null;
+            
+            // defs
+            grammar.defines = (grammar.defines) ? getMatchersFor(grammar.defines, RegExpID, RegExpGroups['defines']) : null;
+            
+            // keywords
+            grammar.keywords = (grammar.keywords) ? getMatchersFor(grammar.keywords, RegExpID, RegExpGroups['keywords']) : null;
+            
+            // builtins
+            grammar.builtins = (grammar.builtins) ? getMatchersFor(grammar.builtins, RegExpID, RegExpGroups['builtins']) : null;
+            
         
             // operators
             if (!grammar.operators) grammar.operators = { one: null, two: null, words: null };
-            grammar.operators.one = (grammar.operators.one) ? getCombinedRegexp( make_array(grammar.operators.one) ) : null;
-            grammar.operators.two = (grammar.operators.two) ? getCombinedRegexp( make_array(grammar.operators.two) ) : null;
-            grammar.operators.words = (grammar.operators.words) ? getCombinedRegexp( make_array(grammar.operators.words) ) : null;
+            grammar.operators.one = (grammar.operators.one) ? getMatchersFor(grammar.operators.one, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['one']) : null;
+            grammar.operators.two = (grammar.operators.two) ? getMatchersFor(grammar.operators.two, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['two']) : null;
+            grammar.operators.words = (grammar.operators.words) ? getMatchersFor(grammar.operators.words, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['words']) : null;
             
             // delimiters
             if (!grammar.delimiters) grammar.delimiters = { one: null, two: null, three: null };
-            grammar.delimiters.one = (grammar.delimiters.one) ? getCombinedRegexp( make_array(grammar.delimiters.one) ) : null;
-            grammar.delimiters.two = (grammar.delimiters.two) ? getCombinedRegexp( make_array(grammar.delimiters.two) ) : null;
-            grammar.delimiters.three = (grammar.delimiters.three) ? getCombinedRegexp( make_array(grammar.delimiters.three) ) : null;
+            grammar.delimiters.one = (grammar.delimiters.one) ? getMatchersFor(grammar.delimiters.one, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['one']) : null;
+            grammar.delimiters.two = (grammar.delimiters.two) ? getMatchersFor(grammar.delimiters.two, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['two']) : null;
+            grammar.delimiters.three = (grammar.delimiters.three) ? getMatchersFor(grammar.delimiters.three, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['three']) : null;
             
             // types of indent etc..
             var hasIndent = false;
@@ -1487,7 +1479,7 @@
             // build the grammar, ( grammar can extend another 'base' grammar ;) )
             grammar = self.parseGrammar(grammar, base);
             
-            //console.log(grammar);
+            console.log(grammar);
             
             var LOCALS = { 
                 // default return code, when no match found
@@ -1500,7 +1492,7 @@
                 
                 var tokenBase = tokenBaseFactory(grammar, LOCALS, conf, parserConf);
                 var token = tokenFactory(tokenBase, grammar, LOCALS, conf, parserConf);
-                var indentation = indentationFactory(tokenBase, grammar, LOCALS, conf, parserConf);
+                var indentation = indentationFactory(LOCALS, conf, parserConf);
                 
                 // return the parser for the grammar
                 parser =  {
@@ -1510,7 +1502,8 @@
                           LOCALS.basecolumn = basecolumn;
                           
                           return {
-                              tokenize : null
+                              tokenize : null,
+                              lastToken : T_DEFAULT
                           };
                     },
                     

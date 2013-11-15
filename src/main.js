@@ -23,7 +23,7 @@
         },
         
         parseProgrammingLikeGrammar : function(grammar, base) {
-            var i, l, tmp, t1, t2, RegExpID, start, end;
+            var t1, t2, i, l, RegExpID, RegExpGroups;
             
             // grammar is parsed, return it
             // avoid reparsing already parsed grammars
@@ -33,202 +33,82 @@
             RegExpID = grammar.RegExpID || null;
             grammar.RegExpID = null;
             delete grammar.RegExpID;
+            RegExpGroups = grammar.RegExpGroups || {};
+            grammar.RegExpGroups = null;
+            delete grammar.RegExpGroups;
             
             // comments
             if (grammar.comments)
             {
-                // build comments start/end mappings
-                start=[]; end=[];
-                
+                t1 = [];
                 if (grammar.comments.line)  
                 {
-                    tmp = make_array(grammar.comments.line);
+                    t2 = make_array(grammar.comments.line);
                     
-                    for (i=0, l=tmp.length; i<l; i++)
-                    {
-                        start.push( getRegexp( tmp[i], RegExpID ) );
-                        end.push( null );
-                    }
+                    for (i=0, l=t2.length; i<l; i++)
+                        t1.push( [t2[i], null] );
                 }
                 if (grammar.comments.block)  
                 {
-                    tmp = make_array(grammar.comments.block);
-                    
-                    t1 = getRegexp( tmp[0], RegExpID );
-                    t2 = (tmp[1]) ? getRegexp( tmp[1], RegExpID ) : t1;
-                    start.push( t1 );
-                    end.push( t2 );
+                    t2 = make_array(grammar.comments.block);
+                    t1.push( [t2[0], ((t2[1]) ? t2[1] : t2[0])] );
                 }
-                
-                grammar.comments = { start: start, end: end };
+                grammar.comments = (t1.length) ? getStartEndMatchersFor(t1, RegExpID) : { start: null, end: null };
             }
             else
             {
                 grammar.comments = { start: null, end: null };
             }
                 
-            // heredocs
-            if (grammar.heredoc && grammar.heredoc.length)
-            {
-                // build heredoc start/end mappings
-                start=[]; end=[];
-                
-                tmp = grammar.heredoc;
-                
-                if (is_array(tmp) && !is_array(tmp[0])) tmp = [tmp];  // array of arrays
-                
-                for (i=0, l=tmp.length; i<l; i++)
-                {
-                    t1 = getRegexp( tmp[i][0], RegExpID );
-                    t2 = (tmp[i][1]) ? getRegexp( tmp[i][1], RegExpID ) : t1;
-                    start.push( t1 );
-                    end.push( t2 );
-                }
-                
-                grammar.heredoc = {start: start, end: end};
-            }
-            else
-            {
-                grammar.heredoc = {start: null, end: null};
-            }
+            // general blocks ( 3 types ), eg. heredocs, cdata, etc..
+            grammar.blocks = (grammar.blocks) ? getStartEndMatchersFor(grammar.blocks, RegExpID) : { start: null, end: null };
+            grammar.blocks2 = (grammar.blocks2) ? getStartEndMatchersFor(grammar.blocks2, RegExpID) : { start: null, end: null };
+            grammar.blocks3 = (grammar.blocks3) ? getStartEndMatchersFor(grammar.blocks3, RegExpID) : { start: null, end: null };
             
-            // identifiers
-            if (grammar.identifiers)
-            {
-                tmp = make_array(grammar.identifiers);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.identifiers = tmp
-            }
-            if (grammar.identifiers2)
-            {
-                tmp = make_array(grammar.identifiers2);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.identifiers2 = tmp
-            }
-            if (grammar.identifiers3)
-            {
-                tmp = make_array(grammar.identifiers3);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.identifiers3 = tmp;
-            }
-            if (grammar.identifiers4)
-            {
-                tmp = make_array(grammar.identifiers4);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.identifiers4 = tmp;
-            }
-            if (grammar.identifiers5)
-            {
-                tmp = make_array(grammar.identifiers5);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.identifiers5 = tmp;
-            }
+            // strings ( 3 string types )
+            grammar.strings = (grammar.strings) ? getStartEndMatchersFor(grammar.strings, RegExpID) : { start: null, end: null };
+            grammar.strings2 = (grammar.strings2) ? getStartEndMatchersFor(grammar.strings2, RegExpID) : { start: null, end: null };
+            grammar.strings3 = (grammar.strings3) ? getStartEndMatchersFor(grammar.strings3, RegExpID) : { start: null, end: null };
             
-            // numbers
-            if (grammar.numbers)
-            {
-                tmp = make_array(grammar.numbers);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.numbers = tmp;
-            }
-            if (grammar.numbers2)
-            {
-                tmp = make_array(grammar.numbers2);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.numbers2 = tmp;
-            }
-            if (grammar.numbers3)
-            {
-                tmp = make_array(grammar.numbers3);
-                for (i=0, l=tmp.length; i<l; i++)
-                    tmp[i] = getRegexp( tmp[i], RegExpID );
-                grammar.numbers3 = tmp;
-            }
+            // general identifiers ( 5 identifier types ), eg. variables, etc..
+            grammar.identifiers = (grammar.identifiers) ? getMatchersFor(grammar.identifiers, RegExpID, RegExpGroups['identifiers']) : null;
+            grammar.identifiers2 = (grammar.identifiers2) ? getMatchersFor(grammar.identifiers2, RegExpID, RegExpGroups['identifiers2']) : null;
+            grammar.identifiers3 = (grammar.identifiers3) ? getMatchersFor(grammar.identifiers3, RegExpID, RegExpGroups['identifiers3']) : null;
+            grammar.identifiers4 = (grammar.identifiers4) ? getMatchersFor(grammar.identifiers4, RegExpID, RegExpGroups['identifiers4']) : null;
+            grammar.identifiers5 = (grammar.identifiers5) ? getMatchersFor(grammar.identifiers5, RegExpID, RegExpGroups['identifiers5']) : null;
             
-            // strings
-            if (grammar.strings) 
-            {
-                // build strings start/end mappings
-                start=[]; end=[];
-                tmp = make_array(grammar.strings);
-                if ( !is_array(tmp[0]) ) tmp = [tmp]; // array of arrays
-                for (i=0, l=tmp.length; i<l; i++)
-                {
-                    t1 = getRegexp( tmp[i][0], RegExpID );
-                    t2 = (tmp[i][1]) ? getRegexp( tmp[i][1], RegExpID ) : t1;
-                    start.push( t1 );
-                    end.push( t2 );
-                }
-                grammar.strings = { start: start, end: end };
-            }
-            else
-            {
-                grammar.strings = { start: null, end: null };
-            }
-            if (grammar.strings2) 
-            {
-                // build strings start/end mappings
-                start=[]; end=[];
-                tmp = make_array(grammar.strings2);
-                if ( !is_array(tmp[0]) ) tmp = [tmp]; // array of arrays
-                for (i=0, l=tmp.length; i<l; i++)
-                {
-                    t1 = getRegexp( tmp[i][0], RegExpID );
-                    t2 = (tmp[i][1]) ? getRegexp( tmp[i][1], RegExpID ) : t1;
-                    start.push( t1 );
-                    end.push( t2 );
-                }
-                grammar.strings2 = { start: start, end: end };
-            }
-            else
-            {
-                grammar.strings2 = { start: null, end: null };
-            }
-            if (grammar.strings3) 
-            {
-                // build strings start/end mappings
-                start=[]; end=[];
-                tmp = make_array(grammar.strings3);
-                if ( !is_array(tmp[0]) ) tmp = [tmp]; // array of arrays
-                for (i=0, l=tmp.length; i<l; i++)
-                {
-                    t1 = getRegexp( tmp[i][0], RegExpID );
-                    t2 = (tmp[i][1]) ? getRegexp( tmp[i][1], RegExpID ) : t1;
-                    start.push( t1 );
-                    end.push( t2 );
-                }
-                grammar.strings3 = { start: start, end: end };
-            }
-            else
-            {
-                grammar.strings3 = { start: null, end: null };
-            }
+            // numbers ( 3 number types )
+            grammar.numbers = (grammar.numbers) ? getMatchersFor(grammar.numbers, RegExpID, RegExpGroups['numbers']) : null;
+            grammar.numbers2 = (grammar.numbers2) ? getMatchersFor(grammar.numbers2, RegExpID, RegExpGroups['numbers2']) : null;
+            grammar.numbers3 = (grammar.numbers3) ? getMatchersFor(grammar.numbers3, RegExpID, RegExpGroups['numbers3']) : null;
             
-            // keywords, builtins, etc..
-            grammar.atoms = (grammar.atoms) ? getCombinedRegexp( make_array(grammar.atoms) ) : null;
-            grammar.defines = (grammar.defines) ? getCombinedRegexp( make_array(grammar.defines) ) : null;
-            grammar.meta = (grammar.meta) ? getCombinedRegexp( make_array(grammar.meta) ) : null;
-            grammar.keywords = (grammar.keywords) ? getCombinedRegexp( make_array(grammar.keywords) ) : null;
-            grammar.builtins = (grammar.builtins) ? getCombinedRegexp( make_array(grammar.builtins) ) : null;
+            // atoms
+            grammar.atoms = (grammar.atoms) ? getMatchersFor(grammar.atoms, RegExpID, RegExpGroups['atoms']) : null;
+            
+            // meta
+            grammar.meta = (grammar.meta) ? getMatchersFor(grammar.meta, RegExpID, RegExpGroups['meta']) : null;
+            
+            // defs
+            grammar.defines = (grammar.defines) ? getMatchersFor(grammar.defines, RegExpID, RegExpGroups['defines']) : null;
+            
+            // keywords
+            grammar.keywords = (grammar.keywords) ? getMatchersFor(grammar.keywords, RegExpID, RegExpGroups['keywords']) : null;
+            
+            // builtins
+            grammar.builtins = (grammar.builtins) ? getMatchersFor(grammar.builtins, RegExpID, RegExpGroups['builtins']) : null;
+            
         
             // operators
             if (!grammar.operators) grammar.operators = { one: null, two: null, words: null };
-            grammar.operators.one = (grammar.operators.one) ? getCombinedRegexp( make_array(grammar.operators.one) ) : null;
-            grammar.operators.two = (grammar.operators.two) ? getCombinedRegexp( make_array(grammar.operators.two) ) : null;
-            grammar.operators.words = (grammar.operators.words) ? getCombinedRegexp( make_array(grammar.operators.words) ) : null;
+            grammar.operators.one = (grammar.operators.one) ? getMatchersFor(grammar.operators.one, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['one']) : null;
+            grammar.operators.two = (grammar.operators.two) ? getMatchersFor(grammar.operators.two, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['two']) : null;
+            grammar.operators.words = (grammar.operators.words) ? getMatchersFor(grammar.operators.words, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['words']) : null;
             
             // delimiters
             if (!grammar.delimiters) grammar.delimiters = { one: null, two: null, three: null };
-            grammar.delimiters.one = (grammar.delimiters.one) ? getCombinedRegexp( make_array(grammar.delimiters.one) ) : null;
-            grammar.delimiters.two = (grammar.delimiters.two) ? getCombinedRegexp( make_array(grammar.delimiters.two) ) : null;
-            grammar.delimiters.three = (grammar.delimiters.three) ? getCombinedRegexp( make_array(grammar.delimiters.three) ) : null;
+            grammar.delimiters.one = (grammar.delimiters.one) ? getMatchersFor(grammar.delimiters.one, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['one']) : null;
+            grammar.delimiters.two = (grammar.delimiters.two) ? getMatchersFor(grammar.delimiters.two, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['two']) : null;
+            grammar.delimiters.three = (grammar.delimiters.three) ? getMatchersFor(grammar.delimiters.three, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['three']) : null;
             
             // types of indent etc..
             var hasIndent = false;
@@ -307,7 +187,7 @@
             // build the grammar, ( grammar can extend another 'base' grammar ;) )
             grammar = self.parseGrammar(grammar, base);
             
-            //console.log(grammar);
+            console.log(grammar);
             
             var LOCALS = { 
                 // default return code, when no match found
@@ -320,7 +200,7 @@
                 
                 var tokenBase = tokenBaseFactory(grammar, LOCALS, conf, parserConf);
                 var token = tokenFactory(tokenBase, grammar, LOCALS, conf, parserConf);
-                var indentation = indentationFactory(tokenBase, grammar, LOCALS, conf, parserConf);
+                var indentation = indentationFactory(LOCALS, conf, parserConf);
                 
                 // return the parser for the grammar
                 parser =  {
@@ -330,7 +210,8 @@
                           LOCALS.basecolumn = basecolumn;
                           
                           return {
-                              tokenize : null
+                              tokenize : null,
+                              lastToken : T_DEFAULT
                           };
                     },
                     

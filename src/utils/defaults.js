@@ -7,6 +7,11 @@
             // prefix ID for regular expressions used in the grammar
             "RegExpID" : null,
             
+            // lists of (simple/string) tokens to be grouped into one regular expression,
+            // else matched one by one, 
+            // this is usefull for speed fine-tuning the parser
+            "RegExpGroups" : null,
+            
             //
             // style model
             
@@ -31,7 +36,9 @@
                 "string":      "string",
                 "string2":     "string",
                 "string3":     "string",
-                "heredoc":     "string",
+                "block":       "string",
+                "block2":      "string",
+                "block3":      "string",
                 "delimiter":   "meta"
             },
 
@@ -42,30 +49,39 @@
             // comments
             "comments" : { "line" : null, "block" : null },
             
-            // identifiers (ie. variables, function names, etc..)
-            // in order of matching
+            // general blocks, eg heredocs, cdata, etc..
+            "blocks" : null,
+            "blocks2" : null,
+            "blocks3" : null,
+            
+            // general identifiers, in order of matching
             "identifiers" : null,
             "identifiers2" : null,
             "identifiers3" : null,
             "identifiers4" : null,
             "identifiers5" : null,
             
-            "attributes" : null,
-            "properties" : null,
-            
             // numbers, in order of matching
             "numbers" : null,
             "numbers2" : null,
             "numbers3" : null,
 
-            // strings
+            // strings, in order of matching
             "strings" : null,
             "strings2" : null,
             "strings3" : null,
-            "heredoc" : null,
+            
+            // general attributes, in order of matching
+            //"attributes" : null,
+            //"attributes2" : null,
+            //"attributes3" : null,
+            //"properties" : null,
             
             // operators
             "operators" : { "one" : null, "two" : null, "words" : null },
+            
+            // delimiters
+            "delimiters" : { "one" : null, "two" : null, "three" : null },
             
             // atoms
             "atoms" : null,
@@ -82,9 +98,6 @@
             // builtin functions, constructs, etc..
             "builtins" : null,
             
-            // delimiters
-            "delimiters" : { "one" : null, "two" : null, "three" : null },
-            
             // how are scoped blocks defined (possible values are : indent startchars, dedent endchars, etc.. )
             "indent" : null
         },
@@ -93,6 +106,11 @@
             
             // prefix ID for regular expressions used in the grammar
             "RegExpID" : null,
+            
+            // lists of (simple/string) tokens to be grouped into one regular expression,
+            // else matched one by one, 
+            // this is usefull for speed fine-tuning the parser
+            "RegExpGroups" : null,
             
             //
             // style model
@@ -123,7 +141,9 @@
                 "string":      "string",
                 "string2":     "string",
                 "string3":     "string",
-                "cdata":       "string",
+                "block":       "string",
+                "block2":      "string",
+                "block3":      "string",
                 "delimiter":   "meta"
             },
 
@@ -134,24 +154,32 @@
             // comments
             "comments" : { "line" : null, "block" : null },
             
-            "autoclose" : null,
+            // general blocks, eg heredocs, cdata, etc..
+            "blocks" : null,
+            "blocks2" : null,
+            "blocks3" : null,
             
-            // tags, in order of matching
+            // general tags, in order of matching
             "tags" : null,
             "tags2" : null,
             "tags3" : null,
             "tags4" : null,
             "tags5" : null,
             
-            // identifiers, in order of matching
+            "autoclose" : null,
+            
+            // general attributes, in order of matching
+            "attributes" : null,
+            "attributes2" : null,
+            "attributes3" : null,
+            //"properties" : null,
+            
+            // general identifiers, in order of matching
             "identifiers" : null,
             "identifiers2" : null,
             "identifiers3" : null,
             "identifiers4" : null,
             "identifiers5" : null,
-            
-            "attributes" : null,
-            "properties" : null,
             
             // numbers, in order of matching
             "numbers" : null,
@@ -162,7 +190,6 @@
             "strings" : null,
             "strings2" : null,
             "strings3" : null,
-            "cdata" : null,
             
             // atoms
             "atoms" : null,
