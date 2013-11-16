@@ -3,13 +3,12 @@
     // matcher factories
     var ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
     
-        byLength = function(a, b) { return a.length - b.length },
+        byLength = function(a, b) { return b.length - a.length },
         
-        isRegExp = function(s, id) {
+        isRegexp = function(s, id) {
             return (
                 is_string(id) && is_string(s) && id.length &&
-                id.length <= s.length && 
-                id == s.substr(0, id.length)
+                id.length <= s.length && id == s.substr(0, id.length)
             );
         },
         
@@ -18,7 +17,7 @@
             
             var l = (rid) ? (rid.length||0) : 0;
             
-            if ( l && rid == r.substr(0, l) /*isRegExp(r, rid)*/ )
+            if ( l && rid == r.substr(0, l) /*isRegexp(r, rid)*/ )
                 return new RegExp("^(" + r.substr(l) + ")");
             
             else
@@ -94,7 +93,8 @@
             else if (T_NULLMATCHER == this.type)
             {
                 this.match = function(stream, eat) { 
-                    if (false !== eat) stream.skipToEnd();
+                    // manipulate the codemirror stream directly for speed
+                    if (false !== eat) stream.pos = stream.string.length; // skipToEnd
                     return { key: key, val: "" };
                 };
             }
@@ -116,6 +116,7 @@
             
             if (0 >= l)
             {
+                // no matchers
                 this.match = function(stream, eat) { return false; };
             }
             else if (1 == l)
@@ -196,31 +197,18 @@
             
             key = key || 0;
             
-            if (is_number(r))  
-            {
-                return r;
-            }
-            else if (is_char(r))
-            {
-                return new SimpleMatcher(T_CHARMATCHER, r, key);
-            }
-            else if (is_string(r))
-            {
-                return new SimpleMatcher(T_STRMATCHER, r, key);
-            }
-            else if (is_regex(r))
-            {
-                return new SimpleMatcher(T_REGEXMATCHER, r, key);
-            }
-            else if (null == r)
-            {
-                return new SimpleMatcher(T_NULLMATCHER, r, key);
-            }
-            else
-            {
-                return r;
-            }
+            if ( is_number(r) )  return r;
             
+            else if ( null == r )  return new SimpleMatcher(T_NULLMATCHER, r, key);
+            
+            else if ( is_char(r) )  return new SimpleMatcher(T_CHARMATCHER, r, key);
+            
+            else if ( is_string(r) ) return new SimpleMatcher(T_STRMATCHER, r, key);
+            
+            else if ( is_regex(r) )  return new SimpleMatcher(T_REGEXMATCHER, r, key);
+            
+            // unknown
+            return r;
         },
         
         getCompositeMatcher = function(tokens, RegExpID, isRegExpGroup) {
@@ -229,10 +217,10 @@
             
             tmp = make_array(tokens);
             l = tmp.length;
-            l2 = (l>>1) + 1;
             
-            if (isRegExpGroup)
+            if ( isRegExpGroup )
             {   
+                l2 = (l>>1) + 1;
                 // check if tokens can be combined in one regular expression
                 // if they do not contain sub-arrays or regular expressions
                 for (i=0; i<=l2; i++)
@@ -242,7 +230,7 @@
                         array_of_arrays = true;
                         break;
                     }
-                    else if ( isRegExp( tmp[i], RegExpID ) || isRegExp( tmp[l-1-i], RegExpID ) )
+                    else if ( isRegexp( tmp[i], RegExpID ) || isRegexp( tmp[l-1-i], RegExpID ) )
                     {
                         has_regexs = true;
                         break;
@@ -250,7 +238,7 @@
                 }
             }
             
-            if (isRegExpGroup && !(array_of_arrays || has_regexs))
+            if ( isRegExpGroup && !(array_of_arrays || has_regexs) )
             {   
                 return new CompositeMatcher( [ getSimpleMatcher( getCombinedRegexp( tmp ) ) ] );
             }
@@ -274,13 +262,12 @@
             // build start/end mappings
             start=[]; end=[];
             tmp = make_array(tokens);
-            if ( !is_array(tmp[0]) ) tmp = [tmp]; // array of arrays
+            if ( !is_array(tmp[0]) ) tmp = [ tmp ]; // array of arrays
             for (i=0, l=tmp.length; i<l; i++)
             {
                 t1 = getSimpleMatcher( getRegexp( tmp[i][0], RegExpID ), i );
                 t2 = (tmp[i].length>1) ? getSimpleMatcher( getRegexp( tmp[i][1], RegExpID ), i ) : t1;
-                start.push( t1 );
-                end.push( t2 );
+                start.push( t1 );  end.push( t2 );
             }
             return new BlockMatcher(start, end);
         }

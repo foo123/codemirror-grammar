@@ -51,7 +51,6 @@ var contemplate_grammar = {
         //
         // lexical model
         
-        // identifiers, in order of matching
         // contemplate variables
         "identifiers" : "RegExp::\\$[_A-Za-z][_A-Za-z0-9]*",
 
@@ -98,7 +97,8 @@ var contemplate_grammar = {
         // builtin functions, constructs, etc..
         "builtins" : [
             "%now", "%date", "%ldate", "%count", "%sprintf",
+            "%trim", "%ltrim", "%rtrim",
             "%htmltable", "%htmlselect", "%concat",
-            "%s", "%n", "%f", "%l"
+            "%s", "%n", "%f", "%l", "%q", "%dq"
         ]
 };

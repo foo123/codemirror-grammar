@@ -162,6 +162,8 @@
                 "strings",
                 "strings2",
                 "strings3",
+                "strings4",
+                "strings5",
                 "keywords",
                 "builtins",
                 "operators",
@@ -200,6 +202,8 @@
                 "string":      "string",
                 "string2":     "string",
                 "string3":     "string",
+                "string4":     "string",
+                "string5":     "string",
                 "block":       "string",
                 "block2":      "string",
                 "block3":      "string",
@@ -222,22 +226,24 @@
             "blocks4" : null,
             "blocks5" : null,
             
-            // general identifiers, in order of matching
+            // general identifiers
             "identifiers" : null,
             "identifiers2" : null,
             "identifiers3" : null,
             "identifiers4" : null,
             "identifiers5" : null,
             
-            // numbers, in order of matching
+            // numbers
             "numbers" : null,
             "numbers2" : null,
             "numbers3" : null,
 
-            // strings, in order of matching
+            // general strings
             "strings" : null,
             "strings2" : null,
             "strings3" : null,
+            "strings4" : null,
+            "strings5" : null,
             
             // general attributes, in order of matching
             //"attributes" : null,
@@ -296,6 +302,8 @@
                 "strings",
                 "strings2",
                 "strings3",
+                "strings4",
+                "strings5",
                 "meta",
                 "tags",
                 "tags2",
@@ -341,6 +349,8 @@
                 "string":      "string",
                 "string2":     "string",
                 "string3":     "string",
+                "string4":     "string",
+                "string5":     "string",
                 "block":       "string",
                 "block2":      "string",
                 "block3":      "string",
@@ -363,35 +373,37 @@
             "blocks4" : null,
             "blocks5" : null,
             
-            // general tags, in order of matching
+            // general tags
             "tags" : null,
             "tags2" : null,
             "tags3" : null,
             
             "autoclose" : null,
             
-            // general attributes, in order of matching
+            // general attributes
             "attributes" : null,
             "attributes2" : null,
             "attributes3" : null,
             //"properties" : null,
             
-            // general identifiers, in order of matching
+            // general identifiers
             "identifiers" : null,
             "identifiers2" : null,
             "identifiers3" : null,
             "identifiers4" : null,
             "identifiers5" : null,
             
-            // numbers, in order of matching
+            // numbers
             "numbers" : null,
             "numbers2" : null,
             "numbers3" : null,
 
-            // strings, in order of matching
+            // general strings
             "strings" : null,
             "strings2" : null,
             "strings3" : null,
+            "strings4" : null,
+            "strings5" : null,
             
             // atoms
             "atoms" : null,
@@ -408,7 +420,7 @@
             // builtin functions, constructs, etc..
             "builtins" : null,
             
-            // assignments
+            // assignments (eg for attributes)
             "assignments" : null,
             
             // operators
@@ -483,13 +495,12 @@
     // matcher factories
     var ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
     
-        byLength = function(a, b) { return a.length - b.length },
+        byLength = function(a, b) { return b.length - a.length },
         
-        isRegExp = function(s, id) {
+        isRegexp = function(s, id) {
             return (
                 is_string(id) && is_string(s) && id.length &&
-                id.length <= s.length && 
-                id == s.substr(0, id.length)
+                id.length <= s.length && id == s.substr(0, id.length)
             );
         },
         
@@ -498,7 +509,7 @@
             
             var l = (rid) ? (rid.length||0) : 0;
             
-            if ( l && rid == r.substr(0, l) /*isRegExp(r, rid)*/ )
+            if ( l && rid == r.substr(0, l) /*isRegexp(r, rid)*/ )
                 return new RegExp("^(" + r.substr(l) + ")");
             
             else
@@ -574,7 +585,8 @@
             else if (T_NULLMATCHER == this.type)
             {
                 this.match = function(stream, eat) { 
-                    if (false !== eat) stream.skipToEnd();
+                    // manipulate the codemirror stream directly for speed
+                    if (false !== eat) stream.pos = stream.string.length; // skipToEnd
                     return { key: key, val: "" };
                 };
             }
@@ -596,6 +608,7 @@
             
             if (0 >= l)
             {
+                // no matchers
                 this.match = function(stream, eat) { return false; };
             }
             else if (1 == l)
@@ -676,31 +689,18 @@
             
             key = key || 0;
             
-            if (is_number(r))  
-            {
-                return r;
-            }
-            else if (is_char(r))
-            {
-                return new SimpleMatcher(T_CHARMATCHER, r, key);
-            }
-            else if (is_string(r))
-            {
-                return new SimpleMatcher(T_STRMATCHER, r, key);
-            }
-            else if (is_regex(r))
-            {
-                return new SimpleMatcher(T_REGEXMATCHER, r, key);
-            }
-            else if (null == r)
-            {
-                return new SimpleMatcher(T_NULLMATCHER, r, key);
-            }
-            else
-            {
-                return r;
-            }
+            if ( is_number(r) )  return r;
             
+            else if ( null == r )  return new SimpleMatcher(T_NULLMATCHER, r, key);
+            
+            else if ( is_char(r) )  return new SimpleMatcher(T_CHARMATCHER, r, key);
+            
+            else if ( is_string(r) ) return new SimpleMatcher(T_STRMATCHER, r, key);
+            
+            else if ( is_regex(r) )  return new SimpleMatcher(T_REGEXMATCHER, r, key);
+            
+            // unknown
+            return r;
         },
         
         getCompositeMatcher = function(tokens, RegExpID, isRegExpGroup) {
@@ -709,10 +709,10 @@
             
             tmp = make_array(tokens);
             l = tmp.length;
-            l2 = (l>>1) + 1;
             
-            if (isRegExpGroup)
+            if ( isRegExpGroup )
             {   
+                l2 = (l>>1) + 1;
                 // check if tokens can be combined in one regular expression
                 // if they do not contain sub-arrays or regular expressions
                 for (i=0; i<=l2; i++)
@@ -722,7 +722,7 @@
                         array_of_arrays = true;
                         break;
                     }
-                    else if ( isRegExp( tmp[i], RegExpID ) || isRegExp( tmp[l-1-i], RegExpID ) )
+                    else if ( isRegexp( tmp[i], RegExpID ) || isRegexp( tmp[l-1-i], RegExpID ) )
                     {
                         has_regexs = true;
                         break;
@@ -730,7 +730,7 @@
                 }
             }
             
-            if (isRegExpGroup && !(array_of_arrays || has_regexs))
+            if ( isRegExpGroup && !(array_of_arrays || has_regexs) )
             {   
                 return new CompositeMatcher( [ getSimpleMatcher( getCombinedRegexp( tmp ) ) ] );
             }
@@ -754,13 +754,12 @@
             // build start/end mappings
             start=[]; end=[];
             tmp = make_array(tokens);
-            if ( !is_array(tmp[0]) ) tmp = [tmp]; // array of arrays
+            if ( !is_array(tmp[0]) ) tmp = [ tmp ]; // array of arrays
             for (i=0, l=tmp.length; i<l; i++)
             {
                 t1 = getSimpleMatcher( getRegexp( tmp[i][0], RegExpID ), i );
                 t2 = (tmp[i].length>1) ? getSimpleMatcher( getRegexp( tmp[i][1], RegExpID ), i ) : t1;
-                start.push( t1 );
-                end.push( t2 );
+                start.push( t1 );  end.push( t2 );
             }
             return new BlockMatcher(start, end);
         }
@@ -769,7 +768,7 @@
     //
     // tokenizer factories
     var
-        Indentation = function(offset, type, delim) {
+        /*Indentation = function(offset, type, delim) {
             this.offset = offset || 0;
             this.type = type || T_TOP_LEVEL;
             this.delim = delim || "";
@@ -777,7 +776,7 @@
         
         getIndentation = function(state) {
             return state.indents[0];
-        },
+        },*/
         
         /*doIndent = function(state, type, col, current, conf_indentUnit) {
             type = type || T_BLOCK_LEVEL;
@@ -857,21 +856,21 @@
             }
         },*/
         
-        getBlockTokenizer = function(end, type, style, nextTokenizer) {
+        getBlockTokenizer = function(endBlock, type, style, nextTokenizer) {
             
             var tokenBlock = function(stream, state) {
                 
-                var found = false;
+                var ended = false;
                 while (!stream.eol()) 
                 {
-                    if ( end.match(stream) ) 
+                    if ( endBlock.match(stream) ) 
                     {
-                        found = true;
+                        ended = true;
                         break;
                     }
                     else stream.next();
                 }
-                if (found) state.tokenize = nextTokenizer || null;
+                if ( ended ) state.tokenize = nextTokenizer || null;
                 state.lastToken = type;
                 return style;
             };
@@ -880,36 +879,32 @@
             return tokenBlock;
         },
         
-        getStringTokenizer = function(endString, style, multiLineStrings, nextTokenizer) {
+        getStringTokenizer = function(endString, type, style, multiLineStrings, nextTokenizer) {
             
             var tokenString = function(stream, state) {
                 
-                var escaped = false, next, end = false;
+                var escaped = false, next = "", ended = false;
                 while (!stream.eol()) 
                 {
-                    if ( endString.match(stream) && !escaped ) 
+                    if ( !escaped && endString.match(stream) ) 
                     {
-                        end = true; 
+                        ended = true; 
                         break;
                     }
-                    else
-                    {
-                        next = stream.next();
-                    }
+                    else  next = stream.next();
+                    
                     escaped = !escaped && next == "\\";
                 }
-                if (end || !(escaped || multiLineStrings)) 
-                    state.tokenize = nextTokenizer || null;
-                
-                state.lastToken = T_STRING;
+                if ( ended || !( escaped || multiLineStrings ) )   state.tokenize = nextTokenizer || null;
+                state.lastToken = type;
                 return style;
             };
             
-            tokenString.type = T_STRING;
+            tokenString.type = type;
             return tokenString;
         },
         
-        getTagTokenizer = function(end, LOCALS, nextTokenizer) {
+        getTagTokenizer = function(endTag, LOCALS, nextTokenizer) {
             
             var DEFAULT = LOCALS.DEFAULT,
                 style = LOCALS.style,
@@ -925,7 +920,7 @@
             
             var tokenTag = function(stream, state) {
                 
-                var token, blockEnd,
+                var token, endString,
                     lastToken = state.lastToken;
                 
                 if ( !foundTag && tagName && (token = tagName.match(stream)) )
@@ -946,7 +941,7 @@
                     
                     if (
                         //( (T_TAG | T_ATTRIBUTE | T_STRING | T_DEFAULT) & lastToken ) &&
-                        end.match(stream)
+                        endTag.match(stream)
                     )
                     {
                         state.tokenize = nextTokenizer || null;
@@ -974,10 +969,10 @@
                     
                     if (
                         //( T_ASSIGNMENT & lastToken ) &&
-                        string && (blockEnd = string.match(stream))
+                        string && (endString = string.match(stream))
                     )
                     {
-                        state.tokenize = getStringTokenizer(blockEnd, style.string, false, tokenTag);
+                        state.tokenize = getStringTokenizer(endString, T_STRING, style.string, false, tokenTag);
                         return state.tokenize(stream, state);
                     }
                     
@@ -1035,12 +1030,10 @@
             return tokenDoctype;
         },
 
-        tokenBaseFactory = function(grammar, LOCALS, conf/*, parserConf*/) {
+        tokenBaseFactory = function(grammar, LOCALS) {
             
             var DEFAULT = LOCALS.DEFAULT,
                  
-                multiLineStrings = conf.multiLineStrings,
-               
                 style = grammar.Style || {},
                 
                 tokens = grammar.TokenOrder || [],
@@ -1052,9 +1045,13 @@
             
             var tokenBase = function(stream, state) {
                 
-                var i, tok, token, tokenType, tokenStyle, blockEnd;
+                var
+                    multiLineStrings = LOCALS.conf.multiLineStrings
+                ;
                 
-                if (stream.eatSpace()) 
+                var i, tok, token, tokenType, tokenStyle, endMatcher;
+                
+                if ( stream.eatSpace() ) 
                 {
                     state.lastToken = T_DEFAULT;
                     return DEFAULT;
@@ -1073,9 +1070,9 @@
                     // comments or general blocks, eg heredocs, cdata, meta, etc..
                     if ( (T_COMMENT | T_BLOCK) & tokenType )
                     {
-                        if ( (blockEnd = token.match(stream)) )
+                        if ( (endMatcher = token.match(stream)) )
                         {
-                            state.tokenize = getBlockTokenizer(blockEnd, tokenType, tokenStyle);
+                            state.tokenize = getBlockTokenizer(endMatcher, tokenType, tokenStyle);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -1083,9 +1080,9 @@
                     // strings
                     if ( T_STRING & tokenType )
                     {
-                        if ( (blockEnd = token.match(stream)) )
+                        if ( (endMatcher = token.match(stream)) )
                         {
-                            state.tokenize = getStringTokenizer(blockEnd, tokenStyle, multiLineStrings);
+                            state.tokenize = getStringTokenizer(endMatcher, tokenType, tokenStyle, multiLineStrings);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -1108,7 +1105,7 @@
             return tokenBase;
         },
         
-        tokenBaseMLFactory = function(grammar, LOCALS, conf) {
+        tokenBaseMLFactory = function(grammar, LOCALS) {
             
             var DEFAULT = LOCALS.DEFAULT,
                 
@@ -1119,11 +1116,11 @@
                 
                 tagNames = grammar.tagNames || null,
                 
-                attributes = grammar.attributes,
-                attributes2 = grammar.attributes2,
-                attributes3 = grammar.attributes3,
+                attributes = grammar.attributes || null,
+                attributes2 = grammar.attributes2 || null,
+                attributes3 = grammar.attributes3 || null,
                 
-                assignments = grammar.assignments,
+                assignments = grammar.assignments || null,
                 
                 hasIndent = grammar.hasIndent,
                 indent = grammar.indent
@@ -1131,9 +1128,13 @@
             
             return function(stream, state) {
 
-                var i, tok, token, tokenType, tokenStyle, blockEnd;
+                var
+                    multiLineStrings = LOCALS.conf.multiLineStrings
+                ;
                 
-                if (stream.eatSpace()) 
+                var i, tok, token, tokenType, tokenStyle, endMatcher;
+                
+                if ( stream.eatSpace() ) 
                 {
                     state.lastToken = T_DEFAULT;
                     return DEFAULT;
@@ -1152,9 +1153,9 @@
                     // comments or general blocks, eg cdata, meta, etc..
                     if ( (T_COMMENT | T_BLOCK) & tokenType )
                     {
-                        if ( (blockEnd = token.match(stream)) )
+                        if ( (endMatcher = token.match(stream)) )
                         {
-                            state.tokenize = getBlockTokenizer(blockEnd, tokenType, tokenStyle);
+                            state.tokenize = getBlockTokenizer(endMatcher, tokenType, tokenStyle);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -1172,7 +1173,7 @@
                     // tags
                     if ( T_TAG & tokenType )
                     {
-                        if ( (blockEnd = token.match(stream)) ) 
+                        if ( (endMatcher = token.match(stream)) ) 
                         {
                             // pass any necessary data to the tokenizer
                             LOCALS.style = style;
@@ -1181,7 +1182,7 @@
                             LOCALS.assignments = assignments;
                             LOCALS.strings = grammar.strings;
                             
-                            state.tokenize = getTagTokenizer(blockEnd, LOCALS);
+                            state.tokenize = getTagTokenizer(endMatcher, LOCALS);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -1189,9 +1190,9 @@
                     // strings
                     if ( T_STRING & tokenType )
                     {
-                        if ( (blockEnd = token.match(stream)) )
+                        if ( (endMatcher = token.match(stream)) )
                         {
-                            state.tokenize = getStringTokenizer(blockEnd, tokenStyle, multiLineStrings);
+                            state.tokenize = getStringTokenizer(endMatcher, tokenType, tokenStyle, multiLineStrings);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -1214,15 +1215,19 @@
             return tokenBase;
         },
 
-        tokenFactory = function(tokenBase, grammar, LOCALS, conf/*, parserConf*/) {
+        tokenFactory = function(tokenBase, grammar, LOCALS) {
             
             var DEFAULT = LOCALS.DEFAULT,
-                basecolumn = LOCALS.basecolumn || 0,
-                indentUnit = conf.indentUnit,
                 hasIndent = grammar.hasIndent
             ;
             
             var tokenMain = function(stream, state) {
+                
+                var
+                    multiLineStrings = LOCALS.conf.multiLineStrings,
+                    basecolumn = LOCALS.basecolumn || 0,
+                    indentUnit = LOCALS.conf.indentUnit
+                ;
                 
                 var ctx, codeStyle, tokType, current;
                 
@@ -1283,15 +1288,20 @@
             return tokenMain;
         },
         
-        indentationFactory = function(LOCALS, conf/*, parserConf*/) {
+        indentationFactory = function(LOCALS) {
             
-            var DEFAULT = LOCALS.DEFAULT,
-                basecolumn = LOCALS.basecolumn || 0,
-                indentUnit = conf.indentUnit
+            var DEFAULT = LOCALS.DEFAULT
             ;
             
             return function(state, textAfter) {
+                
+                var
+                    basecolumn = LOCALS.basecolumn || 0,
+                    indentUnit = LOCALS.conf.indentUnit
+                ;
+                
                 var ctx;
+                
                 // TODO
                 return CodeMirror.Pass;
             };
@@ -1306,14 +1316,12 @@
         VERSION : VERSION,
         
         parseGrammar : function(grammar, base) {
+            
             if (grammar.type && "markup-like" == grammar.type)
-            {
                 return self.parseMarkupLikeGrammar(grammar, base || markupLikeGrammar);
-            }
+            
             else
-            {
                 return self.parseProgrammingLikeGrammar(grammar, base || programmingLikeGrammar);
-            }
         },
         
         parseMarkupLikeGrammar : function(grammar, base) {
@@ -1434,7 +1442,7 @@
                     continue;
                 }
                 
-                // strings ( 3 types )
+                // general strings ( 5 types )
                 else if ("strings"==tokid)
                 {
                     tok = getBlockMatcher(grammar.strings, RegExpID) || null;
@@ -1452,6 +1460,18 @@
                     tok = getBlockMatcher(grammar.strings3, RegExpID) || null;
                     toktype = T_STRING;
                     tokstyle = Style.string3;
+                }
+                else if ("strings4"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings4, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string4;
+                }
+                else if ("strings5"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings5, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string5;
                 }
                 
                 // numbers ( 3 types )
@@ -1545,7 +1565,6 @@
                     toktype = T_BUILTIN;
                     tokstyle = Style.builtin;
                 }
-                
                 
                 // operators
                 else if ("operators"==tokid)
@@ -1672,7 +1691,7 @@
                     tokstyle = Style.block5;
                 }
                 
-                // strings ( 3 types )
+                // general strings ( 5 types )
                 else if ("strings"==tokid)
                 {
                     tok = getBlockMatcher(grammar.strings, RegExpID) || null;
@@ -1690,6 +1709,18 @@
                     tok = getBlockMatcher(grammar.strings3, RegExpID) || null;
                     toktype = T_STRING;
                     tokstyle = Style.string3;
+                }
+                else if ("strings4"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings4, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string4;
+                }
+                else if ("strings5"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings5, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string5;
                 }
                 
                 // numbers ( 3 types )
@@ -1895,76 +1926,51 @@
             
             //console.log(grammar);
             
-            var LOCALS = { 
-                // default return code, when no match found
-                // 'null' should be used in most cases
-                DEFAULT: DEFAULT || null 
-            };
+            var 
+                LOCALS = { 
+                    // default return code, when no match found
+                    // 'null' should be used in most cases
+                    DEFAULT: DEFAULT || null 
+                },
+                tokenBase,  token, indentation
+            ;
             
             // markup-like grammar
             if (T_MARKUP_LIKE == grammar.type)
             {
-                // generate parser with token factories (closures make grammar, LOCALS etc.. available locally)
-                return function(conf, parserConf) {
-                    
-                    var tokenBase = tokenBaseMLFactory(grammar, LOCALS, conf, parserConf);
-                    var token = tokenFactory(tokenBase, grammar, LOCALS, conf, parserConf);
-                    var indentation = indentationFactory(LOCALS, conf, parserConf);
-                    
-                    // return the parser for the grammar
-                    parser =  {
-                        
-                        startState: function(basecolumn) {
-                              
-                              LOCALS.basecolumn = basecolumn || 0;
-                              
-                              return {
-                                  tokenize : null,
-                                  lastToken : T_DEFAULT
-                              };
-                        },
-                        
-                        token: token,
-
-                        indent: indentation
-                        
-                    };
-                    
-                    return parser;
-                };
+                tokenBase = tokenBaseMLFactory(grammar, LOCALS);
             }
             // programming-like grammar
             else
             {
-                // generate parser with token factories (closures make grammar, LOCALS etc.. available locally)
-                return function(conf, parserConf) {
-                    
-                    var tokenBase = tokenBaseFactory(grammar, LOCALS, conf, parserConf);
-                    var token = tokenFactory(tokenBase, grammar, LOCALS, conf, parserConf);
-                    var indentation = indentationFactory(LOCALS, conf, parserConf);
-                    
-                    // return the parser for the grammar
-                    parser =  {
-                        
-                        startState: function(basecolumn) {
-                              
-                              LOCALS.basecolumn = basecolumn || 0;
-                              
-                              return {
-                                  tokenize : null,
-                                  lastToken : T_DEFAULT
-                              };
-                        },
-                        
-                        token: token,
-
-                        indent: indentation
-                        
-                    };
-                    
-                    return parser;
-                };
+                tokenBase = tokenBaseFactory(grammar, LOCALS);
             }
+            token = tokenFactory(tokenBase, grammar, LOCALS);
+            indentation = indentationFactory(LOCALS);
+            
+            // generate parser with token factories (grammar, LOCALS are available locally by closures)
+            return function(conf, parserConf) {
+                
+                LOCALS.conf = conf;
+                LOCALS.parserConf = parserConf;
+                
+                // return the (codemirror) parser mode for the grammar
+                return  {
+                    startState: function( basecolumn ) {
+                        
+                        LOCALS.basecolumn = basecolumn || 0;
+                        
+                        return {
+                            tokenize : null,
+                            lastToken : T_DEFAULT
+                        };
+                    },
+                    
+                    token: token,
+                    
+                    indent: indentation
+                };
+            };
         }
     };
     

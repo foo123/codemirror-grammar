@@ -23,6 +23,7 @@ var css_grammar = {
         "TokenOrder" : [
             "comments",
             "numbers",
+            "identifiers3",
             "numbers2",
             "strings",
             "keywords",
@@ -33,7 +34,6 @@ var css_grammar = {
             "operators",
             "identifiers",
             "identifiers2",
-            "identifiers3",
             "identifiers4",
             "identifiers5"
         ],
@@ -71,8 +71,6 @@ var css_grammar = {
             "line" : null,
             "block" : [ "/*", "*/" ]
         },
-        
-        // identifiers
         
         // some standard identifiers
         "identifiers" : [
@@ -120,27 +118,25 @@ var css_grammar = {
         
         // operators
         "operators" : [
-            [ "*", "+", "(", ")", "[", "]", "{", "}", ",", "=", ";", ">" ],
-            [ "::" ]
+            "::", "*", "+", "(", ")", "[", "]", "{", "}", ",", "=", ";", ">"
         ],
         
         // atoms
         "atoms" : [ 
             "block", "none", "inherit", "inline-block", "inline", 
-            "sans-serif", "serif", "monospace",
-            "bolder", "bold", "rgba", "rgb", "underline", "wrap"
+            "relative", "absolute", "fixed", "static",
+            "sans-serif", "serif", "monospace", "bolder", "bold", 
+            "rgba", "rgb", "underline", "wrap"
         ],
         
         // meta
         "meta" : [
-            "screen",
-            "handheld"
+            "screen",  "handheld"
         ],
 
         // defs
         "defines" : [
-            "@import",
-            "@media"
+            "@import", "@media"
         ],
 
         // keywords

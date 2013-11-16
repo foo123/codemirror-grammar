@@ -7,14 +7,12 @@
         VERSION : VERSION,
         
         parseGrammar : function(grammar, base) {
+            
             if (grammar.type && "markup-like" == grammar.type)
-            {
                 return self.parseMarkupLikeGrammar(grammar, base || markupLikeGrammar);
-            }
+            
             else
-            {
                 return self.parseProgrammingLikeGrammar(grammar, base || programmingLikeGrammar);
-            }
         },
         
         parseMarkupLikeGrammar : function(grammar, base) {
@@ -135,7 +133,7 @@
                     continue;
                 }
                 
-                // strings ( 3 types )
+                // general strings ( 5 types )
                 else if ("strings"==tokid)
                 {
                     tok = getBlockMatcher(grammar.strings, RegExpID) || null;
@@ -153,6 +151,18 @@
                     tok = getBlockMatcher(grammar.strings3, RegExpID) || null;
                     toktype = T_STRING;
                     tokstyle = Style.string3;
+                }
+                else if ("strings4"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings4, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string4;
+                }
+                else if ("strings5"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings5, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string5;
                 }
                 
                 // numbers ( 3 types )
@@ -246,7 +256,6 @@
                     toktype = T_BUILTIN;
                     tokstyle = Style.builtin;
                 }
-                
                 
                 // operators
                 else if ("operators"==tokid)
@@ -373,7 +382,7 @@
                     tokstyle = Style.block5;
                 }
                 
-                // strings ( 3 types )
+                // general strings ( 5 types )
                 else if ("strings"==tokid)
                 {
                     tok = getBlockMatcher(grammar.strings, RegExpID) || null;
@@ -391,6 +400,18 @@
                     tok = getBlockMatcher(grammar.strings3, RegExpID) || null;
                     toktype = T_STRING;
                     tokstyle = Style.string3;
+                }
+                else if ("strings4"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings4, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string4;
+                }
+                else if ("strings5"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings5, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string5;
                 }
                 
                 // numbers ( 3 types )
@@ -596,75 +617,50 @@
             
             //console.log(grammar);
             
-            var LOCALS = { 
-                // default return code, when no match found
-                // 'null' should be used in most cases
-                DEFAULT: DEFAULT || null 
-            };
+            var 
+                LOCALS = { 
+                    // default return code, when no match found
+                    // 'null' should be used in most cases
+                    DEFAULT: DEFAULT || null 
+                },
+                tokenBase,  token, indentation
+            ;
             
             // markup-like grammar
             if (T_MARKUP_LIKE == grammar.type)
             {
-                // generate parser with token factories (closures make grammar, LOCALS etc.. available locally)
-                return function(conf, parserConf) {
-                    
-                    var tokenBase = tokenBaseMLFactory(grammar, LOCALS, conf, parserConf);
-                    var token = tokenFactory(tokenBase, grammar, LOCALS, conf, parserConf);
-                    var indentation = indentationFactory(LOCALS, conf, parserConf);
-                    
-                    // return the parser for the grammar
-                    parser =  {
-                        
-                        startState: function(basecolumn) {
-                              
-                              LOCALS.basecolumn = basecolumn || 0;
-                              
-                              return {
-                                  tokenize : null,
-                                  lastToken : T_DEFAULT
-                              };
-                        },
-                        
-                        token: token,
-
-                        indent: indentation
-                        
-                    };
-                    
-                    return parser;
-                };
+                tokenBase = tokenBaseMLFactory(grammar, LOCALS);
             }
             // programming-like grammar
             else
             {
-                // generate parser with token factories (closures make grammar, LOCALS etc.. available locally)
-                return function(conf, parserConf) {
-                    
-                    var tokenBase = tokenBaseFactory(grammar, LOCALS, conf, parserConf);
-                    var token = tokenFactory(tokenBase, grammar, LOCALS, conf, parserConf);
-                    var indentation = indentationFactory(LOCALS, conf, parserConf);
-                    
-                    // return the parser for the grammar
-                    parser =  {
-                        
-                        startState: function(basecolumn) {
-                              
-                              LOCALS.basecolumn = basecolumn || 0;
-                              
-                              return {
-                                  tokenize : null,
-                                  lastToken : T_DEFAULT
-                              };
-                        },
-                        
-                        token: token,
-
-                        indent: indentation
-                        
-                    };
-                    
-                    return parser;
-                };
+                tokenBase = tokenBaseFactory(grammar, LOCALS);
             }
+            token = tokenFactory(tokenBase, grammar, LOCALS);
+            indentation = indentationFactory(LOCALS);
+            
+            // generate parser with token factories (grammar, LOCALS are available locally by closures)
+            return function(conf, parserConf) {
+                
+                LOCALS.conf = conf;
+                LOCALS.parserConf = parserConf;
+                
+                // return the (codemirror) parser mode for the grammar
+                return  {
+                    startState: function( basecolumn ) {
+                        
+                        LOCALS.basecolumn = basecolumn || 0;
+                        
+                        return {
+                            tokenize : null,
+                            lastToken : T_DEFAULT
+                        };
+                    },
+                    
+                    token: token,
+                    
+                    indent: indentation
+                };
+            };
         }
     };

@@ -26,6 +26,8 @@
                 "strings",
                 "strings2",
                 "strings3",
+                "strings4",
+                "strings5",
                 "keywords",
                 "builtins",
                 "operators",
@@ -64,6 +66,8 @@
                 "string":      "string",
                 "string2":     "string",
                 "string3":     "string",
+                "string4":     "string",
+                "string5":     "string",
                 "block":       "string",
                 "block2":      "string",
                 "block3":      "string",
@@ -86,22 +90,24 @@
             "blocks4" : null,
             "blocks5" : null,
             
-            // general identifiers, in order of matching
+            // general identifiers
             "identifiers" : null,
             "identifiers2" : null,
             "identifiers3" : null,
             "identifiers4" : null,
             "identifiers5" : null,
             
-            // numbers, in order of matching
+            // numbers
             "numbers" : null,
             "numbers2" : null,
             "numbers3" : null,
 
-            // strings, in order of matching
+            // general strings
             "strings" : null,
             "strings2" : null,
             "strings3" : null,
+            "strings4" : null,
+            "strings5" : null,
             
             // general attributes, in order of matching
             //"attributes" : null,
@@ -160,6 +166,8 @@
                 "strings",
                 "strings2",
                 "strings3",
+                "strings4",
+                "strings5",
                 "meta",
                 "tags",
                 "tags2",
@@ -205,6 +213,8 @@
                 "string":      "string",
                 "string2":     "string",
                 "string3":     "string",
+                "string4":     "string",
+                "string5":     "string",
                 "block":       "string",
                 "block2":      "string",
                 "block3":      "string",
@@ -227,35 +237,37 @@
             "blocks4" : null,
             "blocks5" : null,
             
-            // general tags, in order of matching
+            // general tags
             "tags" : null,
             "tags2" : null,
             "tags3" : null,
             
             "autoclose" : null,
             
-            // general attributes, in order of matching
+            // general attributes
             "attributes" : null,
             "attributes2" : null,
             "attributes3" : null,
             //"properties" : null,
             
-            // general identifiers, in order of matching
+            // general identifiers
             "identifiers" : null,
             "identifiers2" : null,
             "identifiers3" : null,
             "identifiers4" : null,
             "identifiers5" : null,
             
-            // numbers, in order of matching
+            // numbers
             "numbers" : null,
             "numbers2" : null,
             "numbers3" : null,
 
-            // strings, in order of matching
+            // general strings
             "strings" : null,
             "strings2" : null,
             "strings3" : null,
+            "strings4" : null,
+            "strings5" : null,
             
             // atoms
             "atoms" : null,
@@ -272,7 +284,7 @@
             // builtin functions, constructs, etc..
             "builtins" : null,
             
-            // assignments
+            // assignments (eg for attributes)
             "assignments" : null,
             
             // operators

@@ -2,7 +2,7 @@
     //
     // tokenizer factories
     var
-        Indentation = function(offset, type, delim) {
+        /*Indentation = function(offset, type, delim) {
             this.offset = offset || 0;
             this.type = type || T_TOP_LEVEL;
             this.delim = delim || "";
@@ -10,7 +10,7 @@
         
         getIndentation = function(state) {
             return state.indents[0];
-        },
+        },*/
         
         /*doIndent = function(state, type, col, current, conf_indentUnit) {
             type = type || T_BLOCK_LEVEL;
@@ -90,21 +90,21 @@
             }
         },*/
         
-        getBlockTokenizer = function(end, type, style, nextTokenizer) {
+        getBlockTokenizer = function(endBlock, type, style, nextTokenizer) {
             
             var tokenBlock = function(stream, state) {
                 
-                var found = false;
+                var ended = false;
                 while (!stream.eol()) 
                 {
-                    if ( end.match(stream) ) 
+                    if ( endBlock.match(stream) ) 
                     {
-                        found = true;
+                        ended = true;
                         break;
                     }
                     else stream.next();
                 }
-                if (found) state.tokenize = nextTokenizer || null;
+                if ( ended ) state.tokenize = nextTokenizer || null;
                 state.lastToken = type;
                 return style;
             };
@@ -113,36 +113,32 @@
             return tokenBlock;
         },
         
-        getStringTokenizer = function(endString, style, multiLineStrings, nextTokenizer) {
+        getStringTokenizer = function(endString, type, style, multiLineStrings, nextTokenizer) {
             
             var tokenString = function(stream, state) {
                 
-                var escaped = false, next, end = false;
+                var escaped = false, next = "", ended = false;
                 while (!stream.eol()) 
                 {
-                    if ( endString.match(stream) && !escaped ) 
+                    if ( !escaped && endString.match(stream) ) 
                     {
-                        end = true; 
+                        ended = true; 
                         break;
                     }
-                    else
-                    {
-                        next = stream.next();
-                    }
+                    else  next = stream.next();
+                    
                     escaped = !escaped && next == "\\";
                 }
-                if (end || !(escaped || multiLineStrings)) 
-                    state.tokenize = nextTokenizer || null;
-                
-                state.lastToken = T_STRING;
+                if ( ended || !( escaped || multiLineStrings ) )   state.tokenize = nextTokenizer || null;
+                state.lastToken = type;
                 return style;
             };
             
-            tokenString.type = T_STRING;
+            tokenString.type = type;
             return tokenString;
         },
         
-        getTagTokenizer = function(end, LOCALS, nextTokenizer) {
+        getTagTokenizer = function(endTag, LOCALS, nextTokenizer) {
             
             var DEFAULT = LOCALS.DEFAULT,
                 style = LOCALS.style,
@@ -158,7 +154,7 @@
             
             var tokenTag = function(stream, state) {
                 
-                var token, blockEnd,
+                var token, endString,
                     lastToken = state.lastToken;
                 
                 if ( !foundTag && tagName && (token = tagName.match(stream)) )
@@ -179,7 +175,7 @@
                     
                     if (
                         //( (T_TAG | T_ATTRIBUTE | T_STRING | T_DEFAULT) & lastToken ) &&
-                        end.match(stream)
+                        endTag.match(stream)
                     )
                     {
                         state.tokenize = nextTokenizer || null;
@@ -207,10 +203,10 @@
                     
                     if (
                         //( T_ASSIGNMENT & lastToken ) &&
-                        string && (blockEnd = string.match(stream))
+                        string && (endString = string.match(stream))
                     )
                     {
-                        state.tokenize = getStringTokenizer(blockEnd, style.string, false, tokenTag);
+                        state.tokenize = getStringTokenizer(endString, T_STRING, style.string, false, tokenTag);
                         return state.tokenize(stream, state);
                     }
                     
@@ -268,12 +264,10 @@
             return tokenDoctype;
         },
 
-        tokenBaseFactory = function(grammar, LOCALS, conf/*, parserConf*/) {
+        tokenBaseFactory = function(grammar, LOCALS) {
             
             var DEFAULT = LOCALS.DEFAULT,
                  
-                multiLineStrings = conf.multiLineStrings,
-               
                 style = grammar.Style || {},
                 
                 tokens = grammar.TokenOrder || [],
@@ -285,9 +279,13 @@
             
             var tokenBase = function(stream, state) {
                 
-                var i, tok, token, tokenType, tokenStyle, blockEnd;
+                var
+                    multiLineStrings = LOCALS.conf.multiLineStrings
+                ;
                 
-                if (stream.eatSpace()) 
+                var i, tok, token, tokenType, tokenStyle, endMatcher;
+                
+                if ( stream.eatSpace() ) 
                 {
                     state.lastToken = T_DEFAULT;
                     return DEFAULT;
@@ -306,9 +304,9 @@
                     // comments or general blocks, eg heredocs, cdata, meta, etc..
                     if ( (T_COMMENT | T_BLOCK) & tokenType )
                     {
-                        if ( (blockEnd = token.match(stream)) )
+                        if ( (endMatcher = token.match(stream)) )
                         {
-                            state.tokenize = getBlockTokenizer(blockEnd, tokenType, tokenStyle);
+                            state.tokenize = getBlockTokenizer(endMatcher, tokenType, tokenStyle);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -316,9 +314,9 @@
                     // strings
                     if ( T_STRING & tokenType )
                     {
-                        if ( (blockEnd = token.match(stream)) )
+                        if ( (endMatcher = token.match(stream)) )
                         {
-                            state.tokenize = getStringTokenizer(blockEnd, tokenStyle, multiLineStrings);
+                            state.tokenize = getStringTokenizer(endMatcher, tokenType, tokenStyle, multiLineStrings);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -341,7 +339,7 @@
             return tokenBase;
         },
         
-        tokenBaseMLFactory = function(grammar, LOCALS, conf) {
+        tokenBaseMLFactory = function(grammar, LOCALS) {
             
             var DEFAULT = LOCALS.DEFAULT,
                 
@@ -352,11 +350,11 @@
                 
                 tagNames = grammar.tagNames || null,
                 
-                attributes = grammar.attributes,
-                attributes2 = grammar.attributes2,
-                attributes3 = grammar.attributes3,
+                attributes = grammar.attributes || null,
+                attributes2 = grammar.attributes2 || null,
+                attributes3 = grammar.attributes3 || null,
                 
-                assignments = grammar.assignments,
+                assignments = grammar.assignments || null,
                 
                 hasIndent = grammar.hasIndent,
                 indent = grammar.indent
@@ -364,9 +362,13 @@
             
             return function(stream, state) {
 
-                var i, tok, token, tokenType, tokenStyle, blockEnd;
+                var
+                    multiLineStrings = LOCALS.conf.multiLineStrings
+                ;
                 
-                if (stream.eatSpace()) 
+                var i, tok, token, tokenType, tokenStyle, endMatcher;
+                
+                if ( stream.eatSpace() ) 
                 {
                     state.lastToken = T_DEFAULT;
                     return DEFAULT;
@@ -385,9 +387,9 @@
                     // comments or general blocks, eg cdata, meta, etc..
                     if ( (T_COMMENT | T_BLOCK) & tokenType )
                     {
-                        if ( (blockEnd = token.match(stream)) )
+                        if ( (endMatcher = token.match(stream)) )
                         {
-                            state.tokenize = getBlockTokenizer(blockEnd, tokenType, tokenStyle);
+                            state.tokenize = getBlockTokenizer(endMatcher, tokenType, tokenStyle);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -405,7 +407,7 @@
                     // tags
                     if ( T_TAG & tokenType )
                     {
-                        if ( (blockEnd = token.match(stream)) ) 
+                        if ( (endMatcher = token.match(stream)) ) 
                         {
                             // pass any necessary data to the tokenizer
                             LOCALS.style = style;
@@ -414,7 +416,7 @@
                             LOCALS.assignments = assignments;
                             LOCALS.strings = grammar.strings;
                             
-                            state.tokenize = getTagTokenizer(blockEnd, LOCALS);
+                            state.tokenize = getTagTokenizer(endMatcher, LOCALS);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -422,9 +424,9 @@
                     // strings
                     if ( T_STRING & tokenType )
                     {
-                        if ( (blockEnd = token.match(stream)) )
+                        if ( (endMatcher = token.match(stream)) )
                         {
-                            state.tokenize = getStringTokenizer(blockEnd, tokenStyle, multiLineStrings);
+                            state.tokenize = getStringTokenizer(endMatcher, tokenType, tokenStyle, multiLineStrings);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -447,15 +449,19 @@
             return tokenBase;
         },
 
-        tokenFactory = function(tokenBase, grammar, LOCALS, conf/*, parserConf*/) {
+        tokenFactory = function(tokenBase, grammar, LOCALS) {
             
             var DEFAULT = LOCALS.DEFAULT,
-                basecolumn = LOCALS.basecolumn || 0,
-                indentUnit = conf.indentUnit,
                 hasIndent = grammar.hasIndent
             ;
             
             var tokenMain = function(stream, state) {
+                
+                var
+                    multiLineStrings = LOCALS.conf.multiLineStrings,
+                    basecolumn = LOCALS.basecolumn || 0,
+                    indentUnit = LOCALS.conf.indentUnit
+                ;
                 
                 var ctx, codeStyle, tokType, current;
                 
@@ -516,15 +522,20 @@
             return tokenMain;
         },
         
-        indentationFactory = function(LOCALS, conf/*, parserConf*/) {
+        indentationFactory = function(LOCALS) {
             
-            var DEFAULT = LOCALS.DEFAULT,
-                basecolumn = LOCALS.basecolumn || 0,
-                indentUnit = conf.indentUnit
+            var DEFAULT = LOCALS.DEFAULT
             ;
             
             return function(state, textAfter) {
+                
+                var
+                    basecolumn = LOCALS.basecolumn || 0,
+                    indentUnit = LOCALS.conf.indentUnit
+                ;
+                
                 var ctx;
+                
                 // TODO
                 return CodeMirror.Pass;
             };

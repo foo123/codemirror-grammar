@@ -64,8 +64,6 @@ var php_grammar = {
         // start, end of heredoc (can be the matched regex group ie. 1 )
         "blocks" : [ "RegExp::<<<([_A-Za-z][_A-Za-z0-9]*)", 1 ],
         
-        // identifiers
-        
         // general identifiers
         "identifiers" : "RegExp::[_A-Za-z][_A-Za-z0-9]*",
         // php variables

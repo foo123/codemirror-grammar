@@ -53,8 +53,6 @@ var js_grammar = {
             "block" : [ "/*", "*/" ]
         },
         
-        // identifiers
-        
         // general identifiers
         "identifiers" : "RegExp::[_A-Za-z][_A-Za-z0-9]*",
         // labels
@@ -79,12 +77,12 @@ var js_grammar = {
             "RegExp::0(?![\\dx])"
         ],
 
-        // strings
+        // usual strings
         // start, end of string (can be the matched regex group ie. 1 )
         "strings" : [ "RegExp::([`'\"])", 1 ],
         
-        // lireal regexes
-        // javascripts literal regular expressions can be parsed like strings
+        // literal regular expressions
+        // javascript literal regular expressions can be parsed similar to strings
         "strings2" : [ "/", "RegExp::/[gimy]?" ],
         
         // operators

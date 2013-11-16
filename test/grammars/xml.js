@@ -73,7 +73,7 @@ var xml_grammar = {
             [ "<", ">", "RegExp::[_a-zA-Z][_a-zA-Z0-9\\-]*" ]
         ],
         
-        // attributes, in order of matching
+        // attributes
         "attributes" : "RegExp::[_a-zA-Z][_a-zA-Z0-9\\-]*",
         
         // assignments, eg attribute assignments
