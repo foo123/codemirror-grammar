@@ -12,11 +12,39 @@
             // this is usefull for speed fine-tuning the parser
             "RegExpGroups" : null,
             
+            // order of tokens parsing
+            "TokenOrder" : [
+                "comments",
+                "blocks",
+                "blocks2",
+                "blocks3",
+                "blocks4",
+                "blocks5",
+                "numbers",
+                "numbers2",
+                "numbers3",
+                "strings",
+                "strings2",
+                "strings3",
+                "keywords",
+                "builtins",
+                "operators",
+                "delimiters",
+                "atoms",
+                "meta",
+                "defines",
+                "identifiers",
+                "identifiers2",
+                "identifiers3",
+                "identifiers4",
+                "identifiers5"
+            ],
+            
             //
             // style model
             
             // lang token type  -> CodeMirror (style) tag
-            "style" : {
+            "Style" : {
                 "error":       "error",
                 "comment":     "comment",
                 "meta":        "meta",
@@ -82,10 +110,10 @@
             //"properties" : null,
             
             // operators
-            "operators" : { "one" : null, "two" : null, "words" : null },
+            "operators" : null,
             
             // delimiters
-            "delimiters" : { "one" : null, "two" : null, "three" : null },
+            "delimiters" : null,
             
             // atoms
             "atoms" : null,
@@ -116,11 +144,41 @@
             // this is usefull for speed fine-tuning the parser
             "RegExpGroups" : null,
             
+            // order of token parsing
+            "TokenOrder" : [
+                "comments",
+                "blocks",
+                "blocks2",
+                "blocks3",
+                "blocks4",
+                "blocks5",
+                "doctype",
+                "atoms",
+                "numbers",
+                "numbers2",
+                "numbers3",
+                "strings",
+                "strings2",
+                "strings3",
+                "meta",
+                "tags",
+                "tags2",
+                "tags3",
+                "defines",
+                "keywords",
+                "builtins",
+                "identifiers",
+                "identifiers2",
+                "identifiers3",
+                "identifiers4",
+                "identifiers5"
+            ],
+            
             //
             // style model
             
             // lang token type  -> CodeMirror (style) tag
-            "style" : {
+            "Style" : {
                 "error":       "error",
                 "comment":     "comment",
                 "meta":        "meta",
@@ -218,10 +276,10 @@
             "assignments" : null,
             
             // operators
-            "operators" : { "one" : null, "two" : null, "words" : null },
+            "operators" : null,
             
             // delimiters
-            "delimiters" : { "one" : null, "two" : null, "three" : null },
+            "delimiters" : null,
             
             // how are scoped blocks defined (possible values are : indent startchars, dedent endchars, etc.. )
             "indent" : null

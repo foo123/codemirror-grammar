@@ -18,7 +18,9 @@
         },
         
         parseMarkupLikeGrammar : function(grammar, base) {
-            var t1, t2, i, l, RegExpID, RegExpGroups;
+            var t1, t2, i, l, RegExpID, RegExpGroups, 
+                tokens, numTokens, Style, _tokens = [], 
+                tokid, ll, tok, toktype, tokstyle;
             
             // grammar is parsed, return it
             // avoid reparsing already parsed grammars
@@ -32,120 +34,250 @@
             grammar.RegExpGroups = null;
             delete grammar.RegExpGroups;
             
-            grammar.type = null;
-            delete grammar.type;
-            grammar.isMarkup = true;
+            grammar.type = T_MARKUP_LIKE;
             
-            // comments
-            if (grammar.comments)
+            tokens = grammar.TokenOrder || [];
+            numTokens = tokens.length;
+            
+            Style = grammar.Style || {};
+            
+            for (t=0; t<numTokens; t++)
             {
-                t1 = [];
-                if (grammar.comments.line)  
-                {
-                    t2 = make_array(grammar.comments.line);
-                    
-                    for (i=0, l=t2.length; i<l; i++)
-                        t1.push( [t2[i], null] );
-                }
-                if (grammar.comments.block)  
-                {
-                    t2 = make_array(grammar.comments.block);
-                    t1.push( [t2[0], ((t2[1]) ? t2[1] : t2[0])] );
-                }
-                grammar.comments = (t1.length) ? getStartEndMatchersFor(t1, RegExpID) : { start: null, end: null };
-            }
-            else
-            {
-                grammar.comments = { start: null, end: null };
-            }
+                tokid = tokens[t];
                 
-            // general blocks ( 5 types ), eg. heredocs, cdata, etc..
-            grammar.blocks = (grammar.blocks) ? getStartEndMatchersFor(grammar.blocks, RegExpID) : { start: null, end: null };
-            grammar.blocks2 = (grammar.blocks2) ? getStartEndMatchersFor(grammar.blocks2, RegExpID) : { start: null, end: null };
-            grammar.blocks3 = (grammar.blocks3) ? getStartEndMatchersFor(grammar.blocks3, RegExpID) : { start: null, end: null };
-            grammar.blocks4 = (grammar.blocks4) ? getStartEndMatchersFor(grammar.blocks4, RegExpID) : { start: null, end: null };
-            grammar.blocks5 = (grammar.blocks5) ? getStartEndMatchersFor(grammar.blocks5, RegExpID) : { start: null, end: null };
-            
-            // tags ( 3 types )
-            if (grammar.tags)
-            {
-                t1 = [];
-                t2 = [];
-                var tmp = make_array(grammar.tags);
-                for (i=0, l=tmp.length; i<l; i++)
+                if ( !grammar[tokid] ) continue;
+                
+                tok = null;
+                
+                // comments
+                if ("comments"==tokid)
                 {
-                    t1.push( [ tmp[i][0], tmp[i][1] ] );
-                    t2 = t2.concat( tmp[i][2] );
+                    t1 = [];
+                    if (grammar.comments.line)  
+                    {
+                        t2 = make_array(grammar.comments.line);
+                        
+                        for (i=0, l=t2.length; i<l; i++)
+                            t1.push( [t2[i], null] );
+                    }
+                    if (grammar.comments.block)  
+                    {
+                        t2 = make_array(grammar.comments.block);
+                        t1.push( [t2[0], ((t2[1]) ? t2[1] : t2[0])] );
+                    }
+                    tok = (t1.length) ? getBlockMatcher(t1, RegExpID) : null;
+                    toktype = T_COMMENT;
+                    tokstyle = Style.comment;
                 }
-                t1 = getStartEndMatchersFor(t1, RegExpID);
-                t2 = getMatchersFor(t2, RegExpID, RegExpGroups['tags']);
-                grammar.tags = { start: t1.start, tags: t2, end: t1.end };
+                
+                // general blocks ( 5 types ), eg. heredocs, cdata, etc..
+                else if ("blocks"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.blocks, RegExpID) || null;
+                    toktype = T_BLOCK;
+                    tokstyle = Style.block;
+                }
+                else if ("blocks2"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.blocks2, RegExpID) || null;
+                    toktype = T_BLOCK;
+                    tokstyle = Style.block2;
+                }
+                else if ("blocks3"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.blocks3, RegExpID) || null;
+                    toktype = T_BLOCK;
+                    tokstyle = Style.block3;
+                }
+                else if ("blocks4"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.blocks4, RegExpID) || null;
+                    toktype = T_BLOCK;
+                    tokstyle = Style.block4;
+                }
+                else if ("blocks5"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.blocks5, RegExpID) || null;
+                    toktype = T_BLOCK;
+                    tokstyle = Style.block5;
+                }
+                
+                // tags ( 3 types )
+                else if ("tags"==tokid)
+                {
+                    t1 = [];
+                    t2 = [];
+                    var tmp = make_array(grammar.tags);
+                    for (i=0, l=tmp.length; i<l; i++)
+                    {
+                        t1.push( [ tmp[i][0], tmp[i][1] ] );
+                        t2 = t2.concat( tmp[i][2] );
+                    }
+                    t1 = getBlockMatcher(t1, RegExpID) || null;
+                    t2 = getCompositeMatcher(t2, RegExpID, RegExpGroups['tags']) || null;
+                    tok = t1;
+                    toktype = T_TAG;
+                    tokstyle = Style.tag;
+                    grammar.tagNames = t2;
+                }
+                else if ("tags2"==tokid)
+                {
+                    continue;
+                }
+                else if ("tags3"==tokid)
+                {
+                    continue;
+                }
+                
+                // doctype
+                else if ("doctype"==tokid)
+                {
+                    continue;
+                }
+                
+                // strings ( 3 types )
+                else if ("strings"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string;
+                }
+                else if ("strings2"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings2, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string2;
+                }
+                else if ("strings3"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings3, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string3;
+                }
+                
+                // numbers ( 3 types )
+                else if ("numbers"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.numbers, RegExpID, RegExpGroups['numbers']) || null;
+                    toktype = T_NUMBER;
+                    tokstyle = Style.number;
+                }
+                else if ("numbers2"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.numbers2, RegExpID, RegExpGroups['numbers2']) || null;
+                    toktype = T_NUMBER;
+                    tokstyle = Style.number2;
+                }
+                else if ("numbers3"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.numbers3, RegExpID, RegExpGroups['numbers3']) || null;
+                    toktype = T_NUMBER;
+                    tokstyle = Style.number3;
+                }
+                
+                // general identifiers ( 5 types ), eg. variables, etc..
+                else if ("identifiers"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.identifiers, RegExpID, RegExpGroups['identifiers']) || null;
+                    toktype = T_IDENTIFIER;
+                    tokstyle = Style.identifier;
+                }
+                else if ("identifiers2"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.identifiers2, RegExpID, RegExpGroups['identifiers2']) || null;
+                    toktype = T_IDENTIFIER;
+                    tokstyle = Style.identifier2;
+                }
+                else if ("identifiers3"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.identifiers3, RegExpID, RegExpGroups['identifiers3']) || null;
+                    toktype = T_IDENTIFIER;
+                    tokstyle = Style.identifier3;
+                }
+                else if ("identifiers4"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.identifiers4, RegExpID, RegExpGroups['identifiers4']) || null;
+                    toktype = T_IDENTIFIER;
+                    tokstyle = Style.identifier4;
+                }
+                else if ("identifiers5"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.identifiers5, RegExpID, RegExpGroups['identifiers5']) || null;
+                    toktype = T_IDENTIFIER;
+                    tokstyle = Style.identifier5;
+                }
+                
+                // atoms
+                else if ("atoms"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.atoms, RegExpID, RegExpGroups['atoms']) || null;
+                    toktype = T_ATOM;
+                    tokstyle = Style.atom;
+                }
+                
+                // meta
+                else if ("meta"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.meta, RegExpID, RegExpGroups['meta']) || null;
+                    toktype = T_META;
+                    tokstyle = Style.meta;
+                }
+                
+                // defs
+                else if ("defines"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.defines, RegExpID, RegExpGroups['defines']) || null;
+                    toktype = T_DEF;
+                    tokstyle = Style.defines;
+                }
+                
+                // keywords
+                else if ("keywords"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.keywords, RegExpID, RegExpGroups['keywords']) || null;
+                    toktype = T_KEYWORD;
+                    tokstyle = Style.keyword;
+                }
+                
+                // builtins
+                else if ("builtins"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.builtins, RegExpID, RegExpGroups['builtins']) || null;
+                    toktype = T_BUILTIN;
+                    tokstyle = Style.builtin;
+                }
+                
+                
+                // operators
+                else if ("operators"==tokid)
+                {
+                    continue;
+                }
+                // delimiters
+                else if ("delimiters"==tokid)
+                {
+                    continue;
+                }
+                
+                if (tok)
+                {
+                    grammar[tokid] = tok;
+                    _tokens.push( [ tok, toktype, tokstyle ] );
+                }
+                else
+                {
+                    grammar[tokid] = null;
+                }
             }
-            else
-            {
-                grammar.tags = { start: null, tags: null, end: null };
-            }
-            grammar.tags2 = { start: null, tags: null, end: null };
-            grammar.tags3 = { start: null, tags: null, end: null };
+            
+            grammar.TokenOrder = _tokens;
             
             // attributes ( 3 types )
-            grammar.attributes = (grammar.attributes) ? getMatchersFor(grammar.attributes, RegExpID, RegExpGroups['attributes']) : null;
-            grammar.attributes2 = (grammar.attributes2) ? getMatchersFor(grammar.attributes2, RegExpID, RegExpGroups['attributes2']) : null;
-            grammar.attributes3 = (grammar.attributes3) ? getMatchersFor(grammar.attributes3, RegExpID, RegExpGroups['attributes3']) : null;
-            
-            // doctype
-            grammar.doctype = null;
-            
-            // strings ( 3 string types )
-            grammar.strings = (grammar.strings) ? getStartEndMatchersFor(grammar.strings, RegExpID) : { start: null, end: null };
-            grammar.strings2 = (grammar.strings2) ? getStartEndMatchersFor(grammar.strings2, RegExpID) : { start: null, end: null };
-            grammar.strings3 = (grammar.strings3) ? getStartEndMatchersFor(grammar.strings3, RegExpID) : { start: null, end: null };
-            
-            // general identifiers ( 5 identifier types ), eg. variables, etc..
-            grammar.identifiers = (grammar.identifiers) ? getMatchersFor(grammar.identifiers, RegExpID, RegExpGroups['identifiers']) : null;
-            grammar.identifiers2 = (grammar.identifiers2) ? getMatchersFor(grammar.identifiers2, RegExpID, RegExpGroups['identifiers2']) : null;
-            grammar.identifiers3 = (grammar.identifiers3) ? getMatchersFor(grammar.identifiers3, RegExpID, RegExpGroups['identifiers3']) : null;
-            grammar.identifiers4 = (grammar.identifiers4) ? getMatchersFor(grammar.identifiers4, RegExpID, RegExpGroups['identifiers4']) : null;
-            grammar.identifiers5 = (grammar.identifiers5) ? getMatchersFor(grammar.identifiers5, RegExpID, RegExpGroups['identifiers5']) : null;
-            
-            // numbers ( 3 number types )
-            grammar.numbers = (grammar.numbers) ? getMatchersFor(grammar.numbers, RegExpID, RegExpGroups['numbers']) : null;
-            grammar.numbers2 = (grammar.numbers2) ? getMatchersFor(grammar.numbers2, RegExpID, RegExpGroups['numbers2']) : null;
-            grammar.numbers3 = (grammar.numbers3) ? getMatchersFor(grammar.numbers3, RegExpID, RegExpGroups['numbers3']) : null;
-            
-            // atoms
-            grammar.atoms = (grammar.atoms) ? getMatchersFor(grammar.atoms, RegExpID, RegExpGroups['atoms']) : null;
-            
-            // meta
-            grammar.meta = (grammar.meta) ? getMatchersFor(grammar.meta, RegExpID, RegExpGroups['meta']) : null;
-            
-            // defs
-            grammar.defines = (grammar.defines) ? getMatchersFor(grammar.defines, RegExpID, RegExpGroups['defines']) : null;
-            
-            // keywords
-            grammar.keywords = (grammar.keywords) ? getMatchersFor(grammar.keywords, RegExpID, RegExpGroups['keywords']) : null;
-            
-            // builtins
-            grammar.builtins = (grammar.builtins) ? getMatchersFor(grammar.builtins, RegExpID, RegExpGroups['builtins']) : null;
-            
+            grammar.attributes = (grammar.attributes) ? getCompositeMatcher(grammar.attributes, RegExpID, RegExpGroups['attributes']) : null;
+            grammar.attributes2 = (grammar.attributes2) ? getCompositeMatcher(grammar.attributes2, RegExpID, RegExpGroups['attributes2']) : null;
+            grammar.attributes3 = (grammar.attributes3) ? getCompositeMatcher(grammar.attributes3, RegExpID, RegExpGroups['attributes3']) : null;
             // assignments, eg for attributes
-            grammar.assignments = (grammar.assignments) ? getMatchersFor(grammar.assignments, RegExpID, RegExpGroups['assignments']) : null;
-            
-            grammar.operators = { one: null, two: null, words: null };
-            grammar.delimiters = { one: null, two: null, three: null };
-            /*
-            // operators
-            if (!grammar.operators) grammar.operators = { one: null, two: null, words: null };
-            grammar.operators.one = (grammar.operators.one) ? getMatchersFor(grammar.operators.one, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['one']) : null;
-            grammar.operators.two = (grammar.operators.two) ? getMatchersFor(grammar.operators.two, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['two']) : null;
-            grammar.operators.words = (grammar.operators.words) ? getMatchersFor(grammar.operators.words, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['words']) : null;
-            
-            // delimiters
-            if (!grammar.delimiters) grammar.delimiters = { one: null, two: null, three: null };
-            grammar.delimiters.one = (grammar.delimiters.one) ? getMatchersFor(grammar.delimiters.one, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['one']) : null;
-            grammar.delimiters.two = (grammar.delimiters.two) ? getMatchersFor(grammar.delimiters.two, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['two']) : null;
-            grammar.delimiters.three = (grammar.delimiters.three) ? getMatchersFor(grammar.delimiters.three, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['three']) : null;
-            */
+            grammar.assignments = (grammar.assignments) ? getCompositeMatcher(grammar.assignments, RegExpID, RegExpGroups['assignments']) : null;
             
             grammar.indent = null;
             grammar.hasIndent = false;
@@ -157,7 +289,9 @@
         },
         
         parseProgrammingLikeGrammar : function(grammar, base) {
-            var t1, t2, i, l, RegExpID, RegExpGroups;
+            var t1, t2, i, l, RegExpID, RegExpGroups, 
+                tokens, numTokens, Style, _tokens = [], 
+                tokid, ll, tok, toktype, tokstyle;
             
             // grammar is parsed, return it
             // avoid reparsing already parsed grammars
@@ -171,84 +305,214 @@
             grammar.RegExpGroups = null;
             delete grammar.RegExpGroups;
             
-            grammar.type = null;
-            delete grammar.type;
-            grammar.isMarkup = false;
+            grammar.type = T_PROGRAMMING_LIKE;
             
-            // comments
-            if (grammar.comments)
+            tokens = grammar.TokenOrder || [];
+            numTokens = tokens.length;
+            
+            Style = grammar.Style || {};
+            
+            for (t=0; t<numTokens; t++)
             {
-                t1 = [];
-                if (grammar.comments.line)  
-                {
-                    t2 = make_array(grammar.comments.line);
-                    
-                    for (i=0, l=t2.length; i<l; i++)
-                        t1.push( [t2[i], null] );
-                }
-                if (grammar.comments.block)  
-                {
-                    t2 = make_array(grammar.comments.block);
-                    t1.push( [t2[0], ((t2[1]) ? t2[1] : t2[0])] );
-                }
-                grammar.comments = (t1.length) ? getStartEndMatchersFor(t1, RegExpID) : { start: null, end: null };
-            }
-            else
-            {
-                grammar.comments = { start: null, end: null };
-            }
+                tokid = tokens[t];
                 
-            // general blocks ( 5 types ), eg. heredocs, cdata, etc..
-            grammar.blocks = (grammar.blocks) ? getStartEndMatchersFor(grammar.blocks, RegExpID) : { start: null, end: null };
-            grammar.blocks2 = (grammar.blocks2) ? getStartEndMatchersFor(grammar.blocks2, RegExpID) : { start: null, end: null };
-            grammar.blocks3 = (grammar.blocks3) ? getStartEndMatchersFor(grammar.blocks3, RegExpID) : { start: null, end: null };
-            grammar.blocks4 = (grammar.blocks4) ? getStartEndMatchersFor(grammar.blocks4, RegExpID) : { start: null, end: null };
-            grammar.blocks5 = (grammar.blocks5) ? getStartEndMatchersFor(grammar.blocks5, RegExpID) : { start: null, end: null };
+                if ( !grammar[tokid] ) continue;
+                
+                tok = null;
+                
+                // comments
+                if ("comments"==tokid)
+                {
+                    t1 = [];
+                    if (grammar.comments.line)  
+                    {
+                        t2 = make_array(grammar.comments.line);
+                        
+                        for (i=0, l=t2.length; i<l; i++)
+                            t1.push( [t2[i], null] );
+                    }
+                    if (grammar.comments.block)  
+                    {
+                        t2 = make_array(grammar.comments.block);
+                        t1.push( [t2[0], ((t2[1]) ? t2[1] : t2[0])] );
+                    }
+                    tok = (t1.length) ? getBlockMatcher(t1, RegExpID) : null;
+                    toktype = T_COMMENT;
+                    tokstyle = Style.comment;
+                }
+                
+                // general blocks ( 5 types ), eg. heredocs, cdata, etc..
+                else if ("blocks"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.blocks, RegExpID) || null;
+                    toktype = T_BLOCK;
+                    tokstyle = Style.block;
+                }
+                else if ("blocks2"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.blocks2, RegExpID) || null;
+                    toktype = T_BLOCK;
+                    tokstyle = Style.block2;
+                }
+                else if ("blocks3"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.blocks3, RegExpID) || null;
+                    toktype = T_BLOCK;
+                    tokstyle = Style.block3;
+                }
+                else if ("blocks4"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.blocks4, RegExpID) || null;
+                    toktype = T_BLOCK;
+                    tokstyle = Style.block4;
+                }
+                else if ("blocks5"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.blocks5, RegExpID) || null;
+                    toktype = T_BLOCK;
+                    tokstyle = Style.block5;
+                }
+                
+                // strings ( 3 types )
+                else if ("strings"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string;
+                }
+                else if ("strings2"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings2, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string2;
+                }
+                else if ("strings3"==tokid)
+                {
+                    tok = getBlockMatcher(grammar.strings3, RegExpID) || null;
+                    toktype = T_STRING;
+                    tokstyle = Style.string3;
+                }
+                
+                // numbers ( 3 types )
+                else if ("numbers"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.numbers, RegExpID, RegExpGroups['numbers']) || null;
+                    toktype = T_NUMBER;
+                    tokstyle = Style.number;
+                }
+                else if ("numbers2"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.numbers2, RegExpID, RegExpGroups['numbers2']) || null;
+                    toktype = T_NUMBER;
+                    tokstyle = Style.number2;
+                }
+                else if ("numbers3"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.numbers3, RegExpID, RegExpGroups['numbers3']) || null;
+                    toktype = T_NUMBER;
+                    tokstyle = Style.number3;
+                }
+                
+                // general identifiers ( 5 types ), eg. variables, etc..
+                else if ("identifiers"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.identifiers, RegExpID, RegExpGroups['identifiers']) || null;
+                    toktype = T_IDENTIFIER;
+                    tokstyle = Style.identifier;
+                }
+                else if ("identifiers2"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.identifiers2, RegExpID, RegExpGroups['identifiers2']) || null;
+                    toktype = T_IDENTIFIER;
+                    tokstyle = Style.identifier2;
+                }
+                else if ("identifiers3"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.identifiers3, RegExpID, RegExpGroups['identifiers3']) || null;
+                    toktype = T_IDENTIFIER;
+                    tokstyle = Style.identifier3;
+                }
+                else if ("identifiers4"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.identifiers4, RegExpID, RegExpGroups['identifiers4']) || null;
+                    toktype = T_IDENTIFIER;
+                    tokstyle = Style.identifier4;
+                }
+                else if ("identifiers5"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.identifiers5, RegExpID, RegExpGroups['identifiers5']) || null;
+                    toktype = T_IDENTIFIER;
+                    tokstyle = Style.identifier5;
+                }
+                
+                // atoms
+                else if ("atoms"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.atoms, RegExpID, RegExpGroups['atoms']) || null;
+                    toktype = T_ATOM;
+                    tokstyle = Style.atom;
+                }
+                
+                // meta
+                else if ("meta"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.meta, RegExpID, RegExpGroups['meta']) || null;
+                    toktype = T_META;
+                    tokstyle = Style.meta;
+                }
+                
+                // defs
+                else if ("defines"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.defines, RegExpID, RegExpGroups['defines']) || null;
+                    toktype = T_DEF;
+                    tokstyle = Style.defines;
+                }
+                
+                // keywords
+                else if ("keywords"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.keywords, RegExpID, RegExpGroups['keywords']) || null;
+                    toktype = T_KEYWORD;
+                    tokstyle = Style.keyword;
+                }
+                
+                // builtins
+                else if ("builtins"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.builtins, RegExpID, RegExpGroups['builtins']) || null;
+                    toktype = T_BUILTIN;
+                    tokstyle = Style.builtin;
+                }
+                
+                // operators
+                else if ("operators"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.operators, RegExpID, RegExpGroups['operators']) || null;
+                    toktype = T_OP;
+                    tokstyle = Style.operator;
+                }
+                
+                // delimiters
+                else if ("delimiters"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.delimiters, RegExpID, RegExpGroups['delimiters']) || null;
+                    toktype = T_DELIM;
+                    tokstyle = Style.delimiter;
+                }
+                
+                if (tok)
+                {
+                    grammar[tokid] = tok;
+                    _tokens.push( [tok, toktype, tokstyle] );
+                }
+                else
+                {
+                    grammar[tokid] = null;
+                }
+            }
             
-            // strings ( 3 string types )
-            grammar.strings = (grammar.strings) ? getStartEndMatchersFor(grammar.strings, RegExpID) : { start: null, end: null };
-            grammar.strings2 = (grammar.strings2) ? getStartEndMatchersFor(grammar.strings2, RegExpID) : { start: null, end: null };
-            grammar.strings3 = (grammar.strings3) ? getStartEndMatchersFor(grammar.strings3, RegExpID) : { start: null, end: null };
-            
-            // general identifiers ( 5 identifier types ), eg. variables, etc..
-            grammar.identifiers = (grammar.identifiers) ? getMatchersFor(grammar.identifiers, RegExpID, RegExpGroups['identifiers']) : null;
-            grammar.identifiers2 = (grammar.identifiers2) ? getMatchersFor(grammar.identifiers2, RegExpID, RegExpGroups['identifiers2']) : null;
-            grammar.identifiers3 = (grammar.identifiers3) ? getMatchersFor(grammar.identifiers3, RegExpID, RegExpGroups['identifiers3']) : null;
-            grammar.identifiers4 = (grammar.identifiers4) ? getMatchersFor(grammar.identifiers4, RegExpID, RegExpGroups['identifiers4']) : null;
-            grammar.identifiers5 = (grammar.identifiers5) ? getMatchersFor(grammar.identifiers5, RegExpID, RegExpGroups['identifiers5']) : null;
-            
-            // numbers ( 3 number types )
-            grammar.numbers = (grammar.numbers) ? getMatchersFor(grammar.numbers, RegExpID, RegExpGroups['numbers']) : null;
-            grammar.numbers2 = (grammar.numbers2) ? getMatchersFor(grammar.numbers2, RegExpID, RegExpGroups['numbers2']) : null;
-            grammar.numbers3 = (grammar.numbers3) ? getMatchersFor(grammar.numbers3, RegExpID, RegExpGroups['numbers3']) : null;
-            
-            // atoms
-            grammar.atoms = (grammar.atoms) ? getMatchersFor(grammar.atoms, RegExpID, RegExpGroups['atoms']) : null;
-            
-            // meta
-            grammar.meta = (grammar.meta) ? getMatchersFor(grammar.meta, RegExpID, RegExpGroups['meta']) : null;
-            
-            // defs
-            grammar.defines = (grammar.defines) ? getMatchersFor(grammar.defines, RegExpID, RegExpGroups['defines']) : null;
-            
-            // keywords
-            grammar.keywords = (grammar.keywords) ? getMatchersFor(grammar.keywords, RegExpID, RegExpGroups['keywords']) : null;
-            
-            // builtins
-            grammar.builtins = (grammar.builtins) ? getMatchersFor(grammar.builtins, RegExpID, RegExpGroups['builtins']) : null;
-            
-        
-            // operators
-            if (!grammar.operators) grammar.operators = { one: null, two: null, words: null };
-            grammar.operators.one = (grammar.operators.one) ? getMatchersFor(grammar.operators.one, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['one']) : null;
-            grammar.operators.two = (grammar.operators.two) ? getMatchersFor(grammar.operators.two, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['two']) : null;
-            grammar.operators.words = (grammar.operators.words) ? getMatchersFor(grammar.operators.words, RegExpID, RegExpGroups['operators'] && RegExpGroups['operators']['words']) : null;
-            
-            // delimiters
-            if (!grammar.delimiters) grammar.delimiters = { one: null, two: null, three: null };
-            grammar.delimiters.one = (grammar.delimiters.one) ? getMatchersFor(grammar.delimiters.one, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['one']) : null;
-            grammar.delimiters.two = (grammar.delimiters.two) ? getMatchersFor(grammar.delimiters.two, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['two']) : null;
-            grammar.delimiters.three = (grammar.delimiters.three) ? getMatchersFor(grammar.delimiters.three, RegExpID, RegExpGroups['delimiters'] && RegExpGroups['delimiters']['three']) : null;
+            grammar.TokenOrder = _tokens;
             
             // types of indent etc..
             /*var hasIndent = false;
@@ -339,7 +603,7 @@
             };
             
             // markup-like grammar
-            if (grammar.isMarkup)
+            if (T_MARKUP_LIKE == grammar.type)
             {
                 // generate parser with token factories (closures make grammar, LOCALS etc.. available locally)
                 return function(conf, parserConf) {

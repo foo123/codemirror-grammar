@@ -26,13 +26,19 @@
         T_DELIM = 262144,
         
         //
-        // indentation types
-        T_TOP_LEVEL = 100,
-        T_STATEMENT_LEVEL = 110,
-        T_DELIM_LEVEL = 120,
-        T_BLOCK_LEVEL = 130,
-        T_DO_INDENT = 140,
-        T_DO_DEDENT = 150,
+        // grammar types
+        T_PROGRAMMING_LIKE = 1,
+        T_MARKUP_LIKE = 2,
+        
+        //
+        // matcher types
+        T_SIMPLEMATCHER = 32,
+        T_CHARMATCHER = 33,
+        T_STRMATCHER = 34,
+        T_REGEXMATCHER = 36,
+        T_NULLMATCHER = T_LINEMATCHER = 40,
+        T_COMPOSITEMATCHER = 64,
+        T_BLOCKMATCHER = 128,
         
         //
         // tokenizer types
@@ -41,8 +47,11 @@
         T_TOKEN = 220,
         
         //
-        // matcher types
-        T_CHAR = 300,
-        T_STR = 310,
-        T_REGEX = 320
+        // indentation types
+        T_TOP_LEVEL = 100,
+        T_STATEMENT_LEVEL = 110,
+        T_DELIM_LEVEL = 120,
+        T_BLOCK_LEVEL = 130,
+        T_DO_INDENT = 140,
+        T_DO_DEDENT = 150
     ;
