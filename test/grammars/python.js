@@ -18,28 +18,14 @@ var python_grammar = {
         "TokenOrder" : [
             "comments",
             "blocks",
-            "blocks2",
-            "blocks3",
-            "blocks4",
-            "blocks5",
             "numbers",
-            "numbers2",
-            "numbers3",
             "strings",
-            "strings2",
-            "strings3",
-            "keywords",
-            "builtins",
             "operators",
             "delimiters",
-            "atoms",
+            "keywords",
+            "builtins",
             "meta",
-            "defines",
-            "identifiers",
-            "identifiers2",
-            "identifiers3",
-            "identifiers4",
-            "identifiers5"
+            "identifiers"
         ],
             
         //

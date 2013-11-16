@@ -19,28 +19,15 @@ var php_grammar = {
         "TokenOrder" : [
             "comments",
             "blocks",
-            "blocks2",
-            "blocks3",
-            "blocks4",
-            "blocks5",
             "numbers",
-            "numbers2",
-            "numbers3",
             "strings",
-            "strings2",
-            "strings3",
             "keywords",
             "builtins",
             "operators",
             "delimiters",
             "atoms",
-            "meta",
-            "defines",
             "identifiers",
-            "identifiers2",
-            "identifiers3",
-            "identifiers4",
-            "identifiers5"
+            "identifiers2"
         ],
             
         //
@@ -77,7 +64,7 @@ var php_grammar = {
         // start, end of heredoc (can be the matched regex group ie. 1 )
         "blocks" : [ "RegExp::<<<([_A-Za-z][_A-Za-z0-9]*)", 1 ],
         
-        // identifiers, in order of matching
+        // identifiers
         
         // general identifiers
         "identifiers" : "RegExp::[_A-Za-z][_A-Za-z0-9]*",

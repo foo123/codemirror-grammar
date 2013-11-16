@@ -17,29 +17,12 @@ var xml_grammar = {
             "comments",
             "blocks",
             "blocks2",
-            "blocks3",
-            "blocks4",
-            "blocks5",
             "doctype",
             "atoms",
             "numbers",
             "numbers2",
-            "numbers3",
             "strings",
-            "strings2",
-            "strings3",
-            "meta",
-            "tags",
-            "tags2",
-            "tags3",
-            "defines",
-            "keywords",
-            "builtins",
-            "identifiers",
-            "identifiers2",
-            "identifiers3",
-            "identifiers4",
-            "identifiers5"
+            "tags"
         ],
             
         //
@@ -126,17 +109,5 @@ var xml_grammar = {
             "RegExp::&[a-zA-Z][a-zA-Z0-9]*;",
             "RegExp::&#[\\d]+;",
             "RegExp::&#x[a-fA-F\\d]+;"
-        ],
-        
-        // meta
-        "meta" : null,
-
-        // defs
-        "defines" : null,
-
-        // keywords
-        "keywords" : null,
-                              
-        // builtin functions, constructs, etc..
-        "builtins" : null
+        ]
 };

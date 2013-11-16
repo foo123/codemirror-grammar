@@ -1,31 +1,3 @@
-codemirror-grammar
-==================
-
-__Transform a JSON grammar into a CodeMirror syntax-highlight parser (IN PROGRESS)__
-
-
-
-A simple [CodeMirror](https://github.com/marijnh/codemirror) add-on
-
-to generate syntax-highlight parsers (codemirror modes) from a grammar specification in JSON format.
-
-
-__Support for markup-like grammars is added__  ( see for example [/test/grammar-xml.html](/test/grammar-xml.html) )
-
-
-__Highlight Indentation is not implemented fully yet__
-
-
-
-###How to use:
-
-See working examples under [/test](/test) folder.
-
-An example for JavaScript:
-
-
-```javascript
-
 // 1. an almost complete javascript grammar in simple JSON format
 var js_grammar = {
         
@@ -137,38 +109,3 @@ var js_grammar = {
             "null", "undefined", "NaN", "Infinity", "this"
         ]
 };
-        
-// 2. parse the grammar into a Codemirror syntax-highlight mode
-var js_mode = CodeMirrorGrammar.getMode(js_grammar);
-
-// 3. register the mode with Codemirror
-CodeMirror.defineMode("js", js_mode);
-
-// use it!
-var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
-    lineNumbers: true,
-    matchBrackets: true,
-    mode: "js",
-    indentUnit: 4,
-    indentWithTabs: false,
-    enterMode: "keep",
-    tabMode: "shift"
-});
-editor.setSize(null, 500);
-
-```
-
-
-Result:
-
-![js-grammar](/test/grammar-js.png)
-
-
-###Other Working examples:
-
-![css-grammar](/test/grammar-css.png)
-
-![python-grammar](/test/grammar-python.png)
-
-![xml-grammar](/test/grammar-xml.png)
-

@@ -483,6 +483,8 @@
     // matcher factories
     var ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
     
+        byLength = function(a, b) { return a.length - b.length },
+        
         isRegExp = function(s, id) {
             return (
                 is_string(id) && is_string(s) && id.length &&
@@ -505,7 +507,7 @@
         
         getCombinedRegexp = function(tokens)  {
             for (var i=0, l=tokens.length; i<l; i++) tokens[i] = tokens[i].replace(ESC, '\\$1');
-            return new RegExp("^((" + tokens.join(")|(") + "))\\b");
+            return new RegExp("^((" + tokens.sort( byLength ).join( ")|(" ) + "))\\b");
         },
         
         SimpleMatcher = function(type, r, key) {

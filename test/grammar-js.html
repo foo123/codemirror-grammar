@@ -1,3 +1,27 @@
+<!doctype html>
+<html>
+    <head>
+        
+        <meta charset="utf-8">
+        
+        <link rel="stylesheet" href="codemirror/codemirror.css">
+        <link rel="stylesheet" href="codemirror/docs.css">
+        <style type="text/css">
+            .CodeMirror {border-top: 1px solid black; border-bottom: 1px solid black;}
+        </style>
+        
+        <script src="codemirror/codemirror.js"></script>
+        <script src="../build/codemirror_grammar.js"></script>
+        <script src="grammars/javascript.js"></script>
+        
+        <title>CodeMirror: Dynamic JavaScript Grammar Demo</title>
+    </head>
+    <body>
+        
+        <h1>CodeMirror: Dynamic JavaScript Grammar</h1>
+
+        <textarea id="code" name="code">
+    // this is part of the CodeMirrorGrammar code itself
     
     //
     // matcher factories
@@ -285,3 +309,31 @@
             return new BlockMatcher(start, end);
         }
     ;
+        </textarea>
+        <p></p>
+
+        <script>
+        // <![CDATA[
+        
+        // 2. parse the grammar into a Codemirror syntax-highlight mode
+        var js_mode = CodeMirrorGrammar.getMode(js_grammar);
+        
+        // 3. register the mode with Codemirror
+        CodeMirror.defineMode("js", js_mode);
+        
+        // use it!
+        var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+            lineNumbers: true,
+            matchBrackets: true,
+            mode: "js",
+            indentUnit: 4,
+            indentWithTabs: false,
+            enterMode: "keep",
+            tabMode: "shift"
+        });
+        editor.setSize(null, 500);
+        
+        // ]]>
+        </script>
+    </body>
+</html>

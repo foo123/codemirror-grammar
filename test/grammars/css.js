@@ -22,24 +22,15 @@ var css_grammar = {
         // order of tokens parsing
         "TokenOrder" : [
             "comments",
-            "blocks",
-            "blocks2",
-            "blocks3",
-            "blocks4",
-            "blocks5",
             "numbers",
             "numbers2",
-            "numbers3",
             "strings",
-            "strings2",
-            "strings3",
             "keywords",
             "builtins",
-            "operators",
-            "delimiters",
             "atoms",
             "meta",
             "defines",
+            "operators",
             "identifiers",
             "identifiers2",
             "identifiers3",
@@ -81,7 +72,7 @@ var css_grammar = {
             "block" : [ "/*", "*/" ]
         },
         
-        // identifiers, in order of matching
+        // identifiers
         
         // some standard identifiers
         "identifiers" : [
