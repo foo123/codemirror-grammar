@@ -445,7 +445,7 @@
         T_CHARMATCHER = 33,
         T_STRMATCHER = 34,
         T_REGEXMATCHER = 36,
-        T_NULLMATCHER = T_ENDOFLINEMATCHER = 40,
+        T_EOLMATCHER = 40,
         T_DUMMYMATCHER = 48,
         T_COMPOSITEMATCHER = 64,
         T_BLOCKMATCHER = 128,
@@ -559,7 +559,7 @@
                     return { key: key, val: match };
                 };
             }
-            else if (T_ENDOFLINEMATCHER == this.type)
+            else if (T_EOLMATCHER == this.type)
             {
                 this.match = function(stream, eat) { 
                     // manipulate the codemirror stream directly for speed
@@ -670,7 +670,7 @@
                 tagName = "", nameMatcher, endMatcher
             ;
             
-            this.type = T_BLOCKMATCHER;
+            this.type = T_TAGMATCHER;
             
             this.match = function(stream, eat) {
                 
@@ -722,7 +722,7 @@
             
             else if ( is_bool( r ) ) return new SimpleMatcher(T_DUMMYMATCHER, r, key);
             
-            else if ( is_(null, r) )  return new SimpleMatcher(T_ENDOFLINEMATCHER, r, key);
+            else if ( is_(null, r) )  return new SimpleMatcher(T_EOLMATCHER, r, key);
             
             else if ( is_char( r ) )  return new SimpleMatcher(T_CHARMATCHER, r, key);
             
@@ -928,6 +928,31 @@
             return tokenBlock;
         },
         
+        getEscapedBlockTokenizer = function(endBlock, type, style, nextTokenizer) {
+            
+            var tokenBlock = function(stream, state) {
+                
+                var escaped = false, next = "", ended = false;
+                while (!stream.eol()) 
+                {
+                    if ( !escaped && endBlock.match(stream) ) 
+                    {
+                        ended = true; 
+                        break;
+                    }
+                    else  next = stream.next();
+                    
+                    escaped = !escaped && next == "\\";
+                }
+                if ( ended || !escaped )  state.tokenize = nextTokenizer || null;
+                state.lastToken = type;
+                return style;
+            };
+            
+            tokenBlock.type = type | T_BLOCK;
+            return tokenBlock;
+        },
+        
         getStringTokenizer = function(endString, type, style, multiLineStrings, nextTokenizer) {
             
             var tokenString = function(stream, state) {
@@ -944,12 +969,12 @@
                     
                     escaped = !escaped && next == "\\";
                 }
-                if ( ended || !( escaped || multiLineStrings ) )   state.tokenize = nextTokenizer || null;
+                if ( ended || !( escaped || multiLineStrings ) )  state.tokenize = nextTokenizer || null;
                 state.lastToken = type;
                 return style;
             };
             
-            tokenString.type = type;
+            tokenString.type = type | T_STRING;
             return tokenString;
         },
         
@@ -1070,23 +1095,17 @@
                     tokenStyle = tok[2];
                     
                     // comments or general blocks, eg heredocs, cdata, meta, etc..
-                    if ( (T_COMMENT | T_BLOCK) & tokenType )
+                    if ( ((T_COMMENT | T_BLOCK) & tokenType) &&  (endMatcher = token.match(stream)) )
                     {
-                        if ( (endMatcher = token.match(stream)) )
-                        {
-                            state.tokenize = getBlockTokenizer(endMatcher, tokenType, tokenStyle);
-                            return state.tokenize(stream, state);
-                        }
+                        state.tokenize = getBlockTokenizer(endMatcher, tokenType, tokenStyle);
+                        return state.tokenize(stream, state);
                     }
                     
                     // strings
-                    if ( T_STRING & tokenType )
+                    if ( (T_STRING & tokenType) && (endMatcher = token.match(stream)) )
                     {
-                        if ( (endMatcher = token.match(stream)) )
-                        {
-                            state.tokenize = getStringTokenizer(endMatcher, tokenType, tokenStyle, multiLineStrings);
-                            return state.tokenize(stream, state);
-                        }
+                        state.tokenize = getStringTokenizer(endMatcher, tokenType, tokenStyle, multiLineStrings);
+                        return state.tokenize(stream, state);
                     }
                     
                     // other types of tokens
@@ -1115,12 +1134,6 @@
                 
                 tokens = grammar.TokenOrder || [],
                 numTokens = tokens.length,
-                
-                attributes = grammar.attributes || null,
-                attributes2 = grammar.attributes2 || null,
-                attributes3 = grammar.attributes3 || null,
-                
-                assignments = grammar.assignments || null,
                 
                 hasIndent = grammar.hasIndent,
                 indent = grammar.indent,
@@ -1158,43 +1171,31 @@
                     tokenStyle = tok[2];
                     
                     // comments or general blocks, eg cdata, meta, etc..
-                    if ( (T_COMMENT | T_BLOCK) & tokenType )
+                    if ( ((T_COMMENT | T_BLOCK) & tokenType) && (endMatcher = token.match(stream)) )
                     {
-                        if ( (endMatcher = token.match(stream)) )
-                        {
-                            state.tokenize = getBlockTokenizer(endMatcher, tokenType, tokenStyle);
-                            return state.tokenize(stream, state);
-                        }
+                        state.tokenize = getBlockTokenizer(endMatcher, tokenType, tokenStyle);
+                        return state.tokenize(stream, state);
                     }
                     
                     // doctypes, etc..
-                    if ( T_DOCTYPE & tokenType )
+                    if ( (T_DOCTYPE & tokenType) && token.match(stream) )
                     {
-                        if (token.match(stream)) 
-                        {
-                            state.tokenize = getDoctypeTokenizer(tokenStyle);
-                            return state.tokenize(stream, state);
-                        }
+                        state.tokenize = getDoctypeTokenizer(tokenStyle);
+                        return state.tokenize(stream, state);
                     }
                     
                     // tags
-                    if ( T_TAG & tokenType )
+                    if ( (T_TAG & tokenType) && (endMatcher = token.match(stream)) )
                     {
-                        if ( (endMatcher = token.match(stream)) ) 
-                        {
-                            state.tokenize = getTagTokenizer(endMatcher, tokenStyle, stack);
-                            return state.tokenize(stream, state);
-                        }
+                        state.tokenize = getTagTokenizer(endMatcher, tokenStyle, stack);
+                        return state.tokenize(stream, state);
                     }
                     
                     // strings
-                    if ( T_STRING & tokenType )
+                    if ( (T_STRING & tokenType) && (endMatcher = token.match(stream)) )
                     {
-                        if ( (endMatcher = token.match(stream)) )
-                        {
-                            state.tokenize = getStringTokenizer(endMatcher, tokenType, tokenStyle, multiLineStrings);
-                            return state.tokenize(stream, state);
-                        }
+                        state.tokenize = getStringTokenizer(endMatcher, tokenType, tokenStyle, multiLineStrings);
+                        return state.tokenize(stream, state);
                     }
                     
                     // (tag) attributes
@@ -1212,7 +1213,7 @@
                     }
                 }
                 
-                // unknown, bypass
+                // unknow, bypass
                 stream.next();
                 state.lastToken = T_DEFAULT;
                 return DEFAULT;

@@ -32,6 +32,7 @@ var css_grammar = {
             "meta",
             "defines",
             "operators",
+            "delimiters",
             "identifiers",
             "identifiers2",
             "identifiers4",
@@ -118,7 +119,12 @@ var css_grammar = {
         
         // operators
         "operators" : [
-            "::", "*", "+", "(", ")", "[", "]", "{", "}", ",", "=", ";", ">"
+            "::", "*", "+", ",", "=", ";", ">"
+        ],
+        
+        // delimiters
+        "delimiters" : [
+            "(", ")", "[", "]", "{", "}", ",", "=", ";", "."
         ],
         
         // atoms

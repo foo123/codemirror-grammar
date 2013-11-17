@@ -91,7 +91,7 @@
                     return { key: key, val: match };
                 };
             }
-            else if (T_ENDOFLINEMATCHER == this.type)
+            else if (T_EOLMATCHER == this.type)
             {
                 this.match = function(stream, eat) { 
                     // manipulate the codemirror stream directly for speed
@@ -202,7 +202,7 @@
                 tagName = "", nameMatcher, endMatcher
             ;
             
-            this.type = T_BLOCKMATCHER;
+            this.type = T_TAGMATCHER;
             
             this.match = function(stream, eat) {
                 
@@ -254,7 +254,7 @@
             
             else if ( is_bool( r ) ) return new SimpleMatcher(T_DUMMYMATCHER, r, key);
             
-            else if ( is_(null, r) )  return new SimpleMatcher(T_ENDOFLINEMATCHER, r, key);
+            else if ( is_(null, r) )  return new SimpleMatcher(T_EOLMATCHER, r, key);
             
             else if ( is_char( r ) )  return new SimpleMatcher(T_CHARMATCHER, r, key);
             
