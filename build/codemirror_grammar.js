@@ -513,6 +513,7 @@
             
             if (T_CHARMATCHER == this.type)
             {
+                strlen = r.length;
                 this.match = function(stream, eat) {
                     
                     // manipulate the codemirror stream directly for speed
@@ -522,7 +523,7 @@
                     //var casedch = ch; //(ignoreCase) ? sch.toLowerCase() : ch;
                     if (casedr == casedch) 
                     {
-                        if (eat) stream.pos += 1;
+                        if (eat) stream.pos += strlen;
                         return { key: key, val: ch };
                     }
                     return false;
