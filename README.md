@@ -1,11 +1,11 @@
 codemirror-grammar
 ==================
 
-__Transform a JSON grammar into a CodeMirror syntax-highlight parser (IN PROGRESS)__
+__Transform a JSON grammar into a CodeMirror syntax-highlight parser__
 
 
 
-A simple [CodeMirror](https://github.com/marijnh/codemirror) add-on
+A simple and light-weight ( ~ 15kB minified) [CodeMirror](https://github.com/marijnh/codemirror) add-on
 
 to generate syntax-highlight parsers (codemirror modes) from a grammar specification in JSON format.
 
@@ -13,7 +13,9 @@ to generate syntax-highlight parsers (codemirror modes) from a grammar specifica
 __Support for markup-like grammars is added__  ( see for example [/test/grammar-xml.html](/test/grammar-xml.html) )
 
 
-__Highlight Indentation is not implemented fully yet__
+Code Indentation is Codemirror default, looking for ways to add more elaborate indentation rules to the grammar specification.
+
+Also looking for ways to add context-specific parsing information to the grammar specification.
 
 
 

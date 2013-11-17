@@ -22,6 +22,8 @@ var xml_grammar = {
             "numbers",
             "numbers2",
             "strings",
+            "attributes",
+            "assignments",
             "tags"
         ],
             
@@ -64,25 +66,20 @@ var xml_grammar = {
         // cdata block
         "blocks" : [ "<![CDATA[", "]]>" ],
         // meta block
-        "blocks2" : [ "RegExp::<\\?[\\w\\._\\-]", "?>" ],
+        "blocks2" : [ "RegExp::<\\?[_a-zA-Z][\\w\\._\\-]*", "?>" ],
         
-        // tags, in order of matching
+        // tags
         "tags" : [
-            // start, end, tagname identifier
-            [ "</", ">", "RegExp::[_a-zA-Z][_a-zA-Z0-9\\-]*" ],
-            [ "<", ">", "RegExp::[_a-zA-Z][_a-zA-Z0-9\\-]*" ]
+            //        starttag,                         tagname,    endtag
+            [ "RegExp::</?([_a-zA-Z][_a-zA-Z0-9\\-]*)",    1,    "RegExp::/?>" ]
         ],
         
         // attributes
         "attributes" : "RegExp::[_a-zA-Z][_a-zA-Z0-9\\-]*",
         
-        // assignments, eg attribute assignments
-        "assignments" : [ "=" ],
-    
         // numbers, in order of matching
         "numbers" : [
             // floats
-            "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?",
             "RegExp::\\d+\\.\\d*",
             "RegExp::\\.\\d+",
             // integers
@@ -99,10 +96,7 @@ var xml_grammar = {
 
         // strings
         // start, end of string (can be the matched regex group ie. 1 )
-        "strings" : [
-            [ "\"" ],
-            [ "'" ]
-        ],
+        "strings" : [ [ "\"" ], [ "'" ] ],
         
         // atoms
         "atoms" : [

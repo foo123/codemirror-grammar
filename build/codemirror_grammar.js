@@ -11,52 +11,22 @@
     
     var VERSION = "0.1";
     
-    // IE8- mostly
-    /*if ( !Array.prototype.indexOf ) 
-    {
-        var Abs = Math.abs;
-        
-        Array.prototype.indexOf = function (searchElement , fromIndex) {
-            var i,
-                pivot = (fromIndex) ? fromIndex : 0,
-                length;
-
-            if ( !this ) 
-            {
-                throw new TypeError();
-            }
-
-            length = this.length;
-
-            if (length === 0 || pivot >= length)
-            {
-                return -1;
-            }
-
-            if (pivot < 0) 
-            {
-                pivot = length - Abs(pivot);
-            }
-
-            for (i = pivot; i < length; i++) 
-            {
-                if (this[i] === searchElement) 
-                {
-                    return i;
-                }
-            }
-            return -1;
-        };
-    }*/
-    
     var slice = Array.prototype.slice, 
         
         hasKey = Object.prototype.hasOwnProperty,
         
         Str = Object.prototype.toString,
 
+        is_ = function(v, t) {
+            return (t === v);
+        },
+        
         is_number = function(n) {
             return ('number'==typeof(n) || n instanceof Number);
+        },
+        
+        is_bool = function(b) {
+            return (true === b || false === b);
         },
         
         is_char = function(c) {
@@ -305,6 +275,10 @@
                 "strings4",
                 "strings5",
                 "meta",
+                "attributes",
+                "attributes2",
+                "attributes3",
+                "assignments",
                 "tags",
                 "tags2",
                 "tags3",
@@ -471,9 +445,11 @@
         T_CHARMATCHER = 33,
         T_STRMATCHER = 34,
         T_REGEXMATCHER = 36,
-        T_NULLMATCHER = T_LINEMATCHER = 40,
+        T_NULLMATCHER = T_ENDOFLINEMATCHER = 40,
+        T_DUMMYMATCHER = 48,
         T_COMPOSITEMATCHER = 64,
         T_BLOCKMATCHER = 128,
+        T_TAGMATCHER = 256,
         
         //
         // tokenizer types
@@ -582,12 +558,18 @@
                     return { key: key, val: match };
                 };
             }
-            else if (T_NULLMATCHER == this.type)
+            else if (T_ENDOFLINEMATCHER == this.type)
             {
                 this.match = function(stream, eat) { 
                     // manipulate the codemirror stream directly for speed
                     if (false !== eat) stream.pos = stream.string.length; // skipToEnd
                     return { key: key, val: "" };
+                };
+            }
+            else if (T_DUMMYMATCHER == this.type)
+            {
+                this.match = function(stream, eat) { 
+                    return { key: key, val: r };
                 };
             }
             else
@@ -680,6 +662,52 @@
             };
         },
         
+        TagMatcher = function(start, name, end) {
+            
+            var token,
+                startMatcher = new CompositeMatcher(start, false),
+                tagName = "", nameMatcher, endMatcher
+            ;
+            
+            this.type = T_BLOCKMATCHER;
+            
+            this.match = function(stream, eat) {
+                
+                token = startMatcher.match(stream, eat);
+                
+                if (token)
+                {
+                    nameMatcher = name[ token.key ];
+                    // regex given, get the matched group for the ending of this block
+                    if ( is_number(nameMatcher) )
+                    {
+                        // the regex is wrapped in an additional group, 
+                        // add 1 to the requested regex group transparently
+                        //nameMatcher = getSimpleMatcher( token.val[ nameMatcher+1 ] );
+                        tagName = token.val[ nameMatcher+1 ];
+                    }
+                    else
+                    {
+                        tagName = nameMatcher.match( token.val );
+                        tagName = (tagName) ? tagName.val : "";
+                    }
+                    
+                    endMatcher = end[ token.key ];
+                    // regex given, get the matched group for the ending of this block
+                    if ( is_number(endMatcher) )
+                    {
+                        // the regex is wrapped in an additional group, 
+                        // add 1 to the requested regex group transparently
+                        endMatcher = getSimpleMatcher( token.val[ endMatcher+1 ] );
+                    }
+                    
+                    return [endMatcher, tagName];
+                }
+                
+                return false;
+            };
+        },
+        
         getSimpleMatcher = function(r, key) {
             // get a fast customized matcher for < r >
             
@@ -689,15 +717,17 @@
             
             key = key || 0;
             
-            if ( is_number(r) )  return r;
+            if ( is_number( r ) )  return r;
             
-            else if ( null == r )  return new SimpleMatcher(T_NULLMATCHER, r, key);
+            else if ( is_bool( r ) ) return new SimpleMatcher(T_DUMMYMATCHER, r, key);
             
-            else if ( is_char(r) )  return new SimpleMatcher(T_CHARMATCHER, r, key);
+            else if ( is_(null, r) )  return new SimpleMatcher(T_ENDOFLINEMATCHER, r, key);
             
-            else if ( is_string(r) ) return new SimpleMatcher(T_STRMATCHER, r, key);
+            else if ( is_char( r ) )  return new SimpleMatcher(T_CHARMATCHER, r, key);
             
-            else if ( is_regex(r) )  return new SimpleMatcher(T_REGEXMATCHER, r, key);
+            else if ( is_string( r ) ) return new SimpleMatcher(T_STRMATCHER, r, key);
+            
+            else if ( is_regex( r ) )  return new SimpleMatcher(T_REGEXMATCHER, r, key);
             
             // unknown
             return r;
@@ -732,7 +762,8 @@
             
             if ( isRegExpGroup && !(array_of_arrays || has_regexs) )
             {   
-                return new CompositeMatcher( [ getSimpleMatcher( getCombinedRegexp( tmp ) ) ] );
+                //return new CompositeMatcher( [ getSimpleMatcher( getCombinedRegexp( tmp ) ) ] );
+                return getSimpleMatcher( getCombinedRegexp( tmp ) );
             }
             else
             {
@@ -744,7 +775,7 @@
                         tmp[i] = getSimpleMatcher( getRegexp( tmp[i], RegExpID ), i );
                 }
                 
-                return new CompositeMatcher( tmp );
+                return (tmp.length > 1) ? new CompositeMatcher( tmp ) : tmp[0];
             }
         },
         
@@ -762,6 +793,23 @@
                 start.push( t1 );  end.push( t2 );
             }
             return new BlockMatcher(start, end);
+        },
+        
+        getTagMatcher = function(tokens, RegExpID, isRegExpGroup) {
+            var tmp, i, l, start, name, end, t1, t2, t3;
+            
+            // build start/end mappings
+            start=[]; name=[]; end=[];
+            tmp = make_array(tokens);
+            if ( !is_array(tmp[0]) ) tmp = [ tmp ]; // array of arrays
+            for (i=0, l=tmp.length; i<l; i++)
+            {
+                t1 = getSimpleMatcher( getRegexp( tmp[i][0], RegExpID ), i );
+                t2 = (tmp[i].length>2) ? getSimpleMatcher( getRegexp( tmp[i][2], RegExpID ), i ) : t1;
+                t3 = (tmp[i].length>1) ? getCompositeMatcher( getRegexp( tmp[i][1], RegExpID, isRegExpGroup ), i ) : t1;
+                start.push( t1 );  name.push(t3); end.push( t2 );
+            }
+            return new TagMatcher(start, name, end);
         }
     ;
     
@@ -904,86 +952,32 @@
             return tokenString;
         },
         
-        getTagTokenizer = function(endTag, LOCALS, nextTokenizer) {
+        getTagTokenizer = function(tagMatcher, style, stack, nextTokenizer) {
             
-            var DEFAULT = LOCALS.DEFAULT,
-                style = LOCALS.style,
-                
-                tagName = LOCALS.tagNames,
-                attribute = LOCALS.attributes,
-                assignment = LOCALS.assignments,
-                string = LOCALS.strings,
-                
-                foundTag = false,
-                tag_name = ''
-                ;
+            var endTag = tagMatcher[0], tagName = tagMatcher[1];
             
             var tokenTag = function(stream, state) {
                 
-                var token, endString,
-                    lastToken = state.lastToken;
+                var top;
                 
-                if ( !foundTag && tagName && (token = tagName.match(stream)) )
-                {
-                    //tag_name = token.val;
-                    state.lastToken = T_TAG;
-                    foundTag = true;
-                    return style.tag;
-                }
+                //console.log(stack);
                 
-                if ( foundTag )
+                top = stack[0] || null;
+                if ( top && (endTag === top[0]) )
                 {
-                    if ( stream.eatSpace() )
-                    {
-                        state.lastToken = T_DEFAULT;
-                        return DEFAULT;
-                    }
-                    
-                    if (
-                        //( (T_TAG | T_ATTRIBUTE | T_STRING | T_DEFAULT) & lastToken ) &&
-                        endTag.match(stream)
-                    )
-                    {
-                        state.tokenize = nextTokenizer || null;
-                        state.lastToken = T_ENDTAG;
-                        return style.tag;
-                    }
-                    
-                    if (
-                        //( T_DEFAULT & lastToken ) &&
-                        attribute && attribute.match(stream)
-                    )
-                    {
-                        state.lastToken = T_ATTRIBUTE;
-                        return style.attribute;
-                    }
-                    
-                    if (
-                        //( T_ATTRIBUTE & lastToken ) &&
-                        assignment && assignment.match(stream)
-                    )
-                    {
-                        state.lastToken = T_ASSIGNMENT;
-                        return DEFAULT;
-                    }
-                    
-                    if (
-                        //( T_ASSIGNMENT & lastToken ) &&
-                        string && (endString = string.match(stream))
-                    )
-                    {
-                        state.tokenize = getStringTokenizer(endString, T_STRING, style.string, false, tokenTag);
-                        return state.tokenize(stream, state);
-                    }
-                    
-                    state.lastToken = T_DEFAULT;
-                    return DEFAULT;
+                    stack.shift();
+                    state.lastToken = T_ENDTAG;
                 }
                 else
                 {
-                    state.lastToken = T_ERROR;
-                    return style.error;
+                    stack.unshift( [ endTag, tokenTag, tagName ] );
+                    state.lastToken = T_TAG;
                 }
+                
+                //console.log(stack);
+                
+                state.tokenize = nextTokenizer || null;
+                return style;
             };
             
             tokenTag.type = T_TAG;
@@ -1040,16 +1034,16 @@
                 numTokens = tokens.length,
                 
                 hasIndent = grammar.hasIndent,
-                indent = grammar.indent
+                indent = grammar.indent,
+                
+                stack = []
             ;
             
             var tokenBase = function(stream, state) {
                 
-                var
-                    multiLineStrings = LOCALS.conf.multiLineStrings
-                ;
+                var multiLineStrings = LOCALS.conf.multiLineStrings;
                 
-                var i, tok, token, tokenType, tokenStyle, endMatcher;
+                var stackTop = null, i, tok, token, tokenType, tokenStyle, endMatcher;
                 
                 if ( stream.eatSpace() ) 
                 {
@@ -1057,6 +1051,13 @@
                     return DEFAULT;
                 }
                 
+                stackTop = stack[0] || null;
+                if ( stackTop && stackTop[0].match(stream) )
+                {
+                    state.tokenize = stackTop[1];
+                    return state.tokenize(stream, state);
+                }
+                    
                 for (i=0; i<numTokens; i++)
                 {
                     tok = tokens[i];
@@ -1114,8 +1115,6 @@
                 tokens = grammar.TokenOrder || [],
                 numTokens = tokens.length,
                 
-                tagNames = grammar.tagNames || null,
-                
                 attributes = grammar.attributes || null,
                 attributes2 = grammar.attributes2 || null,
                 attributes3 = grammar.attributes3 || null,
@@ -1123,16 +1122,16 @@
                 assignments = grammar.assignments || null,
                 
                 hasIndent = grammar.hasIndent,
-                indent = grammar.indent
+                indent = grammar.indent,
+                
+                stack = []
             ;
             
             return function(stream, state) {
 
-                var
-                    multiLineStrings = LOCALS.conf.multiLineStrings
-                ;
+                var multiLineStrings = LOCALS.conf.multiLineStrings;
                 
-                var i, tok, token, tokenType, tokenStyle, endMatcher;
+                var stackTop = null, i, tok, token, tokenType, tokenStyle, endMatcher;
                 
                 if ( stream.eatSpace() ) 
                 {
@@ -1140,6 +1139,13 @@
                     return DEFAULT;
                 }
                 
+                stackTop = stack[0] || null;
+                if ( stackTop && stackTop[0].match(stream) )
+                {
+                    state.tokenize = stackTop[1];
+                    return state.tokenize(stream, state);
+                }
+                    
                 for (i=0; i<numTokens; i++)
                 {
                     tok = tokens[i];
@@ -1175,14 +1181,7 @@
                     {
                         if ( (endMatcher = token.match(stream)) ) 
                         {
-                            // pass any necessary data to the tokenizer
-                            LOCALS.style = style;
-                            LOCALS.tagNames = tagNames;
-                            LOCALS.attributes = attributes;
-                            LOCALS.assignments = assignments;
-                            LOCALS.strings = grammar.strings;
-                            
-                            state.tokenize = getTagTokenizer(endMatcher, LOCALS);
+                            state.tokenize = getTagTokenizer(endMatcher, tokenStyle, stack);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -1197,8 +1196,15 @@
                         }
                     }
                     
+                    // (tag) attributes
+                    if ( stack.length && (T_ATTRIBUTE & tokenType) && token.match(stream) )
+                    {
+                        state.lastToken = tokenType;
+                        return tokenStyle;
+                    }
+                    
                     // other types of tokens
-                    if ( token.match(stream) )
+                    if ( !(T_ATTRIBUTE & tokenType) && token.match(stream) )
                     {
                         state.lastToken = tokenType;
                         return tokenStyle;
@@ -1238,7 +1244,6 @@
                 codeStyle = state.tokenize(stream, state);
                 //tokType = state.lastToken;
                 //current = stream.current();
-                
                 return codeStyle;
                 
                 //if ( tokType == T_COMMENT || tokType == T_META ) return codeStyle;
@@ -1290,17 +1295,13 @@
         
         indentationFactory = function(LOCALS) {
             
-            var DEFAULT = LOCALS.DEFAULT
-            ;
+            var DEFAULT = LOCALS.DEFAULT;
             
             return function(state, textAfter) {
                 
-                var
-                    basecolumn = LOCALS.basecolumn || 0,
+                var basecolumn = LOCALS.basecolumn || 0,
                     indentUnit = LOCALS.conf.indentUnit
                 ;
-                
-                var ctx;
                 
                 // TODO
                 return CodeMirror.Pass;
@@ -1412,28 +1413,47 @@
                 // tags ( 3 types )
                 else if ("tags"==tokid)
                 {
-                    t1 = [];
-                    t2 = [];
-                    var tmp = make_array(grammar.tags);
-                    for (i=0, l=tmp.length; i<l; i++)
-                    {
-                        t1.push( [ tmp[i][0], tmp[i][1] ] );
-                        t2 = t2.concat( tmp[i][2] );
-                    }
-                    t1 = getBlockMatcher(t1, RegExpID) || null;
-                    t2 = getCompositeMatcher(t2, RegExpID, RegExpGroups['tags']) || null;
-                    tok = t1;
+                    tok = getTagMatcher(grammar.tags, RegExpID, RegExpGroups['tags']) || null;
                     toktype = T_TAG;
                     tokstyle = Style.tag;
-                    grammar.tagNames = t2;
                 }
                 else if ("tags2"==tokid)
                 {
-                    continue;
+                    tok = getTagMatcher(grammar.tags2, RegExpID, RegExpGroups['tags2']) || null;
+                    toktype = T_TAG;
+                    tokstyle = Style.tag2;
                 }
                 else if ("tags3"==tokid)
                 {
-                    continue;
+                    tok = getTagMatcher(grammar.tags3, RegExpID, RegExpGroups['tags3']) || null;
+                    toktype = T_TAG;
+                    tokstyle = Style.tag3;
+                }
+                // attributes ( 3 types )
+                else if ("attributes"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.attributes, RegExpID, RegExpGroups['attributes']) || null;
+                    toktype = T_ATTRIBUTE;
+                    tokstyle = Style.attribute;
+                }
+                else if ("attributes2"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.attributes2, RegExpID, RegExpGroups['attributes2']) || null;
+                    toktype = T_ATTRIBUTE;
+                    tokstyle = Style.attribute2;
+                }
+                else if ("attributes3"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.attributes3, RegExpID, RegExpGroups['attributes3']) || null;
+                    toktype = T_ATTRIBUTE;
+                    tokstyle = Style.attribute3;
+                }
+                // assignments, eg for attributes
+                else if ("assignments"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.assignments, RegExpID, RegExpGroups['assignments']) || null;
+                    toktype = T_ASSIGNMENT;
+                    tokstyle = Style.assignment;
                 }
                 
                 // doctype
@@ -1589,13 +1609,6 @@
             }
             
             grammar.TokenOrder = _tokens;
-            
-            // attributes ( 3 types )
-            grammar.attributes = (grammar.attributes) ? getCompositeMatcher(grammar.attributes, RegExpID, RegExpGroups['attributes']) : null;
-            grammar.attributes2 = (grammar.attributes2) ? getCompositeMatcher(grammar.attributes2, RegExpID, RegExpGroups['attributes2']) : null;
-            grammar.attributes3 = (grammar.attributes3) ? getCompositeMatcher(grammar.attributes3, RegExpID, RegExpGroups['attributes3']) : null;
-            // assignments, eg for attributes
-            grammar.assignments = (grammar.assignments) ? getCompositeMatcher(grammar.assignments, RegExpID, RegExpGroups['assignments']) : null;
             
             grammar.indent = null;
             grammar.hasIndent = false;

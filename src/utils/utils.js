@@ -1,50 +1,20 @@
     
-    // IE8- mostly
-    /*if ( !Array.prototype.indexOf ) 
-    {
-        var Abs = Math.abs;
-        
-        Array.prototype.indexOf = function (searchElement , fromIndex) {
-            var i,
-                pivot = (fromIndex) ? fromIndex : 0,
-                length;
-
-            if ( !this ) 
-            {
-                throw new TypeError();
-            }
-
-            length = this.length;
-
-            if (length === 0 || pivot >= length)
-            {
-                return -1;
-            }
-
-            if (pivot < 0) 
-            {
-                pivot = length - Abs(pivot);
-            }
-
-            for (i = pivot; i < length; i++) 
-            {
-                if (this[i] === searchElement) 
-                {
-                    return i;
-                }
-            }
-            return -1;
-        };
-    }*/
-    
     var slice = Array.prototype.slice, 
         
         hasKey = Object.prototype.hasOwnProperty,
         
         Str = Object.prototype.toString,
 
+        is_ = function(v, t) {
+            return (t === v);
+        },
+        
         is_number = function(n) {
             return ('number'==typeof(n) || n instanceof Number);
+        },
+        
+        is_bool = function(b) {
+            return (true === b || false === b);
         },
         
         is_char = function(c) {

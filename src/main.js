@@ -103,28 +103,47 @@
                 // tags ( 3 types )
                 else if ("tags"==tokid)
                 {
-                    t1 = [];
-                    t2 = [];
-                    var tmp = make_array(grammar.tags);
-                    for (i=0, l=tmp.length; i<l; i++)
-                    {
-                        t1.push( [ tmp[i][0], tmp[i][1] ] );
-                        t2 = t2.concat( tmp[i][2] );
-                    }
-                    t1 = getBlockMatcher(t1, RegExpID) || null;
-                    t2 = getCompositeMatcher(t2, RegExpID, RegExpGroups['tags']) || null;
-                    tok = t1;
+                    tok = getTagMatcher(grammar.tags, RegExpID, RegExpGroups['tags']) || null;
                     toktype = T_TAG;
                     tokstyle = Style.tag;
-                    grammar.tagNames = t2;
                 }
                 else if ("tags2"==tokid)
                 {
-                    continue;
+                    tok = getTagMatcher(grammar.tags2, RegExpID, RegExpGroups['tags2']) || null;
+                    toktype = T_TAG;
+                    tokstyle = Style.tag2;
                 }
                 else if ("tags3"==tokid)
                 {
-                    continue;
+                    tok = getTagMatcher(grammar.tags3, RegExpID, RegExpGroups['tags3']) || null;
+                    toktype = T_TAG;
+                    tokstyle = Style.tag3;
+                }
+                // attributes ( 3 types )
+                else if ("attributes"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.attributes, RegExpID, RegExpGroups['attributes']) || null;
+                    toktype = T_ATTRIBUTE;
+                    tokstyle = Style.attribute;
+                }
+                else if ("attributes2"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.attributes2, RegExpID, RegExpGroups['attributes2']) || null;
+                    toktype = T_ATTRIBUTE;
+                    tokstyle = Style.attribute2;
+                }
+                else if ("attributes3"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.attributes3, RegExpID, RegExpGroups['attributes3']) || null;
+                    toktype = T_ATTRIBUTE;
+                    tokstyle = Style.attribute3;
+                }
+                // assignments, eg for attributes
+                else if ("assignments"==tokid)
+                {
+                    tok = getCompositeMatcher(grammar.assignments, RegExpID, RegExpGroups['assignments']) || null;
+                    toktype = T_ASSIGNMENT;
+                    tokstyle = Style.assignment;
                 }
                 
                 // doctype
@@ -280,13 +299,6 @@
             }
             
             grammar.TokenOrder = _tokens;
-            
-            // attributes ( 3 types )
-            grammar.attributes = (grammar.attributes) ? getCompositeMatcher(grammar.attributes, RegExpID, RegExpGroups['attributes']) : null;
-            grammar.attributes2 = (grammar.attributes2) ? getCompositeMatcher(grammar.attributes2, RegExpID, RegExpGroups['attributes2']) : null;
-            grammar.attributes3 = (grammar.attributes3) ? getCompositeMatcher(grammar.attributes3, RegExpID, RegExpGroups['attributes3']) : null;
-            // assignments, eg for attributes
-            grammar.assignments = (grammar.assignments) ? getCompositeMatcher(grammar.assignments, RegExpID, RegExpGroups['assignments']) : null;
             
             grammar.indent = null;
             grammar.hasIndent = false;

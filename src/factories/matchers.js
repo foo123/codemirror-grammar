@@ -90,12 +90,18 @@
                     return { key: key, val: match };
                 };
             }
-            else if (T_NULLMATCHER == this.type)
+            else if (T_ENDOFLINEMATCHER == this.type)
             {
                 this.match = function(stream, eat) { 
                     // manipulate the codemirror stream directly for speed
                     if (false !== eat) stream.pos = stream.string.length; // skipToEnd
                     return { key: key, val: "" };
+                };
+            }
+            else if (T_DUMMYMATCHER == this.type)
+            {
+                this.match = function(stream, eat) { 
+                    return { key: key, val: r };
                 };
             }
             else
@@ -188,6 +194,52 @@
             };
         },
         
+        TagMatcher = function(start, name, end) {
+            
+            var token,
+                startMatcher = new CompositeMatcher(start, false),
+                tagName = "", nameMatcher, endMatcher
+            ;
+            
+            this.type = T_BLOCKMATCHER;
+            
+            this.match = function(stream, eat) {
+                
+                token = startMatcher.match(stream, eat);
+                
+                if (token)
+                {
+                    nameMatcher = name[ token.key ];
+                    // regex given, get the matched group for the ending of this block
+                    if ( is_number(nameMatcher) )
+                    {
+                        // the regex is wrapped in an additional group, 
+                        // add 1 to the requested regex group transparently
+                        //nameMatcher = getSimpleMatcher( token.val[ nameMatcher+1 ] );
+                        tagName = token.val[ nameMatcher+1 ];
+                    }
+                    else
+                    {
+                        tagName = nameMatcher.match( token.val );
+                        tagName = (tagName) ? tagName.val : "";
+                    }
+                    
+                    endMatcher = end[ token.key ];
+                    // regex given, get the matched group for the ending of this block
+                    if ( is_number(endMatcher) )
+                    {
+                        // the regex is wrapped in an additional group, 
+                        // add 1 to the requested regex group transparently
+                        endMatcher = getSimpleMatcher( token.val[ endMatcher+1 ] );
+                    }
+                    
+                    return [endMatcher, tagName];
+                }
+                
+                return false;
+            };
+        },
+        
         getSimpleMatcher = function(r, key) {
             // get a fast customized matcher for < r >
             
@@ -197,15 +249,17 @@
             
             key = key || 0;
             
-            if ( is_number(r) )  return r;
+            if ( is_number( r ) )  return r;
             
-            else if ( null == r )  return new SimpleMatcher(T_NULLMATCHER, r, key);
+            else if ( is_bool( r ) ) return new SimpleMatcher(T_DUMMYMATCHER, r, key);
             
-            else if ( is_char(r) )  return new SimpleMatcher(T_CHARMATCHER, r, key);
+            else if ( is_(null, r) )  return new SimpleMatcher(T_ENDOFLINEMATCHER, r, key);
             
-            else if ( is_string(r) ) return new SimpleMatcher(T_STRMATCHER, r, key);
+            else if ( is_char( r ) )  return new SimpleMatcher(T_CHARMATCHER, r, key);
             
-            else if ( is_regex(r) )  return new SimpleMatcher(T_REGEXMATCHER, r, key);
+            else if ( is_string( r ) ) return new SimpleMatcher(T_STRMATCHER, r, key);
+            
+            else if ( is_regex( r ) )  return new SimpleMatcher(T_REGEXMATCHER, r, key);
             
             // unknown
             return r;
@@ -240,7 +294,8 @@
             
             if ( isRegExpGroup && !(array_of_arrays || has_regexs) )
             {   
-                return new CompositeMatcher( [ getSimpleMatcher( getCombinedRegexp( tmp ) ) ] );
+                //return new CompositeMatcher( [ getSimpleMatcher( getCombinedRegexp( tmp ) ) ] );
+                return getSimpleMatcher( getCombinedRegexp( tmp ) );
             }
             else
             {
@@ -252,7 +307,7 @@
                         tmp[i] = getSimpleMatcher( getRegexp( tmp[i], RegExpID ), i );
                 }
                 
-                return new CompositeMatcher( tmp );
+                return (tmp.length > 1) ? new CompositeMatcher( tmp ) : tmp[0];
             }
         },
         
@@ -270,5 +325,22 @@
                 start.push( t1 );  end.push( t2 );
             }
             return new BlockMatcher(start, end);
+        },
+        
+        getTagMatcher = function(tokens, RegExpID, isRegExpGroup) {
+            var tmp, i, l, start, name, end, t1, t2, t3;
+            
+            // build start/end mappings
+            start=[]; name=[]; end=[];
+            tmp = make_array(tokens);
+            if ( !is_array(tmp[0]) ) tmp = [ tmp ]; // array of arrays
+            for (i=0, l=tmp.length; i<l; i++)
+            {
+                t1 = getSimpleMatcher( getRegexp( tmp[i][0], RegExpID ), i );
+                t2 = (tmp[i].length>2) ? getSimpleMatcher( getRegexp( tmp[i][2], RegExpID ), i ) : t1;
+                t3 = (tmp[i].length>1) ? getCompositeMatcher( getRegexp( tmp[i][1], RegExpID, isRegExpGroup ), i ) : t1;
+                start.push( t1 );  name.push(t3); end.push( t2 );
+            }
+            return new TagMatcher(start, name, end);
         }
     ;

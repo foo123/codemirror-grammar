@@ -36,9 +36,11 @@
         T_CHARMATCHER = 33,
         T_STRMATCHER = 34,
         T_REGEXMATCHER = 36,
-        T_NULLMATCHER = T_LINEMATCHER = 40,
+        T_NULLMATCHER = T_ENDOFLINEMATCHER = 40,
+        T_DUMMYMATCHER = 48,
         T_COMPOSITEMATCHER = 64,
         T_BLOCKMATCHER = 128,
+        T_TAGMATCHER = 256,
         
         //
         // tokenizer types

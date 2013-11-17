@@ -138,86 +138,32 @@
             return tokenString;
         },
         
-        getTagTokenizer = function(endTag, LOCALS, nextTokenizer) {
+        getTagTokenizer = function(tagMatcher, style, stack, nextTokenizer) {
             
-            var DEFAULT = LOCALS.DEFAULT,
-                style = LOCALS.style,
-                
-                tagName = LOCALS.tagNames,
-                attribute = LOCALS.attributes,
-                assignment = LOCALS.assignments,
-                string = LOCALS.strings,
-                
-                foundTag = false,
-                tag_name = ''
-                ;
+            var endTag = tagMatcher[0], tagName = tagMatcher[1];
             
             var tokenTag = function(stream, state) {
                 
-                var token, endString,
-                    lastToken = state.lastToken;
+                var top;
                 
-                if ( !foundTag && tagName && (token = tagName.match(stream)) )
-                {
-                    //tag_name = token.val;
-                    state.lastToken = T_TAG;
-                    foundTag = true;
-                    return style.tag;
-                }
+                //console.log(stack);
                 
-                if ( foundTag )
+                top = stack[0] || null;
+                if ( top && (endTag === top[0]) )
                 {
-                    if ( stream.eatSpace() )
-                    {
-                        state.lastToken = T_DEFAULT;
-                        return DEFAULT;
-                    }
-                    
-                    if (
-                        //( (T_TAG | T_ATTRIBUTE | T_STRING | T_DEFAULT) & lastToken ) &&
-                        endTag.match(stream)
-                    )
-                    {
-                        state.tokenize = nextTokenizer || null;
-                        state.lastToken = T_ENDTAG;
-                        return style.tag;
-                    }
-                    
-                    if (
-                        //( T_DEFAULT & lastToken ) &&
-                        attribute && attribute.match(stream)
-                    )
-                    {
-                        state.lastToken = T_ATTRIBUTE;
-                        return style.attribute;
-                    }
-                    
-                    if (
-                        //( T_ATTRIBUTE & lastToken ) &&
-                        assignment && assignment.match(stream)
-                    )
-                    {
-                        state.lastToken = T_ASSIGNMENT;
-                        return DEFAULT;
-                    }
-                    
-                    if (
-                        //( T_ASSIGNMENT & lastToken ) &&
-                        string && (endString = string.match(stream))
-                    )
-                    {
-                        state.tokenize = getStringTokenizer(endString, T_STRING, style.string, false, tokenTag);
-                        return state.tokenize(stream, state);
-                    }
-                    
-                    state.lastToken = T_DEFAULT;
-                    return DEFAULT;
+                    stack.shift();
+                    state.lastToken = T_ENDTAG;
                 }
                 else
                 {
-                    state.lastToken = T_ERROR;
-                    return style.error;
+                    stack.unshift( [ endTag, tokenTag, tagName ] );
+                    state.lastToken = T_TAG;
                 }
+                
+                //console.log(stack);
+                
+                state.tokenize = nextTokenizer || null;
+                return style;
             };
             
             tokenTag.type = T_TAG;
@@ -274,16 +220,16 @@
                 numTokens = tokens.length,
                 
                 hasIndent = grammar.hasIndent,
-                indent = grammar.indent
+                indent = grammar.indent,
+                
+                stack = []
             ;
             
             var tokenBase = function(stream, state) {
                 
-                var
-                    multiLineStrings = LOCALS.conf.multiLineStrings
-                ;
+                var multiLineStrings = LOCALS.conf.multiLineStrings;
                 
-                var i, tok, token, tokenType, tokenStyle, endMatcher;
+                var stackTop = null, i, tok, token, tokenType, tokenStyle, endMatcher;
                 
                 if ( stream.eatSpace() ) 
                 {
@@ -291,6 +237,13 @@
                     return DEFAULT;
                 }
                 
+                stackTop = stack[0] || null;
+                if ( stackTop && stackTop[0].match(stream) )
+                {
+                    state.tokenize = stackTop[1];
+                    return state.tokenize(stream, state);
+                }
+                    
                 for (i=0; i<numTokens; i++)
                 {
                     tok = tokens[i];
@@ -348,8 +301,6 @@
                 tokens = grammar.TokenOrder || [],
                 numTokens = tokens.length,
                 
-                tagNames = grammar.tagNames || null,
-                
                 attributes = grammar.attributes || null,
                 attributes2 = grammar.attributes2 || null,
                 attributes3 = grammar.attributes3 || null,
@@ -357,16 +308,16 @@
                 assignments = grammar.assignments || null,
                 
                 hasIndent = grammar.hasIndent,
-                indent = grammar.indent
+                indent = grammar.indent,
+                
+                stack = []
             ;
             
             return function(stream, state) {
 
-                var
-                    multiLineStrings = LOCALS.conf.multiLineStrings
-                ;
+                var multiLineStrings = LOCALS.conf.multiLineStrings;
                 
-                var i, tok, token, tokenType, tokenStyle, endMatcher;
+                var stackTop = null, i, tok, token, tokenType, tokenStyle, endMatcher;
                 
                 if ( stream.eatSpace() ) 
                 {
@@ -374,6 +325,13 @@
                     return DEFAULT;
                 }
                 
+                stackTop = stack[0] || null;
+                if ( stackTop && stackTop[0].match(stream) )
+                {
+                    state.tokenize = stackTop[1];
+                    return state.tokenize(stream, state);
+                }
+                    
                 for (i=0; i<numTokens; i++)
                 {
                     tok = tokens[i];
@@ -409,14 +367,7 @@
                     {
                         if ( (endMatcher = token.match(stream)) ) 
                         {
-                            // pass any necessary data to the tokenizer
-                            LOCALS.style = style;
-                            LOCALS.tagNames = tagNames;
-                            LOCALS.attributes = attributes;
-                            LOCALS.assignments = assignments;
-                            LOCALS.strings = grammar.strings;
-                            
-                            state.tokenize = getTagTokenizer(endMatcher, LOCALS);
+                            state.tokenize = getTagTokenizer(endMatcher, tokenStyle, stack);
                             return state.tokenize(stream, state);
                         }
                     }
@@ -431,8 +382,15 @@
                         }
                     }
                     
+                    // (tag) attributes
+                    if ( stack.length && (T_ATTRIBUTE & tokenType) && token.match(stream) )
+                    {
+                        state.lastToken = tokenType;
+                        return tokenStyle;
+                    }
+                    
                     // other types of tokens
-                    if ( token.match(stream) )
+                    if ( !(T_ATTRIBUTE & tokenType) && token.match(stream) )
                     {
                         state.lastToken = tokenType;
                         return tokenStyle;
@@ -472,7 +430,6 @@
                 codeStyle = state.tokenize(stream, state);
                 //tokType = state.lastToken;
                 //current = stream.current();
-                
                 return codeStyle;
                 
                 //if ( tokType == T_COMMENT || tokType == T_META ) return codeStyle;
@@ -524,17 +481,13 @@
         
         indentationFactory = function(LOCALS) {
             
-            var DEFAULT = LOCALS.DEFAULT
-            ;
+            var DEFAULT = LOCALS.DEFAULT;
             
             return function(state, textAfter) {
                 
-                var
-                    basecolumn = LOCALS.basecolumn || 0,
+                var basecolumn = LOCALS.basecolumn || 0,
                     indentUnit = LOCALS.conf.indentUnit
                 ;
-                
-                var ctx;
                 
                 // TODO
                 return CodeMirror.Pass;
