@@ -30,75 +30,76 @@ var contemplate_grammar = {
         ],
             
         //
-        // style model
-    
-        // lang token type  -> CodeMirror (style) tag
+        // Style model
         "Style" : {
-            "error":       "error",
-            "meta":        "tagContemplate",
-            "comment":     "comment",
-            "atom":        "atom",
-            "keyword":     "tagContemplate",
-            "builtin":     "tagContemplate",
-            "operator":    "operator",
-            "delimiter":   "bracket",
-            "identifier":  "variable",
-            "number":      "number",
-            "string":      "string"
+            // lang token type  -> CodeMirror (style) tag
+            "error":        "error",
+            "meta":         "tagContemplate",
+            "comments":     "comment",
+            "atoms":        "atom",
+            "keywords":     "tagContemplate",
+            "builtins":     "tagContemplate",
+            "operators":    "operator",
+            "delimiters":   "bracket",
+            "identifiers":  "variable",
+            "numbers":      "number",
+            "strings":      "string"
         },
 
         
         //
-        // lexical model
-        
-        // contemplate variables
-        "identifiers" : "RegExp::\\$[_A-Za-z][_A-Za-z0-9]*",
+        // Lexical model
+        "Lex" : {
+            
+            // contemplate variables
+            "identifiers" : "RegExp::\\$[_A-Za-z][_A-Za-z0-9]*",
 
-        // numbers, in order of matching
-        "numbers" : [
-            // floats
-            "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?",
-            "RegExp::\\d+\\.\\d*",
-            "RegExp::\\.\\d+",
-            // integers
-            "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?",
-            // just zero
-            "RegExp::0(?![\\dx])"
-        ],
+            // numbers, in order of matching
+            "numbers" : [
+                // floats
+                "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?",
+                "RegExp::\\d+\\.\\d*",
+                "RegExp::\\.\\d+",
+                // integers
+                "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?",
+                // just zero
+                "RegExp::0(?![\\dx])"
+            ],
 
-        // strings
-        // start, end of string (can be the matched regex group ie. 1 )
-        "strings" : [ "RegExp::(['\"])", 1 ],
-        
-        // operators
-        "operators" : [
-            [ "+", "-", "*", "/", "%", "<", ">", "!" ],
-            [ "=>", "==", "!=", "<=", ">=", "<>", "||", "&&" ]
-        ],
-        
-        // delimiters
-        "delimiters" : [ 
-            "=", "(", ")", "[", "]"
-        ],
-        
-        // atoms
-        "atoms" : [ "true", "false" ],
+            // strings
+            // start, end of string (can be the matched regex group ie. 1 )
+            "strings" : [ "RegExp::(['\"])", 1 ],
+            
+            // operators
+            "operators" : [
+                [ "+", "-", "*", "/", "%", "<", ">", "!" ],
+                [ "=>", "==", "!=", "<=", ">=", "<>", "||", "&&" ]
+            ],
+            
+            // delimiters
+            "delimiters" : [ 
+                "=", "(", ")", "[", "]"
+            ],
+            
+            // atoms
+            "atoms" : [ "true", "false" ],
 
-        // meta
-        "meta" : [ "<%", "%>" ],
+            // meta
+            "meta" : [ "<%", "%>" ],
 
-        // keywords
-        "keywords" : [
-            "%extends", "%block", "%endblock", "%template", "%include",
-            "%if", "%elseif", "%else", "%endif", "%for", "%elsefor",
-            "%endfor", "as"
-        ],
-                              
-        // builtin functions, constructs, etc..
-        "builtins" : [
-            "%now", "%date", "%ldate", "%count", "%sprintf",
-            "%trim", "%ltrim", "%rtrim",
-            "%htmltable", "%htmlselect", "%concat",
-            "%s", "%n", "%f", "%l", "%q", "%dq"
-        ]
+            // keywords
+            "keywords" : [
+                "%extends", "%block", "%endblock", "%template", "%include",
+                "%if", "%elseif", "%else", "%endif", "%for", "%elsefor",
+                "%endfor", "as"
+            ],
+                                  
+            // builtin functions, constructs, etc..
+            "builtins" : [
+                "%now", "%date", "%ldate", "%count", "%sprintf",
+                "%trim", "%ltrim", "%rtrim",
+                "%htmltable", "%htmlselect", "%concat",
+                "%s", "%n", "%f", "%l", "%q", "%dq"
+            ]
+        }
 };

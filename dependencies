@@ -7,9 +7,9 @@
 
 @DEPENDENCIES
 ./src/header.js
+./src/factories/types.js
 ./src/utils/utils.js
 ./src/utils/defaults.js
-./src/factories/types.js
 ./src/factories/matchers.js
 ./src/factories/tokenizers.js
 ./src/main.js

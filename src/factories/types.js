@@ -3,6 +3,24 @@
     // parser types
     var    
         //
+        // javascript variable types
+        T_NUM = 2;
+        T_BOOL = 4;
+        T_STR = 8;
+        T_CHAR= 9;
+        T_REGEX = 16;
+        T_ARRAY = 32;
+        T_OBJ = 64;
+        T_NULL = 128;
+        T_UNDEF = 256;
+        T_UNKNOWN = 512;
+        
+        //
+        // grammar types
+        T_PROGRAMMING_LIKE = 1,
+        T_MARKUP_LIKE = 2,
+        
+        //
         // token types
         T_DEFAULT = 1,
         T_META = 2,
@@ -19,16 +37,10 @@
         T_ASSIGNMENT = 4096,
         T_ENDTAG = 8192,
         T_ERROR = 16384,
-        
         T_BLOCK = 32768,
         T_DOCTYPE = 65536,
         T_OP = 131072,
         T_DELIM = 262144,
-        
-        //
-        // grammar types
-        T_PROGRAMMING_LIKE = 1,
-        T_MARKUP_LIKE = 2,
         
         //
         // matcher types
@@ -46,14 +58,14 @@
         // tokenizer types
         T_TOKENBASE = 200,
         T_TOKENBASEML = 210,
-        T_TOKEN = 220,
+        T_TOKEN = 220//,
         
         //
         // indentation types
-        T_TOP_LEVEL = 100,
+        /*T_TOP_LEVEL = 100,
         T_STATEMENT_LEVEL = 110,
         T_DELIM_LEVEL = 120,
         T_BLOCK_LEVEL = 130,
         T_DO_INDENT = 140,
-        T_DO_DEDENT = 150
+        T_DO_DEDENT = 150*/
     ;

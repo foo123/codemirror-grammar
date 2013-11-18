@@ -2,94 +2,6 @@
     //
     // tokenizer factories
     var
-        /*Indentation = function(offset, type, delim) {
-            this.offset = offset || 0;
-            this.type = type || T_TOP_LEVEL;
-            this.delim = delim || "";
-        },
-        
-        getIndentation = function(state) {
-            return state.indents[0];
-        },*/
-        
-        /*doIndent = function(state, type, col, current, conf_indentUnit) {
-            type = type || T_BLOCK_LEVEL;
-            var indentUnit = 0, i, l, ctx = state.__indents[0];
-            if (T_BLOCK_LEVEL === type) 
-            {
-                if (T_BLOCK_LEVEL !== ctx.type) 
-                {
-                    ctx.offset = stream.indentation();
-                    return;
-                }
-                for (i=0, l=state.__indents.length; i < l; ++i) 
-                {
-                    ctx = state.__indents[i];
-                    if (T_BLOCK_LEVEL === ctx.type) 
-                    {
-                        indentUnit = ctx.offset + conf_indentUnit;
-                        break;
-                    }
-                }
-            } 
-            else 
-            {
-                indentUnit = col + current.length;
-            }
-            
-            state.__indents.unshift( new Indentation(indentUnit, type) );
-        },
-
-        doDedent = function(state, stream, type, delim) {
-            type = type || T_BLOCK_LEVEL;
-            if (state.__indents.length == 1) return;
-            
-            var i, l, 
-                _indent, _indent_index,
-                ctx = state.__indents[0];
-            
-            if (T_BLOCK_LEVEL === ctx.type) 
-            {
-                _indent = stream.indentation();
-                _indent_index = -1;
-                for (i=0, l=state.__indents.length; i < l; ++i) 
-                {
-                    ctx = state.__indents[i];
-                    if (_indent === ctx.offset) 
-                    {
-                        _indent_index = i;
-                        break;
-                    }
-                }
-                if (_indent_index === -1) 
-                {
-                    return true;
-                }
-                while (state.__indents[0].offset !== _indent) 
-                {
-                    state.__indents.shift();
-                }
-                return false;
-            } 
-            else 
-            {
-                if (T_BLOCK_LEVEL === type) 
-                {
-                    state.__indents[0].offset = stream.indentation();
-                    return false;
-                } 
-                else 
-                {
-                    if (state.__indents[0].type != type) 
-                    {
-                        return true;
-                    }
-                    state.__indents.shift();
-                    return false;
-                }
-            }
-        },*/
-        
         getBlockTokenizer = function(endBlock, type, style, nextTokenizer) {
             
             var tokenBlock = function(stream, state) {
@@ -113,7 +25,7 @@
             return tokenBlock;
         },
         
-        getEscapedBlockTokenizer = function(endBlock, type, style, nextTokenizer) {
+        /*getEscapedBlockTokenizer = function(endBlock, type, style, nextTokenizer) {
             
             var tokenBlock = function(stream, state) {
                 
@@ -136,7 +48,7 @@
             
             tokenBlock.type = type | T_BLOCK;
             return tokenBlock;
-        },
+        },*/
         
         getStringTokenizer = function(endString, type, style, multiLineStrings, nextTokenizer) {
             
@@ -163,7 +75,7 @@
             return tokenString;
         },
         
-        getTagTokenizer = function(tagMatcher, style, stack, nextTokenizer) {
+        getTagTokenizer = function(tagMatcher, type, style, stack, nextTokenizer) {
             
             var endTag = tagMatcher[0], tagName = tagMatcher[1];
             
@@ -177,12 +89,12 @@
                 if ( top && (endTag === top[0]) )
                 {
                     stack.shift();
-                    state.lastToken = T_ENDTAG;
+                    state.lastToken = type | T_ENDTAG;
                 }
                 else
                 {
-                    stack.unshift( [ endTag, tokenTag, tagName ] );
-                    state.lastToken = T_TAG;
+                    stack.unshift( [ endTag, tokenTag/*, tagName*/ ] );
+                    state.lastToken = type;
                 }
                 
                 //console.log(stack);
@@ -191,11 +103,11 @@
                 return style;
             };
             
-            tokenTag.type = T_TAG;
+            tokenTag.type = type | T_TAG;
             return tokenTag;
         },
 
-        getDoctypeTokenizer = function(style, nextTokenizer) {
+        /*getDoctypeTokenizer = function(style, nextTokenizer) {
             
             var tokenDoctype = function(stream, state) {
                 
@@ -233,21 +145,19 @@
             
             tokenDoctype.type = T_DOCTYPE;
             return tokenDoctype;
-        },
+        },*/
 
         tokenBaseFactory = function(grammar, LOCALS) {
             
             var DEFAULT = LOCALS.DEFAULT,
                  
-                style = grammar.Style || {},
+                //stack = [],
                 
                 tokens = grammar.TokenOrder || [],
                 numTokens = tokens.length,
                 
                 hasIndent = grammar.hasIndent,
-                indent = grammar.indent,
-                
-                stack = []
+                indent = grammar.indent
             ;
             
             var tokenBase = function(stream, state) {
@@ -262,12 +172,12 @@
                     return DEFAULT;
                 }
                 
-                stackTop = stack[0] || null;
+                /*stackTop = stack[0] || null;
                 if ( stackTop && stackTop[0].match(stream) )
                 {
                     state.tokenize = stackTop[1];
                     return state.tokenize(stream, state);
-                }
+                }*/
                     
                 for (i=0; i<numTokens; i++)
                 {
@@ -315,15 +225,13 @@
             
             var DEFAULT = LOCALS.DEFAULT,
                 
-                style = grammar.Style || {},
+                stack = [],
                 
                 tokens = grammar.TokenOrder || [],
                 numTokens = tokens.length,
                 
                 hasIndent = grammar.hasIndent,
-                indent = grammar.indent,
-                
-                stack = []
+                indent = grammar.indent
             ;
             
             return function(stream, state) {
@@ -363,16 +271,16 @@
                     }
                     
                     // doctypes, etc..
-                    if ( (T_DOCTYPE & tokenType) && token.match(stream) )
+                    /*if ( (T_DOCTYPE & tokenType) && token.match(stream) )
                     {
                         state.tokenize = getDoctypeTokenizer(tokenStyle);
                         return state.tokenize(stream, state);
-                    }
+                    }*/
                     
                     // tags
                     if ( (T_TAG & tokenType) && (endMatcher = token.match(stream)) )
                     {
-                        state.tokenize = getTagTokenizer(endMatcher, tokenStyle, stack);
+                        state.tokenize = getTagTokenizer(endMatcher, tokenType, tokenStyle, stack);
                         return state.tokenize(stream, state);
                     }
                     

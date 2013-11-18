@@ -7,13 +7,13 @@
         
         isRegexp = function(s, id) {
             return (
-                is_string(id) && is_string(s) && id.length &&
+                (T_STR & get_type(id)) && (T_STR & get_type(s)) && id.length &&
                 id.length <= s.length && id == s.substr(0, id.length)
             );
         },
         
         getRegexp = function(r, rid)  {
-            if ( !r || is_number(r) ) return r;
+            if ( !r || (T_NUM == get_type(r)) ) return r;
             
             var l = (rid) ? (rid.length||0) : 0;
             
@@ -181,11 +181,11 @@
                     endMatcher = end[ token.key ];
                     
                     // regex given, get the matched group for the ending of this block
-                    if ( is_number(endMatcher) )
+                    if ( T_NUM == get_type( endMatcher ) )
                     {
                         // the regex is wrapped in an additional group, 
                         // add 1 to the requested regex group transparently
-                        endMatcher = getSimpleMatcher( token.val[ endMatcher+1 ] );
+                        endMatcher = new SimpleMatcher( T_STRMATCHER, token.val[ endMatcher+1 ] );
                     }
                     
                     return endMatcher;
@@ -199,7 +199,7 @@
             
             var token,
                 startMatcher = new CompositeMatcher(start, false),
-                tagName = "", nameMatcher, endMatcher
+                tagName = "", /*nameMatcher,*/ endMatcher
             ;
             
             this.type = T_TAGMATCHER;
@@ -212,7 +212,7 @@
                 {
                     nameMatcher = name[ token.key ];
                     // regex given, get the matched group for the ending of this block
-                    if ( is_number(nameMatcher) )
+                    if ( T_NUM == get_type( nameMatcher ) )
                     {
                         // the regex is wrapped in an additional group, 
                         // add 1 to the requested regex group transparently
@@ -227,11 +227,11 @@
                     
                     endMatcher = end[ token.key ];
                     // regex given, get the matched group for the ending of this block
-                    if ( is_number(endMatcher) )
+                    if ( T_NUM == get_type( endMatcher ) )
                     {
                         // the regex is wrapped in an additional group, 
                         // add 1 to the requested regex group transparently
-                        endMatcher = getSimpleMatcher( token.val[ endMatcher+1 ] );
+                        endMatcher = new SimpleMatcher( T_STRMATCHER, token.val[ endMatcher+1 ] );
                     }
                     
                     return [endMatcher, tagName];
@@ -250,17 +250,19 @@
             
             key = key || 0;
             
-            if ( is_number( r ) )  return r;
+            var T = get_type( r );
             
-            else if ( is_bool( r ) ) return new SimpleMatcher(T_DUMMYMATCHER, r, key);
+            if ( T_NUM == T )  return r;
             
-            else if ( is_(null, r) )  return new SimpleMatcher(T_EOLMATCHER, r, key);
+            else if ( T_BOOL == T ) return new SimpleMatcher(T_DUMMYMATCHER, r, key);
             
-            else if ( is_char( r ) )  return new SimpleMatcher(T_CHARMATCHER, r, key);
+            else if ( T_NULL == T )  return new SimpleMatcher(T_EOLMATCHER, r, key);
             
-            else if ( is_string( r ) ) return new SimpleMatcher(T_STRMATCHER, r, key);
+            else if ( T_CHAR == T )  return new SimpleMatcher(T_CHARMATCHER, r, key);
             
-            else if ( is_regex( r ) )  return new SimpleMatcher(T_REGEXMATCHER, r, key);
+            else if ( T_STR == T ) return new SimpleMatcher(T_STRMATCHER, r, key);
+            
+            else if ( T_REGEX == T )  return new SimpleMatcher(T_REGEXMATCHER, r, key);
             
             // unknown
             return r;
@@ -270,7 +272,7 @@
             
             var tmp, i, l, l2, array_of_arrays = false, has_regexs = false;
             
-            tmp = make_array(tokens);
+            tmp = make_array( tokens );
             l = tmp.length;
             
             if ( isRegExpGroup )
@@ -280,7 +282,7 @@
                 // if they do not contain sub-arrays or regular expressions
                 for (i=0; i<=l2; i++)
                 {
-                    if ( is_array( tmp[i] ) || is_array( tmp[l-1-i] ) ) 
+                    if ( (T_ARRAY == get_type( tmp[i] )) || (T_ARRAY == get_type( tmp[l-1-i] )) ) 
                     {
                         array_of_arrays = true;
                         break;
@@ -302,7 +304,7 @@
             {
                 for (i=0; i<l; i++)
                 {
-                    if ( is_array( tmp[i] ) )
+                    if ( T_ARRAY == get_type( tmp[i] ) )
                         tmp[i] = getCompositeMatcher( tmp[i], RegExpID, isRegExpGroup );
                     else
                         tmp[i] = getSimpleMatcher( getRegexp( tmp[i], RegExpID ), i );
@@ -317,8 +319,7 @@
             
             // build start/end mappings
             start=[]; end=[];
-            tmp = make_array(tokens);
-            if ( !is_array(tmp[0]) ) tmp = [ tmp ]; // array of arrays
+            tmp = make_array_2(tokens); // array of arrays
             for (i=0, l=tmp.length; i<l; i++)
             {
                 t1 = getSimpleMatcher( getRegexp( tmp[i][0], RegExpID ), i );
@@ -333,8 +334,7 @@
             
             // build start/end mappings
             start=[]; name=[]; end=[];
-            tmp = make_array(tokens);
-            if ( !is_array(tmp[0]) ) tmp = [ tmp ]; // array of arrays
+            tmp = make_array_2(tokens); // array of arrays
             for (i=0, l=tmp.length; i<l; i++)
             {
                 t1 = getSimpleMatcher( getRegexp( tmp[i][0], RegExpID ), i );

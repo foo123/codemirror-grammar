@@ -9,4 +9,4 @@
 **/
 (function(root, undef){
     
-    var VERSION = "0.1";
+    var VERSION = "0.2";

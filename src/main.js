@@ -6,550 +6,164 @@
         
         VERSION : VERSION,
         
+        // extend a grammar using another base grammar
+        extendGrammar : function(grammar, base) {
+            return extend(grammar, base);
+        },
+        
         parseGrammar : function(grammar, base) {
-            
-            if (grammar.type && "markup-like" == grammar.type)
-                return self.parseMarkupLikeGrammar(grammar, base || markupLikeGrammar);
-            
-            else
-                return self.parseProgrammingLikeGrammar(grammar, base || programmingLikeGrammar);
-        },
-        
-        parseMarkupLikeGrammar : function(grammar, base) {
-            var t1, t2, i, l, RegExpID, RegExpGroups, 
-                tokens, numTokens, Style, _tokens = [], 
-                tokid, ll, tok, toktype, tokstyle;
+            var RegExpID, RegExpGroups, tokens, numTokens, _tokens, 
+                Style, Lex, 
+                t, tokID, tok, tokType, tokStyle, tokTypes;
             
             // grammar is parsed, return it
             // avoid reparsing already parsed grammars
             if (grammar.__parsed)  return grammar;
             
-            grammar = extend(grammar, base);
+            grammar = extend(grammar, base, defaultGrammar);
+            
             RegExpID = grammar.RegExpID || null;
             grammar.RegExpID = null;
             delete grammar.RegExpID;
+            
             RegExpGroups = grammar.RegExpGroups || {};
             grammar.RegExpGroups = null;
             delete grammar.RegExpGroups;
             
-            grammar.type = T_MARKUP_LIKE;
+            grammar.type = (grammar.type && "markup-like"==grammar.type) ? T_MARKUP_LIKE : T_PROGRAMMING_LIKE;
             
             tokens = grammar.TokenOrder || [];
             numTokens = tokens.length;
+            _tokens = [];
             
             Style = grammar.Style || {};
+            Lex = grammar.Lex || {};
+            
+            tokTypes = {
+                TAG : {
+                    // general tags ( 3 types )
+                    "tags" : T_TAG,
+                    "tags2" : T_TAG,
+                    "tags3" : T_TAG
+                },
+                
+                DOCTYPE : {
+                    // doctype, not used at present
+                    "doctype" : T_DOCTYPE
+                },
+                
+                BLOCK : {
+                    // comments (both line-comments and block-comments)
+                    "comments" : T_COMMENT,
+                    
+                    // general blocks ( 5 types ), eg. heredocs, cdata, etc..
+                    "blocks" : T_BLOCK,
+                    "blocks2" : T_BLOCK,
+                    "blocks3" : T_BLOCK,
+                    "blocks4" : T_BLOCK,
+                    "blocks5" : T_BLOCK
+                },
+                
+                STRING : {
+                    // general strings ( 5 types )
+                    "strings" : T_STRING,
+                    "strings2" : T_STRING,
+                    "strings3" : T_STRING,
+                    "strings4" : T_STRING,
+                    "strings5" : T_STRING
+                },
+                
+                SIMPLE : {
+                    // general identifiers ( 5 types ), eg. variables, function names, etc..
+                    "identifiers" : T_IDENTIFIER,
+                    "identifiers2" : T_IDENTIFIER,
+                    "identifiers3" : T_IDENTIFIER,
+                    "identifiers4" : T_IDENTIFIER,
+                    "identifiers5" : T_IDENTIFIER,
+                    
+                    // general numbers ( 3 types )
+                    "numbers" : T_NUMBER,
+                    "numbers2" : T_NUMBER,
+                    "numbers3" : T_NUMBER,
+                    
+                    // general attributes ( 3 types ), eg. for tags
+                    "attributes" : T_ATTRIBUTE,
+                    "attributes2" : T_ATTRIBUTE,
+                    "attributes3" : T_ATTRIBUTE,
+                    
+                    // other special tokens
+                    "keywords" : T_KEYWORD,
+                    "builtins" : T_BUILTIN,
+                    "atoms" : T_ATOM,
+                    "meta" : T_META,
+                    "defines" : T_DEF,
+                    "operators" : T_OP,
+                    "delimiters" : T_DELIM,
+                    "assignments" : T_ASSIGNMENT
+                }
+            };
             
             for (t=0; t<numTokens; t++)
             {
-                tokid = tokens[t];
+                tokID = tokens[t];
                 
-                if ( !grammar[tokid] ) continue;
+                if ( !Lex[ tokID ] ) continue;
                 
                 tok = null;
                 
-                // comments
-                if ("comments"==tokid)
+                // block tokens, comments, general blocks etc..
+                if ( tokID in tokTypes.BLOCK )
                 {
-                    t1 = [];
-                    if (grammar.comments.line)  
-                    {
-                        t2 = make_array(grammar.comments.line);
-                        
-                        for (i=0, l=t2.length; i<l; i++)
-                            t1.push( [t2[i], null] );
-                    }
-                    if (grammar.comments.block)  
-                    {
-                        t2 = make_array(grammar.comments.block);
-                        t1.push( [t2[0], ((t2[1]) ? t2[1] : t2[0])] );
-                    }
-                    tok = (t1.length) ? getBlockMatcher(t1, RegExpID) : null;
-                    toktype = T_COMMENT;
-                    tokstyle = Style.comment;
+                    tok = getBlockMatcher( Lex[tokID], RegExpID ) || null;
+                    tokType = tokTypes.BLOCK[ tokID ];
+                    tokStyle = Style[ tokID ] || null;
                 }
                 
-                // general blocks ( 5 types ), eg. heredocs, cdata, etc..
-                else if ("blocks"==tokid)
+                // general strings tokens
+                else if ( tokID in tokTypes.STRING )
                 {
-                    tok = getBlockMatcher(grammar.blocks, RegExpID) || null;
-                    toktype = T_BLOCK;
-                    tokstyle = Style.block;
-                }
-                else if ("blocks2"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.blocks2, RegExpID) || null;
-                    toktype = T_BLOCK;
-                    tokstyle = Style.block2;
-                }
-                else if ("blocks3"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.blocks3, RegExpID) || null;
-                    toktype = T_BLOCK;
-                    tokstyle = Style.block3;
-                }
-                else if ("blocks4"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.blocks4, RegExpID) || null;
-                    toktype = T_BLOCK;
-                    tokstyle = Style.block4;
-                }
-                else if ("blocks5"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.blocks5, RegExpID) || null;
-                    toktype = T_BLOCK;
-                    tokstyle = Style.block5;
+                    tok = getBlockMatcher( Lex[tokID], RegExpID ) || null;
+                    tokType = tokTypes.STRING[ tokID ];
+                    tokStyle = Style[ tokID ] || null;
                 }
                 
-                // tags ( 3 types )
-                else if ("tags"==tokid)
+                // general tags tokens
+                else if ( tokID in tokTypes.TAG )
                 {
-                    tok = getTagMatcher(grammar.tags, RegExpID, RegExpGroups['tags']) || null;
-                    toktype = T_TAG;
-                    tokstyle = Style.tag;
-                }
-                else if ("tags2"==tokid)
-                {
-                    tok = getTagMatcher(grammar.tags2, RegExpID, RegExpGroups['tags2']) || null;
-                    toktype = T_TAG;
-                    tokstyle = Style.tag2;
-                }
-                else if ("tags3"==tokid)
-                {
-                    tok = getTagMatcher(grammar.tags3, RegExpID, RegExpGroups['tags3']) || null;
-                    toktype = T_TAG;
-                    tokstyle = Style.tag3;
-                }
-                // attributes ( 3 types )
-                else if ("attributes"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.attributes, RegExpID, RegExpGroups['attributes']) || null;
-                    toktype = T_ATTRIBUTE;
-                    tokstyle = Style.attribute;
-                }
-                else if ("attributes2"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.attributes2, RegExpID, RegExpGroups['attributes2']) || null;
-                    toktype = T_ATTRIBUTE;
-                    tokstyle = Style.attribute2;
-                }
-                else if ("attributes3"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.attributes3, RegExpID, RegExpGroups['attributes3']) || null;
-                    toktype = T_ATTRIBUTE;
-                    tokstyle = Style.attribute3;
-                }
-                // assignments, eg for attributes
-                else if ("assignments"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.assignments, RegExpID, RegExpGroups['assignments']) || null;
-                    toktype = T_ASSIGNMENT;
-                    tokstyle = Style.assignment;
+                    tok = getTagMatcher( Lex[tokID], RegExpID, RegExpGroups[tokID] ) || null;
+                    tokType = tokTypes.TAG[ tokID ];
+                    tokStyle = Style[ tokID ] || null;
                 }
                 
-                // doctype
-                else if ("doctype"==tokid)
+                // general doctype tokens
+                else if ( tokID in tokTypes.DOCTYPE )
                 {
+                    // TODO
                     continue;
                 }
                 
-                // general strings ( 5 types )
-                else if ("strings"==tokid)
+                // general simple tokens, identifiers, numbers, keywords, etc..
+                else if ( tokID in tokTypes.SIMPLE )
                 {
-                    tok = getBlockMatcher(grammar.strings, RegExpID) || null;
-                    toktype = T_STRING;
-                    tokstyle = Style.string;
-                }
-                else if ("strings2"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.strings2, RegExpID) || null;
-                    toktype = T_STRING;
-                    tokstyle = Style.string2;
-                }
-                else if ("strings3"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.strings3, RegExpID) || null;
-                    toktype = T_STRING;
-                    tokstyle = Style.string3;
-                }
-                else if ("strings4"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.strings4, RegExpID) || null;
-                    toktype = T_STRING;
-                    tokstyle = Style.string4;
-                }
-                else if ("strings5"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.strings5, RegExpID) || null;
-                    toktype = T_STRING;
-                    tokstyle = Style.string5;
-                }
-                
-                // numbers ( 3 types )
-                else if ("numbers"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.numbers, RegExpID, RegExpGroups['numbers']) || null;
-                    toktype = T_NUMBER;
-                    tokstyle = Style.number;
-                }
-                else if ("numbers2"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.numbers2, RegExpID, RegExpGroups['numbers2']) || null;
-                    toktype = T_NUMBER;
-                    tokstyle = Style.number2;
-                }
-                else if ("numbers3"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.numbers3, RegExpID, RegExpGroups['numbers3']) || null;
-                    toktype = T_NUMBER;
-                    tokstyle = Style.number3;
-                }
-                
-                // general identifiers ( 5 types ), eg. variables, etc..
-                else if ("identifiers"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.identifiers, RegExpID, RegExpGroups['identifiers']) || null;
-                    toktype = T_IDENTIFIER;
-                    tokstyle = Style.identifier;
-                }
-                else if ("identifiers2"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.identifiers2, RegExpID, RegExpGroups['identifiers2']) || null;
-                    toktype = T_IDENTIFIER;
-                    tokstyle = Style.identifier2;
-                }
-                else if ("identifiers3"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.identifiers3, RegExpID, RegExpGroups['identifiers3']) || null;
-                    toktype = T_IDENTIFIER;
-                    tokstyle = Style.identifier3;
-                }
-                else if ("identifiers4"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.identifiers4, RegExpID, RegExpGroups['identifiers4']) || null;
-                    toktype = T_IDENTIFIER;
-                    tokstyle = Style.identifier4;
-                }
-                else if ("identifiers5"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.identifiers5, RegExpID, RegExpGroups['identifiers5']) || null;
-                    toktype = T_IDENTIFIER;
-                    tokstyle = Style.identifier5;
-                }
-                
-                // atoms
-                else if ("atoms"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.atoms, RegExpID, RegExpGroups['atoms']) || null;
-                    toktype = T_ATOM;
-                    tokstyle = Style.atom;
-                }
-                
-                // meta
-                else if ("meta"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.meta, RegExpID, RegExpGroups['meta']) || null;
-                    toktype = T_META;
-                    tokstyle = Style.meta;
-                }
-                
-                // defs
-                else if ("defines"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.defines, RegExpID, RegExpGroups['defines']) || null;
-                    toktype = T_DEF;
-                    tokstyle = Style.defines;
-                }
-                
-                // keywords
-                else if ("keywords"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.keywords, RegExpID, RegExpGroups['keywords']) || null;
-                    toktype = T_KEYWORD;
-                    tokstyle = Style.keyword;
-                }
-                
-                // builtins
-                else if ("builtins"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.builtins, RegExpID, RegExpGroups['builtins']) || null;
-                    toktype = T_BUILTIN;
-                    tokstyle = Style.builtin;
-                }
-                
-                // operators
-                else if ("operators"==tokid)
-                {
-                    continue;
-                }
-                // delimiters
-                else if ("delimiters"==tokid)
-                {
-                    continue;
+                    tok = getCompositeMatcher( Lex[tokID], RegExpID, RegExpGroups[tokID] ) || null;
+                    tokType = tokTypes.SIMPLE[ tokID ];
+                    tokStyle = Style[ tokID ] || null;
                 }
                 
                 if (tok)
                 {
-                    grammar[tokid] = tok;
-                    _tokens.push( [ tok, toktype, tokstyle ] );
+                    Lex[ tokID ] = tok;
+                    _tokens.push( [ tok, tokType, tokStyle ] );
                 }
                 else
                 {
-                    grammar[tokid] = null;
+                    Lex[ tokID ] = null;
                 }
             }
-            
-            grammar.TokenOrder = _tokens;
-            
-            grammar.indent = null;
-            grammar.hasIndent = false;
-            
-            // this grammar is parsed
-            grammar.__parsed = true;
-            
-            return grammar;
-        },
-        
-        parseProgrammingLikeGrammar : function(grammar, base) {
-            var t1, t2, i, l, RegExpID, RegExpGroups, 
-                tokens, numTokens, Style, _tokens = [], 
-                tokid, ll, tok, toktype, tokstyle;
-            
-            // grammar is parsed, return it
-            // avoid reparsing already parsed grammars
-            if (grammar.__parsed)  return grammar;
-            
-            grammar = extend(grammar, base);
-            RegExpID = grammar.RegExpID || null;
-            grammar.RegExpID = null;
-            delete grammar.RegExpID;
-            RegExpGroups = grammar.RegExpGroups || {};
-            grammar.RegExpGroups = null;
-            delete grammar.RegExpGroups;
-            
-            grammar.type = T_PROGRAMMING_LIKE;
-            
-            tokens = grammar.TokenOrder || [];
-            numTokens = tokens.length;
-            
-            Style = grammar.Style || {};
-            
-            for (t=0; t<numTokens; t++)
-            {
-                tokid = tokens[t];
-                
-                if ( !grammar[tokid] ) continue;
-                
-                tok = null;
-                
-                // comments
-                if ("comments"==tokid)
-                {
-                    t1 = [];
-                    if (grammar.comments.line)  
-                    {
-                        t2 = make_array(grammar.comments.line);
-                        
-                        for (i=0, l=t2.length; i<l; i++)
-                            t1.push( [t2[i], null] );
-                    }
-                    if (grammar.comments.block)  
-                    {
-                        t2 = make_array(grammar.comments.block);
-                        t1.push( [t2[0], ((t2[1]) ? t2[1] : t2[0])] );
-                    }
-                    tok = (t1.length) ? getBlockMatcher(t1, RegExpID) : null;
-                    toktype = T_COMMENT;
-                    tokstyle = Style.comment;
-                }
-                
-                // general blocks ( 5 types ), eg. heredocs, cdata, etc..
-                else if ("blocks"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.blocks, RegExpID) || null;
-                    toktype = T_BLOCK;
-                    tokstyle = Style.block;
-                }
-                else if ("blocks2"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.blocks2, RegExpID) || null;
-                    toktype = T_BLOCK;
-                    tokstyle = Style.block2;
-                }
-                else if ("blocks3"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.blocks3, RegExpID) || null;
-                    toktype = T_BLOCK;
-                    tokstyle = Style.block3;
-                }
-                else if ("blocks4"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.blocks4, RegExpID) || null;
-                    toktype = T_BLOCK;
-                    tokstyle = Style.block4;
-                }
-                else if ("blocks5"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.blocks5, RegExpID) || null;
-                    toktype = T_BLOCK;
-                    tokstyle = Style.block5;
-                }
-                
-                // general strings ( 5 types )
-                else if ("strings"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.strings, RegExpID) || null;
-                    toktype = T_STRING;
-                    tokstyle = Style.string;
-                }
-                else if ("strings2"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.strings2, RegExpID) || null;
-                    toktype = T_STRING;
-                    tokstyle = Style.string2;
-                }
-                else if ("strings3"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.strings3, RegExpID) || null;
-                    toktype = T_STRING;
-                    tokstyle = Style.string3;
-                }
-                else if ("strings4"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.strings4, RegExpID) || null;
-                    toktype = T_STRING;
-                    tokstyle = Style.string4;
-                }
-                else if ("strings5"==tokid)
-                {
-                    tok = getBlockMatcher(grammar.strings5, RegExpID) || null;
-                    toktype = T_STRING;
-                    tokstyle = Style.string5;
-                }
-                
-                // numbers ( 3 types )
-                else if ("numbers"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.numbers, RegExpID, RegExpGroups['numbers']) || null;
-                    toktype = T_NUMBER;
-                    tokstyle = Style.number;
-                }
-                else if ("numbers2"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.numbers2, RegExpID, RegExpGroups['numbers2']) || null;
-                    toktype = T_NUMBER;
-                    tokstyle = Style.number2;
-                }
-                else if ("numbers3"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.numbers3, RegExpID, RegExpGroups['numbers3']) || null;
-                    toktype = T_NUMBER;
-                    tokstyle = Style.number3;
-                }
-                
-                // general identifiers ( 5 types ), eg. variables, etc..
-                else if ("identifiers"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.identifiers, RegExpID, RegExpGroups['identifiers']) || null;
-                    toktype = T_IDENTIFIER;
-                    tokstyle = Style.identifier;
-                }
-                else if ("identifiers2"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.identifiers2, RegExpID, RegExpGroups['identifiers2']) || null;
-                    toktype = T_IDENTIFIER;
-                    tokstyle = Style.identifier2;
-                }
-                else if ("identifiers3"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.identifiers3, RegExpID, RegExpGroups['identifiers3']) || null;
-                    toktype = T_IDENTIFIER;
-                    tokstyle = Style.identifier3;
-                }
-                else if ("identifiers4"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.identifiers4, RegExpID, RegExpGroups['identifiers4']) || null;
-                    toktype = T_IDENTIFIER;
-                    tokstyle = Style.identifier4;
-                }
-                else if ("identifiers5"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.identifiers5, RegExpID, RegExpGroups['identifiers5']) || null;
-                    toktype = T_IDENTIFIER;
-                    tokstyle = Style.identifier5;
-                }
-                
-                // atoms
-                else if ("atoms"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.atoms, RegExpID, RegExpGroups['atoms']) || null;
-                    toktype = T_ATOM;
-                    tokstyle = Style.atom;
-                }
-                
-                // meta
-                else if ("meta"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.meta, RegExpID, RegExpGroups['meta']) || null;
-                    toktype = T_META;
-                    tokstyle = Style.meta;
-                }
-                
-                // defs
-                else if ("defines"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.defines, RegExpID, RegExpGroups['defines']) || null;
-                    toktype = T_DEF;
-                    tokstyle = Style.defines;
-                }
-                
-                // keywords
-                else if ("keywords"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.keywords, RegExpID, RegExpGroups['keywords']) || null;
-                    toktype = T_KEYWORD;
-                    tokstyle = Style.keyword;
-                }
-                
-                // builtins
-                else if ("builtins"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.builtins, RegExpID, RegExpGroups['builtins']) || null;
-                    toktype = T_BUILTIN;
-                    tokstyle = Style.builtin;
-                }
-                
-                // operators
-                else if ("operators"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.operators, RegExpID, RegExpGroups['operators']) || null;
-                    toktype = T_OP;
-                    tokstyle = Style.operator;
-                }
-                
-                // delimiters
-                else if ("delimiters"==tokid)
-                {
-                    tok = getCompositeMatcher(grammar.delimiters, RegExpID, RegExpGroups['delimiters']) || null;
-                    toktype = T_DELIM;
-                    tokstyle = Style.delimiter;
-                }
-                
-                if (tok)
-                {
-                    grammar[tokid] = tok;
-                    _tokens.push( [tok, toktype, tokstyle] );
-                }
-                else
-                {
-                    grammar[tokid] = null;
-                }
-            }
-            
-            grammar.TokenOrder = _tokens;
             
             // types of indent etc..
             /*var hasIndent = false;
-            if (grammar.indent) 
+            if (grammar.Indentation) 
             {
                 if (!grammar.indent["block-level"]) grammar.indent["block-level"] = { keywords: null, delims: null };
                 if (!grammar.indent["statement-level"]) grammar.indent["statement-level"] = { delims: null };
@@ -613,7 +227,10 @@
             }
             grammar.hasIndent = hasIndent;*/
             
-            grammar.indent = null;
+            grammar.TokenOrder = _tokens;
+            grammar.Style = Style;
+            grammar.Lex = Lex;
+            grammar.Indentation = null;
             grammar.hasIndent = false;
             
             // this grammar is parsed
