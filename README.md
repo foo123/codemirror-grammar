@@ -18,6 +18,10 @@ Code Indentation is Codemirror default, looking for ways to add more elaborate i
 Also looking for ways to add context-specific parsing information to the grammar specification.
 
 
+###Live Examples
+
+* [Build your own syntax-highlight mode on the fly](http://foo123.github.io/examples/codemirror-grammar)
+
 
 ###How to use:
 
