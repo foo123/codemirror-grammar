@@ -6,15 +6,22 @@
             
             var tokenBlock = function(stream, state) {
                 
-                var ended = false;
-                while (!stream.eol()) 
+                if ( endBlock.match(stream) )
                 {
+                    state.tokenize = nextTokenizer || null;
+                    state.lastToken = type;
+                    return style;
+                }
+                
+                var ended = false;
+                while ( !stream.eol() ) 
+                {
+                    stream.next();
                     if ( endBlock.match(stream) ) 
                     {
                         ended = true;
                         break;
                     }
-                    else stream.next();
                 }
                 if ( ended ) state.tokenize = nextTokenizer || null;
                 state.lastToken = type;
