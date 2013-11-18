@@ -83,7 +83,7 @@
                 
                 var top;
                 
-                //console.log(stack);
+                //console.log(stack[0]);
                 
                 top = stack[0] || null;
                 if ( top && (endTag === top[0]) )
@@ -97,7 +97,7 @@
                     state.lastToken = type;
                 }
                 
-                //console.log(stack);
+                //console.log(stack[0]);
                 
                 state.tokenize = nextTokenizer || null;
                 return style;

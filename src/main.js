@@ -7,10 +7,9 @@
         VERSION : VERSION,
         
         // extend a grammar using another base grammar
-        extendGrammar : function(grammar, base) {
-            return extend(grammar, base);
-        },
+        extendGrammar : extend,
         
+        // parse the grammar into a form suitable for generating parser
         parseGrammar : function(grammar, base) {
             var RegExpID, RegExpGroups, tokens, numTokens, _tokens, 
                 Style, Lex, 
@@ -105,7 +104,7 @@
             
             for (t=0; t<numTokens; t++)
             {
-                tokID = tokens[t];
+                tokID = tokens[ t ];
                 
                 if ( !Lex[ tokID ] ) continue;
                 
@@ -114,7 +113,7 @@
                 // block tokens, comments, general blocks etc..
                 if ( tokID in tokTypes.BLOCK )
                 {
-                    tok = getBlockMatcher( Lex[tokID], RegExpID ) || null;
+                    tok = getBlockMatcher( Lex[ tokID ], RegExpID ) || null;
                     tokType = tokTypes.BLOCK[ tokID ];
                     tokStyle = Style[ tokID ] || null;
                 }
@@ -122,7 +121,7 @@
                 // general strings tokens
                 else if ( tokID in tokTypes.STRING )
                 {
-                    tok = getBlockMatcher( Lex[tokID], RegExpID ) || null;
+                    tok = getBlockMatcher( Lex[ tokID ], RegExpID ) || null;
                     tokType = tokTypes.STRING[ tokID ];
                     tokStyle = Style[ tokID ] || null;
                 }
@@ -130,7 +129,7 @@
                 // general tags tokens
                 else if ( tokID in tokTypes.TAG )
                 {
-                    tok = getTagMatcher( Lex[tokID], RegExpID, RegExpGroups[tokID] ) || null;
+                    tok = getTagMatcher( Lex[ tokID ], RegExpID, RegExpGroups[tokID] ) || null;
                     tokType = tokTypes.TAG[ tokID ];
                     tokStyle = Style[ tokID ] || null;
                 }
@@ -145,7 +144,7 @@
                 // general simple tokens, identifiers, numbers, keywords, etc..
                 else if ( tokID in tokTypes.SIMPLE )
                 {
-                    tok = getCompositeMatcher( Lex[tokID], RegExpID, RegExpGroups[tokID] ) || null;
+                    tok = getCompositeMatcher( Lex[ tokID ], RegExpID, RegExpGroups[ tokID ] ) || null;
                     tokType = tokTypes.SIMPLE[ tokID ];
                     tokStyle = Style[ tokID ] || null;
                 }
@@ -230,6 +229,7 @@
             grammar.TokenOrder = _tokens;
             grammar.Style = Style;
             grammar.Lex = Lex;
+            grammar.Syntax = null;
             grammar.Indentation = null;
             grammar.hasIndent = false;
             
@@ -239,6 +239,7 @@
             return grammar;
         },
         
+        // get a codemirror syntax-highlight mode from a grammar
         getMode : function(grammar, base, DEFAULT) {
             
             // build the grammar, ( grammar can extend another 'base' grammar ;) )
