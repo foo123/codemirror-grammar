@@ -5,7 +5,7 @@ __Transform a JSON grammar into a CodeMirror syntax-highlight parser__
 
 
 
-A simple and light-weight ( ~ 15kB minified) [CodeMirror](https://github.com/marijnh/codemirror) add-on
+A simple and light-weight ( ~ 10kB minified) [CodeMirror](https://github.com/marijnh/codemirror) add-on
 
 to generate syntax-highlight parsers (codemirror modes) from a grammar specification in JSON format.
 
@@ -20,7 +20,7 @@ Also looking for ways to add context-specific parsing information to the grammar
 
 ###Live Examples
 
-* [Build your own syntax-highlight mode on the fly](http://foo123.github.io/examples/codemirror-grammar)
+[![Build your own syntax-highlight mode on the fly](/test/screenshot.png)](http://foo123.github.io/examples/codemirror-grammar)
 
 
 ###How to use:
