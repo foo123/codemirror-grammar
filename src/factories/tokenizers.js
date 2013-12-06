@@ -108,7 +108,7 @@
                     found = true;
                     this.endBlock = state.endBlock;
                 }    
-                else if ( (this.endBlock = this.token.match(stream)) )
+                else if ( !state.inBlock && (this.endBlock = this.token.match(stream)) )
                 {
                     found = true;
                     state.inBlock = this.name;
@@ -179,7 +179,7 @@
                     found = true;
                     this.endBlock = state.endBlock;
                 }    
-                else if ( (this.endBlock = this.token.match(stream)) )
+                else if ( !state.inBlock && (this.endBlock = this.token.match(stream)) )
                 {
                     found = true;
                     state.inBlock = this.name;
