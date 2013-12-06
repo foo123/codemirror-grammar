@@ -10,6 +10,8 @@
             .CodeMirror {border-top: 1px solid black; border-bottom: 1px solid black;}
         </style>
         
+        <!-- required -->
+        <script src="../build/regexanalyzer.min.js"></script>
         <script src="codemirror/codemirror.js"></script>
         <script src="../build/codemirror_grammar.js"></script>
         <script src="grammars/css.js"></script>
@@ -18,7 +20,7 @@
     </head>
     <body>
         
-        <h1>CodeMirror: Dynamic CSS Grammar</h1>
+        <h3>CodeMirror: Dynamic CSS Grammar</h3>
 
         <textarea id="code" name="code">
 /* Some example CSS */
@@ -59,6 +61,9 @@ code {
 
         <script>
         // <![CDATA[
+        
+        // requires the RegExAnalyzer
+        CodeMirrorGrammar.init( RegExAnalyzer );
         
         // 2. parse the grammar into a Codemirror syntax-highlight mode
         var css_mode = CodeMirrorGrammar.getMode(css_grammar);

@@ -8,36 +8,16 @@ var css_grammar = {
         // else matched one by one, 
         // this is usefull for speed fine-tuning the parser
         "RegExpGroups" : {
-            "identifiers" : true,
-            "identifiers2" : true,
-            "atoms" : true,
+            "standard" : true,
+            "standard2" : true,
+            "atom" : true,
             "meta" : true,
-            "defines" : true,
-            "keywords" : true,
-            "builtins" : true,
-            "operators" : true,
-            "delimiters" : true
+            "meta2" : true,
+            "keyword" : true,
+            "builtin" : true,
+            "operator" : true,
+            "delimiter" : true
         },
-    
-        // order of tokens parsing
-        "TokenOrder" : [
-            "comments",
-            "numbers",
-            "identifiers3",
-            "numbers2",
-            "strings",
-            "keywords",
-            "builtins",
-            "atoms",
-            "meta",
-            "defines",
-            "operators",
-            "delimiters",
-            "identifiers",
-            "identifiers2",
-            "identifiers4",
-            "identifiers5"
-        ],
             
         //
         // Style model
@@ -45,21 +25,21 @@ var css_grammar = {
             // lang token type  -> CodeMirror (style) tag
             // the mapping here is used to match the codemirror css demo color scheme
             "error":        "error",
-            "comments":     "comment",
+            "comment":      "comment",
             "meta":         "attribute",
-            "defines":      "def",
-            "atoms":        "string-2",
-            "keywords":     "property",
-            "builtins":     "tag",
-            "operators":    "operator",
-            "identifiers":  "variable-2",
-            "identifiers2": "keyword",
-            "identifiers3": "builtin",
-            "identifiers4": "qualifier",
-            "identifiers5": "variable-2",
-            "numbers":      "number",
-            "numbers2":     "builtin",
-            "strings":      "string"
+            "meta2":        "def",
+            "atom":         "string-2",
+            "keyword":      "property",
+            "builtin":      "tag",
+            "operator":     "operator",
+            "standard":     "variable-2",
+            "standard2":    "keyword",
+            "cssID":        "builtin",
+            "cssClass":     "qualifier",
+            "identifier":   "variable-2",
+            "number":       "number",
+            "number2":      "builtin",
+            "string":       "string"
         },
 
         
@@ -68,105 +48,177 @@ var css_grammar = {
         "Lex" : {
             
             // comments
-            "comments" : [
-                // block comments
-                // start, end     delims
-                [  "/*",  "*/" ]
-            ],
+            "comment" : {
+                "type" : "block",
+                "tokens" : [
+                    // block comments
+                    // start, end     delims
+                    [  "/*",  "*/" ]
+                ]
+            },
             
             // some standard identifiers
-            "identifiers" : [
-                "arial",
-                "tahoma",
-                "courier"
-            ],
-            "identifiers2" : [
-                "!important",
-                "only"
-            ],
+            "standard" : {
+                "type" : "simple",
+                "tokens" : [
+                    "arial",
+                    "tahoma",
+                    "courier"
+                ]
+            },
+            
+            "standard2" : {
+                "type" : "simple",
+                "tokens" : [
+                    "!important",
+                    "only"
+                ]
+            },
+            
             // css ids
-            "identifiers3" : "RegExp::#[_A-Za-z][_A-Za-z0-9]*",
+            "cssID" : {
+                "type" : "simple",
+                "tokens" : "RegExp::#[_A-Za-z][_A-Za-z0-9]*"
+            },
+            
             // css classes
-            "identifiers4" : "RegExp::\\.[_A-Za-z][_A-Za-z0-9]*",
+            "cssClass" : {
+                "type" : "simple",
+                "tokens" : "RegExp::\\.[_A-Za-z][_A-Za-z0-9]*"
+            },
+            
             // general identifiers
-            "identifiers5" : "RegExp::[_A-Za-z][_A-Za-z0-9]*",
+            "identifier" : {
+                "type" : "simple",
+                "tokens" : "RegExp::[_A-Za-z][_A-Za-z0-9]*"
+            },
             
             // numbers, in order of matching
-            "numbers" : [
-                // floats
-                "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?(em|px|%|pt)?",
-                "RegExp::\\d+\\.\\d*(em|px|%|pt)?",
-                "RegExp::\\.\\d+(em|px|%|pt)?",
-                // integers
-                // decimal
-                "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?(em|px|%|pt)?",
-                // just zero
-                "RegExp::0(?![\\dx])(em|px|%|pt)?"
-            ],
-            "numbers2" : [
-                // hex colors
-                "RegExp::#[0-9a-fA-F]+"
-            ],
+            "number" : {
+                "type" : "simple",
+                "tokens" : [
+                    // floats
+                    "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?(em|px|%|pt)?",
+                    "RegExp::\\d+\\.\\d*(em|px|%|pt)?",
+                    "RegExp::\\.\\d+(em|px|%|pt)?",
+                    // integers
+                    // decimal
+                    "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?(em|px|%|pt)?",
+                    // just zero
+                    "RegExp::0(?![\\dx])(em|px|%|pt)?"
+                ]
+            },
+            "number2" : {
+                "type" : "simple",
+                "tokens" : [
+                    // hex colors
+                    "RegExp::#[0-9a-fA-F]+"
+                ]
+            },
 
             // strings
-            "strings" : [
-                //  start,           end of string (can be the matched regex group ie. 1 )
-                [ "RegExp::([`'\"])", 1 ]
-            ],
+            "string" : {
+                "type" : "escaped-block",
+                "escape" : "\\",
+                "tokens" : [
+                    //  start,           end of string (can be the matched regex group ie. 1 )
+                    [ "RegExp::([`'\"])", 1 ]
+                ]
+            },
             
             // operators
-            "operators" : [
-                "::", "*", "+", ",", "=", ";", ">"
-            ],
+            "operator" : {
+                "type" : "simple",
+                "tokens" : [
+                    "::", "*", "+", ",", "=", ";", ">"
+                ]
+            },
             
             // delimiters
-            "delimiters" : [
-                "(", ")", "[", "]", "{", "}", ",", "=", ";", "."
-            ],
+            "delimiter" : {
+                "type" : "simple",
+                "tokens" : [
+                    "(", ")", "[", "]", "{", "}", ",", "=", ";", "."
+                ]
+            },
             
             // atoms
-            "atoms" : [ 
-                "block", "none", "inherit", "inline-block", "inline", 
-                "relative", "absolute", "fixed", "static",
-                "sans-serif", "serif", "monospace", "bolder", "bold", 
-                "rgba", "rgb", "underline", "wrap"
-            ],
+            "atom" : {
+                "type" : "simple",
+                "tokens" : [ 
+                    "block", "none", "inherit", "inline-block", "inline", 
+                    "relative", "absolute", "fixed", "static",
+                    "sans-serif", "serif", "monospace", "bolder", "bold", 
+                    "rgba", "rgb", "underline", "wrap"
+                ]
+            },
             
             // meta
-            "meta" : [
-                "screen",  "handheld"
-            ],
+            "meta" : {
+                "type" : "simple",
+                "tokens" : [
+                    "screen",  "handheld"
+                ]
+            },
 
             // defs
-            "defines" : [
-                "@import", "@media"
-            ],
+            "meta2" : {
+                "type" : "simple",
+                "tokens" : [
+                    "@import", "@media"
+                ]
+            },
 
             // keywords
-            "keywords" : [ 
-                "background-color", "background-image", "background-position", "background-repeat", "background", 
-                "font-family", "font-size", "font-weight", "font", 
-                "text-decoration", "text-align",
-                "margin-left", "margin-right", "margin-top", "margin-bottom", "margin", 
-                "padding-left", "padding-right", "padding-top", "padding-bottom", "padding", 
-                "border-left", "border-right", "border-top", "border-bottom", "border", 
-                "position", "display" , "content", "color"
-            ],
+            "keyword" : {
+                "type" : "simple",
+                "tokens" : [ 
+                    "background-color", "background-image", "background-position", "background-repeat", "background", 
+                    "font-family", "font-size", "font-weight", "font", 
+                    "text-decoration", "text-align",
+                    "margin-left", "margin-right", "margin-top", "margin-bottom", "margin", 
+                    "padding-left", "padding-right", "padding-top", "padding-bottom", "padding", 
+                    "border-left", "border-right", "border-top", "border-bottom", "border", 
+                    "position", "display" , "content", "color"
+                ]
+            },
                                   
-            // builtin functions, constructs, etc..
-            "builtins" : [ 
-                "a", "p", "i",
-                "br", "hr",
-                "sup", "sub",
-                "img", "video", "audio", 
-                "canvas", "iframe",
-                "pre", "code",
-                "h1", "h2", "h3", "h4", "h5", "h6", 
-                "html", "body", 
-                "header", "footer", "nav",
-                "div", "span", "section", "strong",
-                "blockquote", 
-                "before", "after", "url"
-            ]
-        }
+            "builtin" : {
+                "type" : "simple",
+                "tokens" : [ 
+                    "a", "p", "i",
+                    "br", "hr",
+                    "sup", "sub",
+                    "img", "video", "audio", 
+                    "canvas", "iframe",
+                    "pre", "code",
+                    "h1", "h2", "h3", "h4", "h5", "h6", 
+                    "html", "body", 
+                    "header", "footer", "nav",
+                    "div", "span", "section", "strong",
+                    "blockquote", 
+                    "before", "after", "url"
+                ]
+            }
+        },
+    
+        // what to parse and in what order
+        "Parser" : [
+            "comment",
+            "number",
+            "cssID",
+            "number2",
+            "string",
+            "keyword",
+            "builtin",
+            "atom",
+            "meta",
+            "meta2",
+            "operator",
+            "delimiter",
+            "standard",
+            "standard2",
+            "cssClass",
+            "identifier"
+        ]
 };

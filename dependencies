@@ -12,13 +12,15 @@
 ./src/utils/defaults.js
 ./src/factories/matchers.js
 ./src/factories/tokenizers.js
+./src/factories/parsers.js
 ./src/main.js
 ./src/footer.js
 
 # TODO, allow some pre-process to take place
 #@PREPROCESS
 
-@ # dummy separator between blocks, it can be useful
+@REPLACE
+"@@VERSION@@" = "0.3"
 
 # TODO, allow some post-process to take place
 #@POSTPROCESS

@@ -1,6 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
+*   @version: @@VERSION@@
 *   Transform a grammar specification in JSON format,
 *   into a CodeMirror syntax-highlight parser mode
 *
@@ -9,4 +10,4 @@
 **/
 (function(root, undef){
     
-    var VERSION = "0.2";
+    var VERSION = "@@VERSION@@";

@@ -1,8 +1,27 @@
     
-    var slice = Array.prototype.slice, 
+    var slice = Array.prototype.slice, splice = Array.prototype.splice, concat = Array.prototype.concat, 
+        hasKey = Object.prototype.hasOwnProperty, Str = Object.prototype.toString,
         
-        hasKey = Object.prototype.hasOwnProperty,  Str = Object.prototype.toString,
-
+        RegexAnalyzer,
+        
+        Merge = function(o1, o2) { 
+            o1 = o1 || {}; 
+            for (var p in o2) 
+                if ( hasKey.call(o2, p) )  o1[p] = o2[p];  
+            
+            return o1; 
+        },
+        
+        Extends = function(Parent, ChildProto) {
+            var O = function(){}; 
+            var C = ChildProto.constructor;
+            O.prototype = Parent.prototype;
+            C.prototype = new O();
+            C.prototype.constructor = C;
+            C.prototype = Merge( C.prototype, ChildProto );
+            return C;
+        },
+        
         get_type = function(v) {
             var type_of = typeof(v), to_string = Str.call(v);
             
@@ -10,9 +29,7 @@
             
             else if (true === v || false === v)  return T_BOOL;
             
-            else if (v && ('string' == type_of || v instanceof String) && 1 == v.length)  return T_CHAR;
-            
-            else if (v && ('string' == type_of || v instanceof String))  return T_STR;
+            else if (v && ('string' == type_of || v instanceof String))  return (1 == v.length) ? T_CHAR : T_STR;
             
             else if (v && ("[object RegExp]" == to_string || v instanceof RegExp))  return T_REGEX;
             
@@ -28,13 +45,13 @@
             return T_UNKNOWN;
         },
         
-        make_array = function(a) {
-            return ( T_ARRAY == get_type( a ) ) ? a : [a];
+        make_array = function(a, force) {
+            return ( force || T_ARRAY != get_type( a ) ) ? [ a ] : a;
         },
         
-        make_array_2 = function(a) {
-            a = make_array( a );
-            if ( T_ARRAY != get_type( a[0] ) ) a = [ a ]; // array of arrays
+        make_array_2 = function(a, force) {
+            a = make_array( a, force );
+            if ( force || T_ARRAY != get_type( a[0] ) ) a = [ a ]; // array of arrays
             return a;
         },
         

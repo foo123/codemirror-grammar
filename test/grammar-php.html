@@ -10,6 +10,8 @@
             .CodeMirror {border-top: 1px solid black; border-bottom: 1px solid black;}
         </style>
         
+        <!-- required -->
+        <script src="../build/regexanalyzer.min.js"></script>
         <script src="codemirror/codemirror.js"></script>
         <script src="../build/codemirror_grammar.js"></script>
         <script src="grammars/php.js"></script>
@@ -18,7 +20,7 @@
     </head>
     <body>
         
-        <h1>CodeMirror: Dynamic PHP Grammar</h1>
+        <h3>CodeMirror: Dynamic PHP Grammar</h3>
 
         <textarea id="code" name="code">
 $a = (isset($var) && NULL==$b) ? true : false;
@@ -55,6 +57,9 @@ function a_function( &$v1, $v2 )
 
         <script>
         // <![CDATA[
+        
+        // requires the RegExAnalyzer
+        CodeMirrorGrammar.init( RegExAnalyzer );
         
         // 2. parse the grammar into a Codemirror syntax-highlight mode
         var php_mode = CodeMirrorGrammar.getMode(php_grammar);

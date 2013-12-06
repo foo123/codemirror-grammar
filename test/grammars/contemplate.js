@@ -8,26 +8,13 @@ var contemplate_grammar = {
         // else matched one by one, 
         // this is usefull for speed fine-tuning the parser
         "RegExpGroups" : {
-            "atoms" : true,
-            "keywords" : true,
-            "builtins" : true,
+            "atom" : true,
+            "keyword" : true,
+            "builtin" : true,
             "meta" : true,
-            "operators" : true,
-            "delimiters" : true
+            "operator" : true,
+            "delimiter" : true
         },
-    
-        // order of tokens parsing
-        "TokenOrder" : [
-            "keywords",
-            "builtins",
-            "atoms",
-            "operators",
-            "delimiters",
-            "numbers",
-            "strings",
-            "meta",
-            "identifiers"
-        ],
             
         //
         // Style model
@@ -35,15 +22,15 @@ var contemplate_grammar = {
             // lang token type  -> CodeMirror (style) tag
             "error":        "error",
             "meta":         "tagContemplate",
-            "comments":     "comment",
-            "atoms":        "atom",
-            "keywords":     "tagContemplate",
-            "builtins":     "tagContemplate",
-            "operators":    "operator",
-            "delimiters":   "bracket",
-            "identifiers":  "variable",
-            "numbers":      "number",
-            "strings":      "string"
+            "comment":      "comment",
+            "atom":         "atom",
+            "keyword":      "tagContemplate",
+            "builtin":      "tagContemplate",
+            "operator":     "operator",
+            "delimiter":    "bracket",
+            "variable":     "variable",
+            "number":       "number",
+            "string":       "string"
         },
 
         
@@ -52,54 +39,95 @@ var contemplate_grammar = {
         "Lex" : {
             
             // contemplate variables
-            "identifiers" : "RegExp::\\$[_A-Za-z][_A-Za-z0-9]*",
+            "variable" : {
+                "type" : "simple",
+                "tokens" : "RegExp::\\$[_A-Za-z][_A-Za-z0-9]*"
+            },
 
             // numbers, in order of matching
-            "numbers" : [
-                // floats
-                "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?",
-                "RegExp::\\d+\\.\\d*",
-                "RegExp::\\.\\d+",
-                // integers
-                "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?",
-                // just zero
-                "RegExp::0(?![\\dx])"
-            ],
+            "number" : {
+                "type" : "simple",
+                "tokens" : [
+                    // floats
+                    "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?",
+                    "RegExp::\\d+\\.\\d*",
+                    "RegExp::\\.\\d+",
+                    // integers
+                    "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?",
+                    // just zero
+                    "RegExp::0(?![\\dx])"
+                ]
+            },
 
             // strings
-            // start, end of string (can be the matched regex group ie. 1 )
-            "strings" : [ "RegExp::(['\"])", 1 ],
+            "string" : {
+                "type" : "escaped-block",
+                "escape" : "\\",
+                // start, end of string (can be the matched regex group ie. 1 )
+                "tokens" : [ "RegExp::(['\"])", 1 ]
+            },
             
             // operators
-            "operators" : [
-                [ "+", "-", "*", "/", "%", "<", ">", "!" ],
-                [ "=>", "==", "!=", "<=", ">=", "<>", "||", "&&" ]
-            ],
+            "operator" : {
+                "type" : "simple",
+                "tokens" : [
+                    [ "+", "-", "*", "/", "%", "<", ">", "!" ],
+                    [ "=>", "==", "!=", "<=", ">=", "<>", "||", "&&" ]
+                ]
+            },
             
             // delimiters
-            "delimiters" : [ 
-                "=", "(", ")", "[", "]"
-            ],
+            "delimiter" : {
+                "type" : "simple",
+                "tokens" : [ 
+                    "=", "(", ")", "[", "]"
+                ]
+            },
             
             // atoms
-            "atoms" : [ "true", "false" ],
+            "atom" : {
+                "type" : "simple",
+                "tokens" : [ "true", "false" ]
+            },
 
             // meta
-            "meta" : [ "<%", "%>" ],
+            "meta" : {
+                "type" : "simple",
+                "tokens" : [ "<%", "%>" ]
+            },
 
             // keywords
-            "keywords" : [
-                "%extends", "%block", "%endblock", "%template", "%include",
-                "%if", "%elseif", "%else", "%endif", "%for", "%elsefor",
-                "%endfor", "as"
-            ],
+            "keyword" : {
+                "type" : "simple",
+                "tokens" : [
+                    "%extends", "%block", "%endblock", "%template", "%include",
+                    "%if", "%elseif", "%else", "%endif", "%for", "%elsefor",
+                    "%endfor", "as"
+                ]
+            },
                                   
             // builtin functions, constructs, etc..
-            "builtins" : [
-                "%now", "%date", "%ldate", "%count", "%sprintf",
-                "%trim", "%ltrim", "%rtrim",
-                "%htmltable", "%htmlselect", "%concat",
-                "%s", "%n", "%f", "%l", "%q", "%dq"
-            ]
-        }
+            "builtin" : {
+                "type" : "simple",
+                "tokens" : [
+                    "%now", "%date", "%ldate", "%count", "%sprintf",
+                    "%trim", "%ltrim", "%rtrim",
+                    "%htmltable", "%htmlselect", "%concat",
+                    "%s", "%n", "%f", "%l", "%q", "%dq"
+                ]
+            }
+        },
+    
+        // what to parse and in what order
+        "Parser" : [
+            "keyword",
+            "builtin",
+            "atom",
+            "operator",
+            "delimiter",
+            "number",
+            "string",
+            "meta",
+            "variable"
+        ]
 };

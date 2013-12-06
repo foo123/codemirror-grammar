@@ -2,346 +2,355 @@
     //
     // matcher factories
     var ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
-    
+        
         byLength = function(a, b) { return b.length - a.length },
         
-        isRegexp = function(s, id) {
+        hasPrefix = function(s, id) {
             return (
                 (T_STR & get_type(id)) && (T_STR & get_type(s)) && id.length &&
                 id.length <= s.length && id == s.substr(0, id.length)
             );
         },
         
-        getRegexp = function(r, rid)  {
+        getRegexp = function(r, rid, parsedRegexes)  {
             if ( !r || (T_NUM == get_type(r)) ) return r;
             
             var l = (rid) ? (rid.length||0) : 0;
             
-            if ( l && rid == r.substr(0, l) /*isRegexp(r, rid)*/ )
-                return new RegExp("^(" + r.substr(l) + ")");
-            
+            if ( l && rid == r.substr(0, l) ) 
+            {
+                var regexID = "^(" + r.substr(l) + ")", regex, peek, analyzer;
+                
+                if ( !parsedRegexes[ regexID ] )
+                {
+                    regex = new RegExp( regexID );
+                    analyzer = new RegexAnalyzer( regex ).analyze();
+                    peek = analyzer.getPeekChars();
+                    //console.log(analyzer.regex);
+                    //console.log(peek);
+                    if ( !Object.keys(peek.peek).length )  peek.peek = null;
+                    if ( !Object.keys(peek.negativepeek).length )  peek.negativepeek = null;
+                    
+                    // shared, light-weight
+                    parsedRegexes[ regexID ] = [ regex, peek ];
+                }
+                
+                return parsedRegexes[ regexID ];
+            }
             else
+            {
                 return r;
+            }
         },
         
         getCombinedRegexp = function(tokens)  {
-            for (var i=0, l=tokens.length; i<l; i++) tokens[i] = tokens[i].replace(ESC, '\\$1');
-            return new RegExp("^((" + tokens.sort( byLength ).join( ")|(" ) + "))\\b");
+            var peek = { }, i, l;
+            for (i=0, l=tokens.length; i<l; i++) 
+            {
+                peek[ tokens[i].charAt(0) ] = 1;
+                tokens[i] = tokens[i].replace(ESC, '\\$1');
+            }
+            return [ new RegExp("^((" + tokens.sort( byLength ).join( ")|(" ) + "))\\b"), { peek: peek, negativepeek: null } ];
         },
         
-        SimpleMatcher = function(type, r, key) {
+        DummyMatcher = Extends( Object, {
             
-            // get a fast customized matcher for < r >
+            constructor : function(name, pattern, key, type) {
+                this.name = name;
+                this.pattern = pattern;
+                this.key = key || 0;
+                this.type = type || T_DUMMYMATCHER;
+            },
+            
+            name : null,
+            pattern : null,
+            peek : null,
+            type : null,
+            key : 0,
+            
+            toString : function() {
+                var s = '[';
+                s += 'Matcher: ' + this.name;
+                s += ', Type: ' + this.type;
+                s += ', Pattern: ' + ((this.pattern) ? this.pattern.toString() : null);
+                s += ']';
+                return s;
+            },
+            
+            match : function(stream, eat) { 
+                return [ this.key, this.pattern ];
+            }
+        }),
+        
+        // get a fast customized matcher for < pattern >
+        
+        // manipulate the codemirror stream directly for speed,
+        // if codemirror code for stream matching changes,
+        // only this part of the code needs to be adapted
+        
+        CharMatcher = Extends( DummyMatcher, {
+            
+            constructor : function(name, pattern, key) {
+                this.name = name;
+                this.pattern = pattern;
+                this.type = T_CHARMATCHER;
+                this.key = key || 0;
+            },
+            
+            match : function(stream, eat) {
+                    
+                // manipulate the codemirror stream directly for speed
+                eat = (false !== eat);
+                var ch = stream.string.charAt(stream.pos) || '';
+                if (this.pattern == ch) 
+                {
+                    if (eat) stream.pos += 1;
+                    return [ this.key, ch ];
+                }
+                return false;
+            }
+        }),
+        
+        StrMatcher = Extends( DummyMatcher, {
+            
+            constructor : function(name, pattern, key) {
+                this.name = name;
+                this.pattern = pattern;
+                this.peek = { peek: {}, negativepeek: null };
+                this.peek.peek[ '' + pattern.charAt(0) ] = 1;
+                this.type = T_STRMATCHER;
+                this.key = key || 0;
+            },
+            
+            match : function(stream, eat) {
+                
+                // manipulate the codemirror stream directly for speed
+                eat = (false !== eat);
+                var pos = stream.pos, ch = stream.string.charAt(pos);
+                if ( this.peek.peek[ ch ] )
+                {
+                    var len = this.pattern.length, str = stream.string.substr(pos, len);
+                    if (this.pattern == str) 
+                    {
+                        if (eat) stream.pos += len;
+                        return [ this.key, str ];
+                    }
+                }
+                return false;
+            }
+        }),
+        
+        RegexMatcher = Extends( DummyMatcher, {
+            
+            constructor : function(name, pattern, key) {
+                this.name = name;
+                this.pattern = pattern[ 0 ];
+                this.peek = pattern[ 1 ];
+                this.type = T_REGEXMATCHER;
+                this.key = key || 0;
+            },
+            
+            match : function(stream, eat) {
+                
+                // manipulate the codemirror stream directly for speed
+                eat = (false !== eat);
+                var pos = stream.pos, ch = stream.string.charAt(pos);
+                if ( ( this.peek.peek && this.peek.peek[ ch ] ) || ( this.peek.negativepeek && !this.peek.negativepeek[ ch ] ) )
+                {
+                    var match = stream.string.slice(pos).match(this.pattern);
+                    if (!match || match.index > 0) return false;
+                    if (eat) stream.pos += match[0].length;
+                    return [ this.key, match ];
+                }
+                return false;
+            }
+        }),
+        
+        EolMatcher = Extends( DummyMatcher, {
+            
+            constructor : function(name, pattern, key) {
+                this.name = name;
+                this.type = T_EOLMATCHER;
+                this.key = key || 0;
+            },
+            
+            match : function(stream, eat) { 
+                // manipulate the codemirror stream directly for speed
+                if (false !== eat) stream.pos = stream.string.length; // skipToEnd
+                return [ this.key, "" ];
+            }
+        }),
+        
+        getSimpleMatcher = function(tokenID, pattern, key, parsedMatchers) {
+            // get a fast customized matcher for < pattern >
             
             // manipulate the codemirror stream directly for speed,
             // if codemirror code for stream matching changes,
             // only this part of the code needs to be adapted
-            var strlen;
+            
             key = key || 0;
             
-            //this.r = r;
-            //this.key = key || 0;
-            this.type = type || T_STRMATCHER;
+            var name = tokenID + '_SimpleMatcher', matcher;
             
-            if (T_CHARMATCHER == this.type)
+            var T = get_type( pattern );
+            
+            if ( T_NUM == T ) return pattern;
+            
+            if ( !parsedMatchers[ name ] )
             {
-                strlen = r.length;
-                this.match = function(stream, eat) {
-                    
-                    // manipulate the codemirror stream directly for speed
-                    eat = (false !== eat);
-                    var casedr = r; //(ignoreCase) ? r.toLowerCase() : r;
-                    var casedch = ch = stream.string.charAt(stream.pos) || '';
-                    //var casedch = ch; //(ignoreCase) ? sch.toLowerCase() : ch;
-                    if (casedr == casedch) 
-                    {
-                        if (eat) stream.pos += strlen;
-                        return { key: key, val: ch };
-                    }
-                    return false;
-                };
+                if ( T_BOOL == T ) matcher = new DummyMatcher(name, pattern, key);
+                
+                else if ( T_NULL == T ) matcher = new EolMatcher(name, pattern, key);
+                
+                else if ( T_CHAR == T ) matcher = new CharMatcher(name, pattern, key);
+                
+                else if ( T_STR == T ) matcher = new StrMatcher(name, pattern, key);
+                
+                else if ( /*T_REGEX*/T_ARRAY == T ) matcher = new RegexMatcher(name, pattern, key);
+                
+                // unknown
+                else matcher = pattern;
+                
+                parsedMatchers[ name ] = matcher;
             }
-            else if (T_STRMATCHER == this.type)
-            {
-                strlen = r.length;
-                this.match = function(stream, eat) {
-                    
-                    // manipulate the codemirror stream directly for speed
-                    eat = (false !== eat);
-                    var casedr = r; //(ignoreCase) ? r.toLowerCase() : r;
-                    var casedstr = str = stream.string.substr(stream.pos, strlen);
-                    //var casedstr = str; //(ignoreCase) ? str.toLowerCase() : str;
-                    if (casedr == casedstr) 
-                    {
-                        if (eat) stream.pos += strlen;
-                        return { key: key, val: str };
-                    }
-                    return false;
-                };
-            }
-            else if (T_REGEXMATCHER == this.type)
-            {
-                this.match = function(stream, eat) {
-                    
-                    // manipulate the codemirror stream directly for speed
-                    eat = (false !== eat);
-                    var match = stream.string.slice(stream.pos).match(r);
-                    if (!match || match.index > 0) return false;
-                    if (eat) stream.pos += match[0].length;
-                    return { key: key, val: match };
-                };
-            }
-            else if (T_EOLMATCHER == this.type)
-            {
-                this.match = function(stream, eat) { 
-                    // manipulate the codemirror stream directly for speed
-                    if (false !== eat) stream.pos = stream.string.length; // skipToEnd
-                    return { key: key, val: "" };
-                };
-            }
-            else if (T_DUMMYMATCHER == this.type)
-            {
-                this.match = function(stream, eat) { 
-                    return { key: key, val: r };
-                };
-            }
-            else
-            {
-                // unknown type
-                this.match = function(stream, eat) { return false; };
-            }
+            
+            return parsedMatchers[ name ];
         },
         
-        CompositeMatcher = function(matchers, useOwnKey) {
+        CompositeMatcher = Extends( DummyMatcher, {
             
-            var l = matchers.length;
+            constructor : function(name, matchers, useOwnKey) {
+                this.name = name;
+                this.matchers = matchers;
+                this.type = T_COMPOSITEMATCHER;
+                this.useOwnKey = (false!==useOwnKey);
+            },
             
-            useOwnKey = (false!==useOwnKey);
+            matchers : null,
+            useOwnKey : true,
             
-            //this.matchers = matchers;
-            this.type = T_COMPOSITEMATCHER;
-            
-            if (0 >= l)
-            {
-                // no matchers
-                this.match = function(stream, eat) { return false; };
-            }
-            else if (1 == l)
-            {
-                // if only one matcher, use it directly
-                this.match = matchers[0].match;
-            }
-            else
-            {
-                // else check all the matchers one-by-one
-                if (useOwnKey)
+            match : function(stream, eat) {
+                var i, m, matchers = this.matchers, l = matchers.length;
+                for (i=0; i<l; i++)
                 {
-                    this.match = function(stream, eat) {
-                        var i, m;
-                        for (i=0; i<l; i++)
+                    // each one is a custom matcher in its own
+                    m = matchers[i].match(stream, eat);
+                    if ( m ) return ( this.useOwnKey ) ? [ i, m[1] ] : m;
+                }
+                return false;
+            }
+        }),
+        
+        getCompositeMatcher = function(tokenID, tokens, RegExpID, isRegExpGroup, parsedRegexes, parsedMatchers) {
+            
+            var tmp, i, l, l2, array_of_arrays = false, has_regexs = false;
+            
+            var name = tokenID + '_CompoMatcher', matcher;
+            
+            if ( !parsedMatchers[ name ] )
+            {
+                tmp = make_array( tokens );
+                l = tmp.length;
+                
+                if ( isRegExpGroup )
+                {   
+                    l2 = (l>>1) + 1;
+                    // check if tokens can be combined in one regular expression
+                    // if they do not contain sub-arrays or regular expressions
+                    for (i=0; i<=l2; i++)
+                    {
+                        if ( (T_ARRAY == get_type( tmp[i] )) || (T_ARRAY == get_type( tmp[l-1-i] )) ) 
                         {
-                            // each one is a custom matcher in its own
-                            m = matchers[i].match(stream, eat);
-                            if (m) return { key: i, val: m.val };
+                            array_of_arrays = true;
+                            break;
                         }
-                        return false;
-                    };
+                        else if ( hasPrefix( tmp[i], RegExpID ) || hasPrefix( tmp[l-1-i], RegExpID ) )
+                        {
+                            has_regexs = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if ( isRegExpGroup && !(array_of_arrays || has_regexs) )
+                {   
+                    matcher = getSimpleMatcher( name, getCombinedRegexp( tmp ), 0, parsedMatchers );
                 }
                 else
                 {
-                    this.match = function(stream, eat) {
-                        var i, m;
-                        for (i=0; i<l; i++)
-                        {
-                            // each one is a custom matcher in its own
-                            m = matchers[i].match(stream, eat);
-                            if (m) return m;
-                        }
-                        return false;
-                    };
+                    for (i=0; i<l; i++)
+                    {
+                        if ( T_ARRAY == get_type( tmp[i] ) )
+                            tmp[i] = getCompositeMatcher( name + '_' + i, tmp[i], RegExpID, isRegExpGroup, parsedRegexes, parsedMatchers );
+                        else
+                            tmp[i] = getSimpleMatcher( name + '_' + i, getRegexp( tmp[i], RegExpID, parsedRegexes ), i, parsedMatchers );
+                    }
+                    
+                    matcher = (tmp.length > 1) ? new CompositeMatcher( name, tmp ) : tmp[0];
                 }
+                
+                parsedMatchers[ name ] = matcher;
             }
+            
+            return parsedMatchers[ name ];
         },
         
-        BlockMatcher = function(start, end) {
+        BlockMatcher = Extends( DummyMatcher, {
             
-            var token,
-                startMatcher = new CompositeMatcher(start, false),
-                endMatcher
-            ;
+            constructor : function(name, start, end) {
+                this.name = name;
+                this.type = T_BLOCKMATCHER;
+                this.start = new CompositeMatcher(this.name + '_StartMatcher', start, false);
+                this.pattern = this.start.pattern || null;
+                this.end = end;
+            },
             
-            this.type = T_BLOCKMATCHER;
+            start : null,
+            end : null,
             
-            this.match = function(stream, eat) {
+            match : function(stream, eat) {
+                    
+                var token = this.start.match(stream, eat);
                 
-                token = startMatcher.match(stream, eat);
-                
-                if (token)
+                if ( token )
                 {
-                    endMatcher = end[ token.key ];
+                    var endMatcher = this.end[ token[0] ];
                     
                     // regex given, get the matched group for the ending of this block
                     if ( T_NUM == get_type( endMatcher ) )
                     {
                         // the regex is wrapped in an additional group, 
                         // add 1 to the requested regex group transparently
-                        endMatcher = new SimpleMatcher( T_STRMATCHER, token.val[ endMatcher+1 ] );
+                        endMatcher = new StrMatcher( this.name + '_EndMatcher', token[1][ endMatcher+1 ] );
                     }
                     
                     return endMatcher;
                 }
                 
                 return false;
-            };
-        },
-        
-        TagMatcher = function(start, name, end) {
-            
-            var token,
-                startMatcher = new CompositeMatcher(start, false),
-                tagName = "", /*nameMatcher,*/ endMatcher
-            ;
-            
-            this.type = T_TAGMATCHER;
-            
-            this.match = function(stream, eat) {
-                
-                token = startMatcher.match(stream, eat);
-                
-                if (token)
-                {
-                    nameMatcher = name[ token.key ];
-                    // regex given, get the matched group for the ending of this block
-                    if ( T_NUM == get_type( nameMatcher ) )
-                    {
-                        // the regex is wrapped in an additional group, 
-                        // add 1 to the requested regex group transparently
-                        //nameMatcher = getSimpleMatcher( token.val[ nameMatcher+1 ] );
-                        tagName = token.val[ nameMatcher+1 ];
-                    }
-                    else
-                    {
-                        tagName = nameMatcher.match( token.val );
-                        tagName = (tagName) ? tagName.val : "";
-                    }
-                    
-                    endMatcher = end[ token.key ];
-                    // regex given, get the matched group for the ending of this block
-                    if ( T_NUM == get_type( endMatcher ) )
-                    {
-                        // the regex is wrapped in an additional group, 
-                        // add 1 to the requested regex group transparently
-                        endMatcher = new SimpleMatcher( T_STRMATCHER, token.val[ endMatcher+1 ] );
-                    }
-                    
-                    return [endMatcher, tagName];
-                }
-                
-                return false;
-            };
-        },
-        
-        getSimpleMatcher = function(r, key) {
-            // get a fast customized matcher for < r >
-            
-            // manipulate the codemirror stream directly for speed,
-            // if codemirror code for stream matching changes,
-            // only this part of the code needs to be adapted
-            
-            key = key || 0;
-            
-            var T = get_type( r );
-            
-            if ( T_NUM == T )  return r;
-            
-            else if ( T_BOOL == T ) return new SimpleMatcher(T_DUMMYMATCHER, r, key);
-            
-            else if ( T_NULL == T )  return new SimpleMatcher(T_EOLMATCHER, r, key);
-            
-            else if ( T_CHAR == T )  return new SimpleMatcher(T_CHARMATCHER, r, key);
-            
-            else if ( T_STR == T ) return new SimpleMatcher(T_STRMATCHER, r, key);
-            
-            else if ( T_REGEX == T )  return new SimpleMatcher(T_REGEXMATCHER, r, key);
-            
-            // unknown
-            return r;
-        },
-        
-        getCompositeMatcher = function(tokens, RegExpID, isRegExpGroup) {
-            
-            var tmp, i, l, l2, array_of_arrays = false, has_regexs = false;
-            
-            tmp = make_array( tokens );
-            l = tmp.length;
-            
-            if ( isRegExpGroup )
-            {   
-                l2 = (l>>1) + 1;
-                // check if tokens can be combined in one regular expression
-                // if they do not contain sub-arrays or regular expressions
-                for (i=0; i<=l2; i++)
-                {
-                    if ( (T_ARRAY == get_type( tmp[i] )) || (T_ARRAY == get_type( tmp[l-1-i] )) ) 
-                    {
-                        array_of_arrays = true;
-                        break;
-                    }
-                    else if ( isRegexp( tmp[i], RegExpID ) || isRegexp( tmp[l-1-i], RegExpID ) )
-                    {
-                        has_regexs = true;
-                        break;
-                    }
-                }
             }
-            
-            if ( isRegExpGroup && !(array_of_arrays || has_regexs) )
-            {   
-                //return new CompositeMatcher( [ getSimpleMatcher( getCombinedRegexp( tmp ) ) ] );
-                return getSimpleMatcher( getCombinedRegexp( tmp ) );
-            }
-            else
-            {
-                for (i=0; i<l; i++)
-                {
-                    if ( T_ARRAY == get_type( tmp[i] ) )
-                        tmp[i] = getCompositeMatcher( tmp[i], RegExpID, isRegExpGroup );
-                    else
-                        tmp[i] = getSimpleMatcher( getRegexp( tmp[i], RegExpID ), i );
-                }
-                
-                return (tmp.length > 1) ? new CompositeMatcher( tmp ) : tmp[0];
-            }
-        },
+        }),
         
-        getBlockMatcher = function(tokens, RegExpID) {
+        getBlockMatcher = function(tokenID, tokens, RegExpID, parsedRegexes, parsedMatchers) {
             var tmp, i, l, start, end, t1, t2;
             
-            // build start/end mappings
-            start=[]; end=[];
-            tmp = make_array_2(tokens); // array of arrays
-            for (i=0, l=tmp.length; i<l; i++)
-            {
-                t1 = getSimpleMatcher( getRegexp( tmp[i][0], RegExpID ), i );
-                t2 = (tmp[i].length>1) ? getSimpleMatcher( getRegexp( tmp[i][1], RegExpID ), i ) : t1;
-                start.push( t1 );  end.push( t2 );
-            }
-            return new BlockMatcher(start, end);
-        },
-        
-        getTagMatcher = function(tokens, RegExpID, isRegExpGroup) {
-            var tmp, i, l, start, name, end, t1, t2, t3;
+            var name = tokenID + '_BlockMatcher';
             
-            // build start/end mappings
-            start=[]; name=[]; end=[];
-            tmp = make_array_2(tokens); // array of arrays
-            for (i=0, l=tmp.length; i<l; i++)
+            if ( !parsedMatchers[ name ] )
             {
-                t1 = getSimpleMatcher( getRegexp( tmp[i][0], RegExpID ), i );
-                t2 = (tmp[i].length>2) ? getSimpleMatcher( getRegexp( tmp[i][2], RegExpID ), i ) : t1;
-                t3 = (tmp[i].length>1) ? getCompositeMatcher( getRegexp( tmp[i][1], RegExpID, isRegExpGroup ), i ) : t1;
-                start.push( t1 );  name.push(t3); end.push( t2 );
+                // build start/end mappings
+                start=[]; end=[];
+                tmp = make_array_2(tokens); // array of arrays
+                for (i=0, l=tmp.length; i<l; i++)
+                {
+                    t1 = getSimpleMatcher( name + '_0_' + i, getRegexp( tmp[i][0], RegExpID, parsedRegexes ), i, parsedMatchers );
+                    t2 = (tmp[i].length>1) ? getSimpleMatcher( name + '_1_' + i, getRegexp( tmp[i][1], RegExpID, parsedRegexes ), i, parsedMatchers ) : t1;
+                    start.push( t1 );  end.push( t2 );
+                }
+                
+                parsedMatchers[ name ] = new BlockMatcher(name, start, end);
             }
-            return new TagMatcher(start, name, end);
+            
+            return parsedMatchers[ name ];
         }
     ;

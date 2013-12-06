@@ -10,12 +10,35 @@ A simple and light-weight ( ~ 10kB minified) [CodeMirror](https://github.com/mar
 to generate syntax-highlight parsers (codemirror modes) from a grammar specification in JSON format.
 
 
-__Support for markup-like grammars is added__  ( see for example [/test/grammar-xml.html](/test/grammar-xml.html) )
+__This is work in progress__
 
 
-Code Indentation is Codemirror default, looking for ways to add more elaborate indentation rules to the grammar specification.
 
-Also looking for ways to add context-specific parsing information to the grammar specification.
+###Todo
+
+Code Indentation is Codemirror default, looking for ways to add more elaborate indentation rules to the grammar specification. (maybe add "actions" to the grammar syntax part ?? )
+
+<del>Also looking for ways to add context-specific parsing information to the grammar specification.</del>
+
+__Support for syntax rules in grammars is added__  ( see for example [/test/grammar-xml.html](/test/grammar-xml.html) )
+
+__UPDATE:__  Added context-specific grammar syntax information (groups and n-grams), ( see for example [/test/grammar-xml.html](/test/grammar-xml.html) )
+
+This allows syntax-highlight in a more context-specific manner.
+
+Made various optimizations in regex token matchers for speeding up the parser.
+
+
+
+
+###Features
+
+* A grammar can extend another grammar (so arbitrary variations and dialects can be parsed more easily)
+* Grammar includes: Style Model, Lex Model and Syntax Model (optional), plus a couple of settings (see examples)
+* Generated syntax-highlight parsers are optimized for speed
+* Can generate a syntax-highlight parser from a grammar interactively and on-the-fly ( see example, http://foo123.github.io/examples/codemirror-grammar )
+
+
 
 
 ###Live Examples
@@ -23,57 +46,45 @@ Also looking for ways to add context-specific parsing information to the grammar
 [![Build your own syntax-highlight mode on the fly](/test/screenshot.png)](http://foo123.github.io/examples/codemirror-grammar)
 
 
+
 ###How to use:
 
 See working examples under [/test](/test) folder.
 
-An example for JavaScript:
+An example for XML:
 
 
 ```javascript
 
-// 1. an almost complete javascript grammar in simple JSON format
-var js_grammar = {
+// 1. a partial xml grammar in simple JSON format
+var xml_grammar = {
         
         // prefix ID for regular expressions used in the grammar
         "RegExpID" : "RegExp::",
-        
+    
         // lists of (simple/string) tokens to be grouped into one regular expression,
         // else matched one by one, 
         // this is usefull for speed fine-tuning the parser
         "RegExpGroups" : {
-            "atoms" : true,
-            "keywords" : true,
-            "operators" : true
         },
     
-        // order of tokens parsing
-        "TokenOrder" : [
-            "comments",
-            "numbers",
-            "strings",
-            "strings2",
-            "keywords",
-            "operators",
-            "atoms",
-            "identifiers2",
-            "identifiers"
-        ],
-            
         //
         // Style model
         "Style" : {
             // lang token type  -> CodeMirror (style) tag
-            "error":        "error",
-            "comments":     "comment",
-            "atoms":        "atom",
-            "keywords":     "keyword",
-            "operators":    "operator",
-            "identifiers":  "variable",
-            "identifiers2":  "variable",
-            "numbers":       "number",
-            "strings":       "string",
-            "strings2":      "string-2"
+            "error":                "error",
+            "commentBlock":         "comment",
+            "metaBlock":            "meta",
+            "atom":                 "atom",
+            "cdataBlock":           "atom",
+            "startTag":             "tag",
+            "endTag":               "tag",
+            "closeTag":             "tag",
+            "attribute":            "attribute",
+            "assignment":           "operator",
+            "number":               "number",
+            "number2":              "number",
+            "string":               "string"
         },
 
         
@@ -81,101 +92,198 @@ var js_grammar = {
         // Lexical model
         "Lex" : {
             
-            // comments
-            "comments" : [
-                // line comments, start, end delims (null matches end-of-line)
-                [ "//", null ],
-                // block comments, start, end delims
-                [ "/*", "*/" ]
-            ],
+            "commentBlock" : {
+                "type" : "block",
+                "tokens" : [
+                    // block comments
+                    // start,    end  delims
+                    [ "<!--",    "-->" ]
+                ]
+            },
             
-            // general identifiers
-            "identifiers" : "RegExp::[_A-Za-z][_A-Za-z0-9]*",
-            // labels
-            "identifiers2" : "RegExp::[_A-Za-z][_A-Za-z0-9]*:",
-
+            "cdataBlock" : {
+                "type" : "block",
+                "tokens" : [
+                    // cdata block
+                    //   start,        end  delims
+                    [ "<![CDATA[",    "]]>" ]
+                ]
+            },
+            
+            "metaBlock" : {
+                "type" : "block",
+                "tokens" : [
+                    // meta block
+                    //        start,                          end  delims
+                    [ "RegExp::<\\?[_a-zA-Z][\\w\\._\\-]*",   "?>" ]
+                ]
+            },
+            
+            // attribute assignment
+            "assignment" : {
+                "type" : "simple",
+                "tokens" : [ "=" ]
+            },
+            
+            // tag attributes
+            "attribute" : {
+                "type" : "simple",
+                "tokens" : [
+                    "RegExp::[_a-zA-Z][_a-zA-Z0-9\\-]*"
+                ]
+            },
+            
             // numbers, in order of matching
-            "numbers" : [
-                // floats
-                "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?",
-                "RegExp::\\d+\\.\\d*",
-                "RegExp::\\.\\d+",
-                // integers
-                // hex
-                "RegExp::0x[0-9a-fA-F]+L?",
-                // binary
-                "RegExp::0b[01]+L?",
-                // octal
-                "RegExp::0o[0-7]+L?",
-                // decimal
-                "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?L?",
-                // just zero
-                "RegExp::0(?![\\dx])"
-            ],
+            "number" : {
+                "type" : "simple",
+                "tokens" : [
+                    // floats
+                    "RegExp::\\d+\\.\\d*",
+                    "RegExp::\\.\\d+",
+                    // integers
+                    // decimal
+                    "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?",
+                    // just zero
+                    "RegExp::0(?![\\dx])"
+                ]
+            },
+            
+            "number2" : {
+                "type" : "simple",
+                "tokens" : [
+                    // hex colors
+                    "RegExp::#[0-9a-fA-F]+"
+                ]
+            },
 
-            // usual strings
-            // start, end of string (can be the matched regex group ie. 1 )
-            "strings" : [ "RegExp::([`'\"])", 1 ],
-            
-            // literal regular expressions
-            // javascript literal regular expressions can be parsed similar to strings
-            "strings2" : [ "/", "RegExp::/[gimy]?" ],
-            
-            // operators
-            "operators" : [
-                [ "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!" ],
-                [ "==", "!=", "<=", ">=", "<>", ">>", "<<" ],
-                [ "===", "!==", "<<<", ">>>" ]
-            ],
+            // strings
+            "string" : {
+                "type" : "escaped-block",
+                "escape" : "\\",
+                "multiline" : false,
+                "tokens" : [ 
+                    // start, end of string (can be the matched regex group ie. 1 )
+                    // if no end given, end is same as start
+                    [ "\"" ], 
+                    [ "'" ] 
+                ]
+            },
             
             // atoms
-            "atoms" : [
-                "true", "false", "null"
-            ],
-
-            // keywords
-            "keywords" : [ 
-                "if", "while", "with", "else", "do", "try", "finally",
-                "return", "break", "continue", "new", "delete", "throw",
-                "var", "const", "let", "function", "catch",
-                "for", "switch", "case", "default",
-                "in", "typeof", "instanceof", "true", "false", 
-                "null", "undefined", "NaN", "Infinity", "this"
-            ]
-        }
+            "atom" : {
+                "type" : "simple",
+                "tokens" : [
+                    "RegExp::&[a-zA-Z][a-zA-Z0-9]*;",
+                    "RegExp::&#[\\d]+;",
+                    "RegExp::&#x[a-fA-F\\d]+;"
+                ]
+            },
+            
+            // tags
+            "startTag" : {
+                "type" : "simple",
+                "tokens" : [
+                    "RegExp::<[_a-zA-Z][_a-zA-Z0-9\\-]*"
+                ]
+            },
+            
+            "endTag" : {
+                "type" : "simple",
+                "tokens" : [
+                    "RegExp::/?>"
+                ]
+            },
+            
+            "closeTag" : {
+                "type" : "simple",
+                "tokens" : [
+                    "RegExp::</[_a-zA-Z][_a-zA-Z0-9\\-]*>"
+                ]
+            }
+        },
+        
+        //
+        // Syntax model
+        "Syntax" : {
+            
+            "stringOrNumber" : {
+                "type" : "group",
+                "match" : "either",
+                "tokens" : [ "string", "number", "number2" ] 
+            },
+            
+            "tagAttribute" : { 
+                "type" : "group",
+                "match" : "all",
+                "tokens" : [ "attribute", "assignment", "stringOrNumber" ]
+            },
+            
+            "tagAttributes" : { 
+                "type" : "group",
+                "match" : "zeroOrMore",
+                "tokens" : [ "tagAttribute" ]
+            },
+            
+            // n-grams define syntax sequences
+            "openTag" : { 
+                "type" : "n-gram",
+                "tokens" :[
+                    [ "startTag", "tagAttributes", "endTag" ]
+                ]
+            }
+        },
+        
+        // what to parse and in what order
+        "Parser" : [
+            "commentBlock",
+            "cdataBlock",
+            "metaBlock",
+            "openTag",
+            "closeTag",
+            "atom"
+        ]
 };
         
+// requires the RegExAnalyzer
+CodeMirrorGrammar.init( RegExAnalyzer );
+
 // 2. parse the grammar into a Codemirror syntax-highlight mode
-var js_mode = CodeMirrorGrammar.getMode(js_grammar);
+var xml_mode = CodeMirrorGrammar.getMode(xml_grammar);
 
 // 3. register the mode with Codemirror
-CodeMirror.defineMode("js", js_mode);
+CodeMirror.defineMode("xml", xml_mode);
 
 // use it!
 var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
     lineNumbers: true,
     matchBrackets: true,
-    mode: "js",
+    mode: "xml",
     indentUnit: 4,
     indentWithTabs: false,
     enterMode: "keep",
     tabMode: "shift"
 });
-editor.setSize(null, 500);
 
 ```
 
 
 Result:
 
-![js-grammar](/test/grammar-js.png)
+![xml-grammar](/test/grammar-xml.png)
+
 
 
 ###Other Working examples:
 
+
 ![css-grammar](/test/grammar-css.png)
+
 
 ![python-grammar](/test/grammar-python.png)
 
-![xml-grammar](/test/grammar-xml.png)
+
+![php-grammar](/test/grammar-php.png)
+
+
+![js-grammar](/test/grammar-js.png)
 
