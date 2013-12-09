@@ -328,13 +328,11 @@
         
         // use it!
         var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+            mode: "js",
             lineNumbers: true,
             matchBrackets: true,
-            mode: "js",
             indentUnit: 4,
-            indentWithTabs: false,
-            enterMode: "keep",
-            tabMode: "shift"
+            indentWithTabs: false
         });
         editor.setSize(null, 500);
         

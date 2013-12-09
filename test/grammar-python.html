@@ -128,13 +128,11 @@ class ExampleClass(ParentClass):
         
         // use it!
         var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+            mode: "python",
             lineNumbers: true,
             matchBrackets: false,
-            mode: "python",
             indentUnit: 4,
-            indentWithTabs: false,
-            enterMode: "keep",
-            tabMode: "shift"
+            indentWithTabs: false
         });
         editor.setSize(null, 500);
         

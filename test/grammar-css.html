@@ -74,13 +74,11 @@ code {
         
         // use it!
         var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+            mode: "css",
             lineNumbers: true,
             matchBrackets: true,
-            mode: "css",
             indentUnit: 4,
-            indentWithTabs: false,
-            enterMode: "keep",
-            tabMode: "shift"
+            indentWithTabs: false
         });
         editor.setSize(null, 500);
         

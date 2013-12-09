@@ -25,6 +25,7 @@ var js_grammar = {
         "builtin":    "builtin",
         "operator":   "operator",
         "identifier": "variable",
+        "property":   "attribute",
         "number":     "number",
         "string":     "string",
         "regex":      "string-2"
@@ -53,7 +54,22 @@ var js_grammar = {
             "type" : "simple",
             "tokens" : "RegExp::[_A-Za-z][_A-Za-z0-9]*"
         },
-
+        
+        "dot" : {
+            "type" : "simple",
+            "tokens" : "."
+        },
+        
+        "rightBracket" : {
+            "type" : "simple",
+            "tokens" : "]"
+        },
+        
+        "property" : {
+            "type" : "simple",
+            "tokens" : "RegExp::[_A-Za-z][_A-Za-z0-9]*"
+        },
+        
         // numbers, in order of matching
         "number" : {
             "type" : "simple",
@@ -81,7 +97,7 @@ var js_grammar = {
             "type" : "escaped-block",
             "escape" : "\\",
             // start, end of string (can be the matched regex group ie. 1 )
-            "tokens" : [ "RegExp::([`'\"])",   1 ]
+            "tokens" : [ "RegExp::(['\"])",   1 ]
         },
         
         // literal regular expressions
@@ -89,16 +105,16 @@ var js_grammar = {
             "type" : "escaped-block",
             "escape" : "\\",
             // javascript literal regular expressions can be parsed similar to strings
-            "tokens" : [ "/",    "RegExp::/[gimy]?" ]
+            "tokens" : [ "/",    "RegExp::/[gimy]{0,4}" ]
         },
         
         // operators
         "operator" : {
             "type" : "simple",
             "tokens" : [
-                [ "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!" ],
-                [ "==", "!=", "<=", ">=", "<>", ">>", "<<" ],
-                [ "===", "!==", "<<<", ">>>" ]
+                "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!",
+                "==", "!=", "<=", ">=", "<>", ">>", "<<",
+                "===", "!==", "<<<", ">>>" 
             ]
         },
         
@@ -133,6 +149,36 @@ var js_grammar = {
             ]
         }
     },
+    
+    //
+    // Syntax model
+    "Syntax" : {
+        
+        "builtinOrIdentifier" : {
+            "type" : "group",
+            "match" : "either",
+            "tokens" : [ "rightBracket", "builtin", "identifier" ]
+        },
+        
+        "dotProperty" : {
+            "type" : "group",
+            "match" : "all",
+            "tokens" : [ "dot", "property" ]
+        },
+        
+        "dotProperties" : {
+            "type" : "group",
+            "match" : "zeroOrMore",
+            "tokens" : [ "dotProperty" ]
+        },
+        
+        "builtinOrIdentifierWithProperties" : {
+            "type" : "n-gram",
+            "tokens" : [
+                [ "builtinOrIdentifier", "dotProperties" ]
+            ]
+        }
+    },
 
     // what to parse and in what order
     "Parser" : [
@@ -141,9 +187,8 @@ var js_grammar = {
         "string",
         "regex",
         "keyword",
-        "builtin",
         "operator",
         "atom",
-        "identifier"
+        "builtinOrIdentifierWithProperties"
     ]
 };

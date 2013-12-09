@@ -70,13 +70,11 @@ function a_function( &$v1, $v2 )
         
         // use it!
         var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+            mode: "php",
             lineNumbers: true,
             matchBrackets: true,
-            mode: "php",
             indentUnit: 4,
-            indentWithTabs: false,
-            enterMode: "keep",
-            tabMode: "shift"
+            indentWithTabs: false
         });
         editor.setSize(null, 500);
         

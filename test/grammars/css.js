@@ -8,13 +8,13 @@ var css_grammar = {
         // else matched one by one, 
         // this is usefull for speed fine-tuning the parser
         "RegExpGroups" : {
+            "font" : true,
             "standard" : true,
-            "standard2" : true,
             "atom" : true,
             "meta" : true,
             "meta2" : true,
-            "keyword" : true,
-            "builtin" : true,
+            "property" : true,
+            "element" : true,
             "operator" : true,
             "delimiter" : true
         },
@@ -29,17 +29,19 @@ var css_grammar = {
             "meta":         "attribute",
             "meta2":        "def",
             "atom":         "string-2",
-            "keyword":      "property",
-            "builtin":      "tag",
+            "property":     "property",
+            "element":      "tag",
+            "url":          "tag",
             "operator":     "operator",
-            "standard":     "variable-2",
-            "standard2":    "keyword",
+            "font":         "variable-2",
+            "standard":     "keyword",
             "cssID":        "builtin",
             "cssClass":     "qualifier",
             "identifier":   "variable-2",
             "number":       "number",
             "number2":      "builtin",
-            "string":       "string"
+            "string":       "string",
+            "unquotedText": "string"
         },
 
         
@@ -58,20 +60,17 @@ var css_grammar = {
             },
             
             // some standard identifiers
-            "standard" : {
+            "font" : {
                 "type" : "simple",
                 "tokens" : [
-                    "arial",
-                    "tahoma",
-                    "courier"
+                    "arial", "tahoma", "courier"
                 ]
             },
             
-            "standard2" : {
+            "standard" : {
                 "type" : "simple",
                 "tokens" : [
-                    "!important",
-                    "only"
+                    "!important", "only"
                 ]
             },
             
@@ -108,6 +107,7 @@ var css_grammar = {
                     "RegExp::0(?![\\dx])(em|px|%|pt)?"
                 ]
             },
+            
             "number2" : {
                 "type" : "simple",
                 "tokens" : [
@@ -126,6 +126,11 @@ var css_grammar = {
                 ]
             },
             
+            "unquotedText" : {
+                "type" : "simple",
+                "tokens" : "RegExp::[^\\(\\)\\[\\]\\{\\}'\"]+"
+            },
+            
             // operators
             "operator" : {
                 "type" : "simple",
@@ -134,11 +139,40 @@ var css_grammar = {
                 ]
             },
             
-            // delimiters
+            "leftBracket" : {
+                "type" : "simple",
+                "tokens" : "{"
+            },
+            
+            "rightBracket" : {
+                "type" : "simple",
+                "tokens" : "}"
+            },
+            
+            "leftParen" : {
+                "type" : "simple",
+                "tokens" : "("
+            },
+            
+            "rightParen" : {
+                "type" : "simple",
+                "tokens" : ")"
+            },
+            
+            "assignment" : {
+                "type" : "simple",
+                "tokens" : ":"
+            },
+            
+            "endAssignment" : {
+                "type" : "simple",
+                "tokens" : ";"
+            },
+            
             "delimiter" : {
                 "type" : "simple",
                 "tokens" : [
-                    "(", ")", "[", "]", "{", "}", ",", "=", ";", "."
+                    ",", "[", "]", "(", ")"
                 ]
             },
             
@@ -169,8 +203,8 @@ var css_grammar = {
                 ]
             },
 
-            // keywords
-            "keyword" : {
+            // css properties
+            "property" : {
                 "type" : "simple",
                 "tokens" : [ 
                     "background-color", "background-image", "background-position", "background-repeat", "background", 
@@ -183,7 +217,8 @@ var css_grammar = {
                 ]
             },
                                   
-            "builtin" : {
+            // css html element
+            "element" : {
                 "type" : "simple",
                 "tokens" : [ 
                     "a", "p", "i",
@@ -199,26 +234,70 @@ var css_grammar = {
                     "blockquote", 
                     "before", "after", "url"
                 ]
+            },
+            
+            "url" : {
+                "type" : "simple",
+                "tokens" : "url"
             }
         },
     
+        //
+        // Syntax model
+        "Syntax" : {
+            
+            "stringOrUnquotedText" : {
+                "type" : "group",
+                "match" : "either",
+                "tokens" : [ "string", "unquotedText" ]
+            },
+            
+            // highlight url(...) as string regardless of quotes or not
+            "urlDeclaration" : {
+                "type" : "n-gram",
+                "match" : "either",
+                "tokens" : [ "url", "leftParen", "stringOrUnquotedText", "rightParen" ]
+            },
+            
+            "RHSAssignment" : {
+                "type" : "group",
+                "match" : "oneOrMore",
+                "tokens" : [ "delimiter", "atom", "font", "standard", "string", "number", "number2", "identifier" ]
+            },
+            
+            "cssAssignment" : {
+                "type" : "group",
+                "match" : "all",
+                "tokens" : [ "property", "assignment", "RHSAssignment", "endAssignment" ]
+            },
+            
+            "cssAssignments" : {
+                "type" : "group",
+                "match" : "zeroOrMore",
+                "tokens" : [ "cssAssignment" ]
+            },
+            
+            // syntax grammar (n-gram) for a block of css assignments
+            "cssBlock" : {
+                "type" : "n-gram",
+                "tokens" : [
+                    [ "leftBracket", "cssAssignments", "rightBracket" ]
+                ]
+            }
+        },
+
         // what to parse and in what order
         "Parser" : [
             "comment",
+            "urlDeclaration",
             "number",
             "cssID",
             "number2",
             "string",
-            "keyword",
-            "builtin",
-            "atom",
+            "element",
             "meta",
             "meta2",
-            "operator",
-            "delimiter",
-            "standard",
-            "standard2",
             "cssClass",
-            "identifier"
+            "cssBlock"
         ]
 };
