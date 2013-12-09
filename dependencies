@@ -5,25 +5,37 @@
 #
 ###################################################
 
-@DEPENDENCIES
-./src/header.js
-./src/factories/types.js
-./src/utils/utils.js
-./src/utils/defaults.js
-./src/factories/matchers.js
-./src/factories/tokenizers.js
-./src/factories/parsers.js
-./src/main.js
-./src/footer.js
+# A '#' represents a comment and everything after it is skipped
+# Lines starting with # or blank lines are skipped
+# Lines starting with @ are blocks/directives and describe how the build is going to be processed
+# One line for each setting, no multiple settings on same line, line indentation does not matter
+# Blocks with =[] define LISTS (arrays)
+# Blocks with ={} define MAPS (hashmaps)
+# Blocks with = or nothing define VALUES (single value)
+# A key and/or value can be quoted (with ", ' or `, quotes) or unquoted
+# Lines with one or multiple '@'s define the end of that many previous blocks
+
+@DEPENDENCIES =[]
+    ./src/header.js
+    ./src/factories/types.js
+    ./src/utils/utils.js
+    ./src/factories/matchers.js
+    ./src/factories/tokenizers.js
+    ./src/factories/parsers.js
+    ./src/main.js
+    ./src/footer.js
+
+@ # end block
 
 # TODO, allow some pre-process to take place
 #@PREPROCESS
 
-@REPLACE
-"@@VERSION@@" = "0.3"
+@REPLACE ={}
+    "@@VERSION@@" = "0.3.1"
+@ # end block
 
 # TODO, allow some post-process to take place
 #@POSTPROCESS
 
-@OUT
+@OUT =
 ./build/codemirror_grammar.js
