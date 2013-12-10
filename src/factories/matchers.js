@@ -43,14 +43,16 @@
             }
         },
         
-        getCombinedRegexp = function(tokens)  {
-            var peek = { }, i, l;
+        getCombinedRegexp = function(tokens, boundary)  {
+            var peek = { }, i, l, b = "";
+            if ( T_STR == get_type(boundary)) b = boundary;
             for (i=0, l=tokens.length; i<l; i++) 
             {
                 peek[ tokens[i].charAt(0) ] = 1;
                 tokens[i] = tokens[i].replace(ESC, '\\$1');
             }
-            return [ new RegExp("^((" + tokens.sort( byLength ).join( ")|(" ) + "))\\b"), { peek: peek, negativepeek: null } ];
+            //return [ new RegExp("^((" + tokens.sort( byLength ).join( ")|(" ) + "))\\b"), { peek: peek, negativepeek: null } ];
+            return [ new RegExp("^(" + tokens.sort( byLength ).join( "|" ) + ")"+b), { peek: peek, negativepeek: null }, 1 ];
         },
         
         DummyMatcher = Extends( Object, {
@@ -77,6 +79,10 @@
                 return s;
             },
             
+            test : function(str) {
+                return true;
+            },
+            
             match : function(stream, eat) { 
                 return [ this.key, this.pattern ];
             }
@@ -95,6 +101,10 @@
                 this.pattern = pattern;
                 this.type = T_CHARMATCHER;
                 this.key = key || 0;
+            },
+            
+            test : function(str) {
+                return (this.pattern == str.charAt(0));
             },
             
             match : function(stream, eat) {
@@ -122,6 +132,16 @@
                 this.key = key || 0;
             },
             
+            test : function(str) {
+                var ch = str.charAt(0);
+                if ( this.peek.peek[ ch ] )
+                {
+                    var len = this.pattern.length, s = str.substr(0, len);
+                    if (this.pattern == s) return true;
+                }
+                return false;
+            },
+            
             match : function(stream, eat) {
                 
                 // manipulate the codemirror stream directly for speed
@@ -146,8 +166,22 @@
                 this.name = name;
                 this.pattern = pattern[ 0 ];
                 this.peek = pattern[ 1 ];
+                this.isComposite = pattern[2] || 0;
                 this.type = T_REGEXMATCHER;
                 this.key = key || 0;
+            },
+            
+            isComposite : 0,
+            
+            test : function(str) {
+                var ch = str.charAt(0);
+                if ( ( this.peek.peek && this.peek.peek[ ch ] ) || ( this.peek.negativepeek && !this.peek.negativepeek[ ch ] ) )
+                {
+                    var match = str.match(this.pattern);
+                    if (!match || match.index > 0) return false;
+                    return true;
+                }
+                return false;
             },
             
             match : function(stream, eat) {
@@ -159,7 +193,7 @@
                 {
                     var match = stream.string.slice(pos).match(this.pattern);
                     if (!match || match.index > 0) return false;
-                    if (eat) stream.pos += match[0].length;
+                    if (eat) stream.pos += match[this.isComposite].length;
                     return [ this.key, match ];
                 }
                 return false;
@@ -229,6 +263,17 @@
             matchers : null,
             useOwnKey : true,
             
+            test : function(str) {
+                var i, m, matchers = this.matchers, l = matchers.length;
+                for (i=0; i<l; i++)
+                {
+                    // each one is a custom matcher in its own
+                    m = matchers[i].test(str);
+                    if ( m ) return true;
+                }
+                return false;
+            },
+            
             match : function(stream, eat) {
                 var i, m, matchers = this.matchers, l = matchers.length;
                 for (i=0; i<l; i++)
@@ -274,7 +319,7 @@
                 
                 if ( isRegExpGroup && !(array_of_arrays || has_regexs) )
                 {   
-                    matcher = getSimpleMatcher( name, getCombinedRegexp( tmp ), 0, parsedMatchers );
+                    matcher = getSimpleMatcher( name, getCombinedRegexp( tmp, isRegExpGroup ), 0, parsedMatchers );
                 }
                 else
                 {
@@ -307,6 +352,10 @@
             
             start : null,
             end : null,
+            
+            test : function(str) {
+                return this.start.test(str);
+            },
             
             match : function(stream, eat) {
                     

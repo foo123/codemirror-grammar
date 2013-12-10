@@ -255,14 +255,19 @@ var css_grammar = {
             // highlight url(...) as string regardless of quotes or not
             "urlDeclaration" : {
                 "type" : "n-gram",
-                "match" : "either",
+                "tokens" : [ "url", "leftParen", "stringOrUnquotedText", "rightParen" ]
+            },
+            
+            "urlDeclarationGroup" : {
+                "type" : "group",
+                "match" : "all",
                 "tokens" : [ "url", "leftParen", "stringOrUnquotedText", "rightParen" ]
             },
             
             "RHSAssignment" : {
                 "type" : "group",
                 "match" : "oneOrMore",
-                "tokens" : [ "delimiter", "atom", "font", "standard", "string", "number", "number2", "identifier" ]
+                "tokens" : [ "urlDeclarationGroup", "delimiter", "atom", "font", "standard", "string", "number", "number2", "identifier" ]
             },
             
             "cssAssignment" : {

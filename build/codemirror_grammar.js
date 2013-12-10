@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.3
+*   @version: 0.3.2
 *   Transform a grammar specification in JSON format,
 *   into a CodeMirror syntax-highlight parser mode
 *
@@ -10,7 +10,7 @@
 **/
 (function(root, undef){
     
-    var VERSION = "0.3";
+    var VERSION = "0.3.2";
         
     //
     // parser types
@@ -55,15 +55,22 @@
         T_ONEORMORE = 2048,
         T_GROUP = 4096,
         T_NGRAM = 8192,
+        /*T_ACTION = 16384,
+        T_INDENT = 16385,
+        T_OUTDENT = 16386,*/
         
         //
         // tokenizer types
+        /*actionTypes = {
+            "INDENT" : T_INDENT, "OUTDENT" : T_OUTDENT
+        },*/
+        
         groupTypes = {
             "ONEOF" : T_EITHER, "EITHER" : T_EITHER, "ALL" : T_ALL, "ALLOF" : T_ALL, "ZEROORONE" : T_ZEROORONE, "ZEROORMORE" : T_ZEROORMORE, "ONEORMORE" : T_ONEORMORE
         },
         
         tokenTypes = {
-            "BLOCK" : T_BLOCK, "ESCAPED-BLOCK" : T_ESCBLOCK, "SIMPLE" : T_SIMPLE, "GROUP" : T_GROUP, "NGRAM" : T_NGRAM, "N-GRAM" : T_NGRAM
+            "BLOCK" : T_BLOCK, "ESCAPED-BLOCK" : T_ESCBLOCK, "SIMPLE" : T_SIMPLE, "GROUP" : T_GROUP, "NGRAM" : T_NGRAM, "N-GRAM" : T_NGRAM/*, "ACTION" : T_ACTION*/
         }
     ;
     
@@ -184,40 +191,6 @@
         }
     ;
     
-    var
-        //
-        // default grammar settings
-        defaultGrammar = {
-            
-            // prefix ID for regular expressions used in the grammar
-            "RegExpID" : null,
-            
-            // lists of (simple/string) tokens to be grouped into one regular expression,
-            // else matched one by one, 
-            // this is usefull for speed fine-tuning the parser
-            "RegExpGroups" : null,
-            
-            //
-            // Style model
-            "Style" : {
-                
-                // lang token type  -> CodeMirror (style) tag
-                "error":                "error"
-            },
-
-            //
-            // Lexical model
-            "Lex" : null,
-            
-            //
-            // Syntax model and context-specific rules
-            "Syntax" : null,
-            
-            // what to parse and in what order
-            "Parser" : null
-        }
-    ;
-    
     //
     // matcher factories
     var ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
@@ -262,14 +235,16 @@
             }
         },
         
-        getCombinedRegexp = function(tokens)  {
-            var peek = { }, i, l;
+        getCombinedRegexp = function(tokens, boundary)  {
+            var peek = { }, i, l, b = "";
+            if ( T_STR == get_type(boundary)) b = boundary;
             for (i=0, l=tokens.length; i<l; i++) 
             {
                 peek[ tokens[i].charAt(0) ] = 1;
                 tokens[i] = tokens[i].replace(ESC, '\\$1');
             }
-            return [ new RegExp("^((" + tokens.sort( byLength ).join( ")|(" ) + "))\\b"), { peek: peek, negativepeek: null } ];
+            //return [ new RegExp("^((" + tokens.sort( byLength ).join( ")|(" ) + "))\\b"), { peek: peek, negativepeek: null } ];
+            return [ new RegExp("^(" + tokens.sort( byLength ).join( "|" ) + ")"+b), { peek: peek, negativepeek: null }, 1 ];
         },
         
         DummyMatcher = Extends( Object, {
@@ -296,6 +271,10 @@
                 return s;
             },
             
+            test : function(str) {
+                return true;
+            },
+            
             match : function(stream, eat) { 
                 return [ this.key, this.pattern ];
             }
@@ -314,6 +293,10 @@
                 this.pattern = pattern;
                 this.type = T_CHARMATCHER;
                 this.key = key || 0;
+            },
+            
+            test : function(str) {
+                return (this.pattern == str.charAt(0));
             },
             
             match : function(stream, eat) {
@@ -341,6 +324,16 @@
                 this.key = key || 0;
             },
             
+            test : function(str) {
+                var ch = str.charAt(0);
+                if ( this.peek.peek[ ch ] )
+                {
+                    var len = this.pattern.length, s = str.substr(0, len);
+                    if (this.pattern == s) return true;
+                }
+                return false;
+            },
+            
             match : function(stream, eat) {
                 
                 // manipulate the codemirror stream directly for speed
@@ -365,8 +358,22 @@
                 this.name = name;
                 this.pattern = pattern[ 0 ];
                 this.peek = pattern[ 1 ];
+                this.isComposite = pattern[2] || 0;
                 this.type = T_REGEXMATCHER;
                 this.key = key || 0;
+            },
+            
+            isComposite : 0,
+            
+            test : function(str) {
+                var ch = str.charAt(0);
+                if ( ( this.peek.peek && this.peek.peek[ ch ] ) || ( this.peek.negativepeek && !this.peek.negativepeek[ ch ] ) )
+                {
+                    var match = str.match(this.pattern);
+                    if (!match || match.index > 0) return false;
+                    return true;
+                }
+                return false;
             },
             
             match : function(stream, eat) {
@@ -378,7 +385,7 @@
                 {
                     var match = stream.string.slice(pos).match(this.pattern);
                     if (!match || match.index > 0) return false;
-                    if (eat) stream.pos += match[0].length;
+                    if (eat) stream.pos += match[this.isComposite].length;
                     return [ this.key, match ];
                 }
                 return false;
@@ -448,6 +455,17 @@
             matchers : null,
             useOwnKey : true,
             
+            test : function(str) {
+                var i, m, matchers = this.matchers, l = matchers.length;
+                for (i=0; i<l; i++)
+                {
+                    // each one is a custom matcher in its own
+                    m = matchers[i].test(str);
+                    if ( m ) return true;
+                }
+                return false;
+            },
+            
             match : function(stream, eat) {
                 var i, m, matchers = this.matchers, l = matchers.length;
                 for (i=0; i<l; i++)
@@ -493,7 +511,7 @@
                 
                 if ( isRegExpGroup && !(array_of_arrays || has_regexs) )
                 {   
-                    matcher = getSimpleMatcher( name, getCombinedRegexp( tmp ), 0, parsedMatchers );
+                    matcher = getSimpleMatcher( name, getCombinedRegexp( tmp, isRegExpGroup ), 0, parsedMatchers );
                 }
                 else
                 {
@@ -526,6 +544,10 @@
             
             start : null,
             end : null,
+            
+            test : function(str) {
+                return this.start.test(str);
+            },
             
             match : function(stream, eat) {
                     
@@ -577,6 +599,70 @@
     //
     // tokenizer factories
     var
+        // state scope/context
+        /*Context = function( args ) {
+            if ( args )
+            {
+                for (var p in args)  
+                    this[p] = args[p];
+            }
+        },
+        
+        pushContext = function(state, ctx) {
+            ctx.prev = state.context || null;
+            return state.context = new Context( ctx );
+        },
+        
+        popContext = function(state) {
+            if ( state.context )
+                state.context = state.context.prev || null;
+            return state.context;
+        },
+            
+        Action = Extends( Object, {
+            
+            constructor : function(name, action, token) {
+                this.type = T_ACTION;
+                this.name = name || null;
+                this.action = (action) ? actionTypes[ action.toUpperCase() ] : null;
+                this.token = token || null;
+            },    
+            
+            type : null,
+            name : null,
+            action : null,
+            token : null,
+            
+            toString : function() {
+                return '[Action: ' + ((T_INDENT == this.action) ? 'INDENT' : 'OUTDENT') + ']';
+            },
+            
+            doAction : function(stream, state, LOCALS) {
+                
+                var indentUnit = LOCALS.conf.indentUnit;
+                
+                if ( T_INDENT == this.action )
+                {
+                    //if ( !state.context || state.context.type != state.current )
+                    console.log('indent action')
+                    pushContext( state, { token: state.current, current: stream.current(), indentation: stream.indentation() + indentUnit } );
+                }
+                
+                else if ( T_OUTDENT == this.action )
+                {
+                    if ( state.context )
+                    {
+                        state.context.textAfter = function( textAfter, state ) {
+                            popContext( state );
+                            return ( state.context ) ? (state.context.indentation) : 0;
+                        };
+                    }
+                }
+                
+                return true;
+            }
+        }),
+        */
         SimpleTokenizer = Extends( Object, {
             
             constructor : function(name, token, type, style) {
@@ -584,16 +670,20 @@
                 if (token) this.token = token;
                 if (type) this.type = type;
                 if (style) this.style = style;
+                this.tokenName = this.name;
             },
             
             name : null,
             token : null,
+            tokenName : null,
             type : null,
             style : null,
             isRequired : false,
             ERROR : false,
             streamPos : null,
             stackPos : null,
+            actionBefore : null,
+            actionAfter : null,
             
             toString : function() {
                 var s = '[';
@@ -638,6 +728,8 @@
                     t.type = this.type;
                     t.isRequired = this.isRequired;
                     t.ERROR = this.ERROR;
+                    t.actionBefore = this.actionBefore;
+                    t.actionAfter = this.actionAfter;
                     
                     for (var i=0; i<argslen; i++)   
                     {
@@ -650,11 +742,24 @@
                 return null;
             },
             
-            tokenize : function( stream, state ) {
+            test : function(textAfter) {
+                return this.token.test( textAfter );
+            },
+            
+            tokenize : function( stream, state, LOCALS ) {
+                
+                /*if ( this.actionBefore )
+                {
+                    this.actionBefore.doAction(stream, state, LOCALS);
+                }*/
                 
                 if ( this.token.match(stream) )
                 {
                     state.currentToken = this.type;
+                    /*if ( this.actionAfter )
+                    {
+                        this.actionAfter.doAction(stream, state, LOCALS);
+                    }*/
                     return this.style;
                 }
                 
@@ -664,19 +769,27 @@
         
         BlockTokenizer = Extends( SimpleTokenizer, {
             
-            constructor : function(name, token, type, style) {
+            constructor : function(name, token, type, style, multiline) {
                 if (name) this.name = name;
                 if (token) this.token = token;
                 if (type) this.type = type;
                 if (style) this.style = style;
+                this.multiline = (false!==multiline);
                 this.endBlock = null;
+                this.tokenName = this.name;
             },    
             
+            multiline : false,
             endBlock : null,
             
-            tokenize : function( stream, state ) {
+            tokenize : function( stream, state, LOCALS ) {
             
                 var ended = false, found = false;
+                
+                /*if ( this.actionBefore )
+                {
+                    this.actionBefore.doAction(stream, state, LOCALS);
+                }*/
                 
                 if ( state.inBlock == this.name )
                 {
@@ -709,6 +822,8 @@
                         }
                     }
                     
+                    ended = ( ended || ( !this.multiline && stream.eol() ) );
+                    
                     if ( !ended )
                     {
                         this.pushToken( state.stack, this );
@@ -717,6 +832,11 @@
                     {
                         state.inBlock = null;
                         state.endBlock = null;
+                        
+                        /*if ( this.actionAfter )
+                        {
+                            this.actionAfter.doAction(stream, state, LOCALS);
+                        }*/
                     }
                     
                     state.currentToken = this.type;
@@ -740,14 +860,19 @@
                 if (multiline) this.multiline = multiline || false;
                 this.endBlock = null;
                 this.isEscaped = false;
+                this.tokenName = this.name;
             },    
             
             escape : "\\",
-            multiline : false,
             
-            tokenize : function( stream, state ) {
+            tokenize : function( stream, state, LOCALS ) {
             
                 var next = "", ended = false, found = false, isEscaped = false;
+                
+                /*if ( this.actionBefore )
+                {
+                    this.actionBefore.doAction(stream, state, LOCALS);
+                }*/
                 
                 if ( state.inBlock == this.name )
                 {
@@ -792,6 +917,11 @@
                     {
                         state.inBlock = null;
                         state.endBlock = null;
+                        
+                        /*if ( this.actionAfter )
+                        {
+                            this.actionAfter.doAction(stream, state, LOCALS);
+                        }*/
                     }
                     
                     state.currentToken = this.type;
@@ -809,6 +939,7 @@
             constructor : function(name, type) {
                 if (name) this.name = name;
                 if (type) this.type = type;
+                this.tokenName = this.name;
             },
             
             tokens : null,
@@ -829,15 +960,33 @@
                 this.type = T_ZEROORONE;
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
+                this.tokenName = this.name;
             },
             
-            tokenize : function( stream, state ) {
+            test : function(textAfter) {
+                return this.token.test( textAfter );
+            },
+            
+            tokenize : function( stream, state, LOCALS ) {
+                
+                /*if ( this.actionBefore )
+                {
+                    this.actionBefore.doAction(stream, state, LOCALS);
+                }*/
+                
                 // this is optional
                 this.isRequired = false;
                 this.ERROR = false;
                 this.streamPos = stream.pos;
                 var style = this.token.tokenize(stream, state);
+                
                 if ( token.ERROR ) this.backTrack( stream );
+                
+                /*if ( style && this.actionAfter )
+                {
+                    this.actionAfter.doAction(stream, state, LOCALS);
+                }*/
+
                 return style;
             }
         }),
@@ -848,11 +997,22 @@
                 this.type = T_ZEROORMORE;
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
+                this.tokenName = this.name;
             },
             
-            tokenize : function( stream, state ) {
+            test : function(textAfter) {
+                var ret;
+                for (var i=0, n=this.tokens.length; i<n; i++)
+                {
+                    ret = this.tokens[i].test( textAfter );
+                    if (ret) return true;
+                }
+                return false;
+            },
             
-                var i, token, style, n = this.tokens.length, tokensErr = 0;
+            tokenize : function( stream, state, LOCALS ) {
+            
+                var i, token, style, n = this.tokens.length, tokensErr = 0, ret = false;
                 
                 // this is optional
                 this.isRequired = false;
@@ -860,15 +1020,26 @@
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
                 
+                /*if ( this.actionBefore )
+                {
+                    this.actionBefore.doAction(stream, state, LOCALS);
+                }*/
+                
                 for (i=0; i<n; i++)
                 {
                     token = this.tokens[i];
-                    style = token.tokenize(stream, state);
+                    style = token.tokenize(stream, state, LOCALS);
                     
                     if ( false !== style )
                     {
                         // push it to the stack for more
                         this.pushToken( state.stack, this );
+                        
+                        /*if ( this.actionAfter )
+                        {
+                            this.actionAfter.doAction(stream, state, LOCALS);
+                        }*/
+                        
                         return style;
                     }
                     else if ( token.ERROR )
@@ -890,11 +1061,22 @@
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
                 this.foundOne = false;
+                this.tokenName = this.name;
             },
             
             foundOne : false,
             
-            tokenize : function( stream, state ) {
+            test : function(textAfter) {
+                var ret;
+                for (var i=0, n=this.tokens.length; i<n; i++)
+                {
+                    ret = this.tokens[i].test( textAfter );
+                    if (ret) return true;
+                }
+                return false;
+            },
+            
+            tokenize : function( stream, state, LOCALS ) {
         
                 var style, token, i, n = this.tokens.length, tokensRequired = 0, tokensErr = 0;
                 
@@ -903,10 +1085,15 @@
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
                 
+                /*if ( this.actionBefore )
+                {
+                    this.actionBefore.doAction(stream, state, LOCALS);
+                }*/
+                
                 for (i=0; i<n; i++)
                 {
                     token = this.tokens[i];
-                    style = token.tokenize(stream, state);
+                    style = token.tokenize(stream, state, LOCALS);
                     
                     tokensRequired += (token.isRequired) ? 1 : 0;
                     
@@ -918,6 +1105,11 @@
                         // push it to the stack for more
                         this.pushToken( state.stack, this.clone(OneOrMoreTokens, "tokens", "foundOne") );
                         this.foundOne = false;
+                        
+                        /*if ( this.actionAfter )
+                        {
+                            this.actionAfter.doAction(stream, state, LOCALS);
+                        }*/
                         
                         return style;
                     }
@@ -939,9 +1131,20 @@
                 this.type = T_EITHER;
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
+                this.tokenName = this.name;
             },
             
-            tokenize : function( stream, state ) {
+            test : function(textAfter) {
+                var ret;
+                for (var i=0, n=this.tokens.length; i<n; i++)
+                {
+                    ret = this.tokens[i].test( textAfter );
+                    if (ret) return true;
+                }
+                return false;
+            },
+            
+            tokenize : function( stream, state, LOCALS ) {
             
                 var style, token, i, n = this.tokens.length, tokensRequired = 0, tokensErr = 0;
                 
@@ -949,15 +1152,25 @@
                 this.ERROR = false;
                 this.streamPos = stream.pos;
                 
+                /*if ( this.actionBefore )
+                {
+                    this.actionBefore.doAction(stream, state, LOCALS);
+                }*/
+                
                 for (i=0; i<n; i++)
                 {
                     token = this.tokens[i];
-                    style = token.tokenize(stream, state);
+                    style = token.tokenize(stream, state, LOCALS);
                     
                     tokensRequired += (token.isRequired) ? 1 : 0;
                     
                     if ( false !== style )
                     {
+                        /*if ( this.actionAfter )
+                        {
+                            this.actionAfter.doAction(stream, state, LOCALS);
+                        }*/
+                        
                         return style;
                     }
                     else if ( token.ERROR )
@@ -979,33 +1192,46 @@
                 this.type = T_ALL;
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
-                this.inSequence = 0;
+                this.tokenName = this.name;
             },
             
-            inSequence : 0,
+            test : function(textAfter) {
+                return this.tokens[this.tokens.length-1].test( textAfter );
+            },
             
-            tokenize : function( stream, state ) {
+            tokenize : function( stream, state, LOCALS ) {
                 
-                var token, style, n = this.tokens.length, ret = false;
+                var token, style, n = this.tokens.length, ret = false, off=0;
                 
                 this.isRequired = true;
                 this.ERROR = false;
-                this.inSequence = 0;
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
                 
                 
+                /*if ( this.actionBefore )
+                {
+                    this.actionBefore.doAction(stream, state, LOCALS);
+                }*/
+                
                 token = this.tokens[ 0 ];
-                style = token.required(true).tokenize(stream, state);
+                style = token.required(true).tokenize(stream, state, LOCALS);
                 
                 if ( false !== style )
                 {
                     this.stackPos = state.stack.length;
+                    /*if ( this.actionAfter )
+                    {
+                        this.pushToken( state.stack, this.actionAfter, 1 );
+                        off=1;
+                    }*/
                     for (var i=n-1; i>0; i--)
                     {
-                        this.pushToken( state.stack, this.tokens[i].required(true), n-i );
+                        this.pushToken( state.stack, this.tokens[i].required(true), n-i+off );
                     }
+                    
                     ret = style;
+                    
                 }
                 else if ( token.ERROR )
                 {
@@ -1027,32 +1253,45 @@
                 this.type = T_NGRAM;
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
-                this.inSequence = 0;
+                this.tokenName = this.tokens[0].name;
             },
             
-            inSequence : 0,
+            test : function( textAfter ) {
+                return this.tokens[this.tokens.length-1].test( textAfter );
+            },
             
-            tokenize : function( stream, state ) {
+            tokenize : function( stream, state, LOCALS ) {
                 
-                var token, style, n = this.tokens.length, ret = false;
+                var token, style, n = this.tokens.length, ret = false, off=0;
                 
                 this.isRequired = false;
                 this.ERROR = false;
-                this.inSequence = 0;
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
                 
                 
+                /*if ( this.actionBefore )
+                {
+                    this.actionBefore.doAction(stream, state, LOCALS);
+                }*/
+                
                 token = this.tokens[ 0 ];
-                style = token.required(false).tokenize(stream, state);
+                style = token.required(false).tokenize(stream, state, LOCALS);
                 
                 if ( false !== style )
                 {
                     this.stackPos = state.stack.length;
+                    /*if ( this.actionAfter )
+                    {
+                        console.log('pushed action after: '+this.actionAfter.toString());
+                        this.pushToken( state.stack, this.actionAfter, 1 );
+                        off=1;
+                    }*/
                     for (var i=n-1; i>0; i--)
                     {
-                        this.pushToken( state.stack, this.tokens[i].required(true), n-i );
+                        this.pushToken( state.stack, this.tokens[i].required(true), n-i+off );
                     }
+                    
                     ret = style;
                 }
                 else if ( token.ERROR )
@@ -1067,7 +1306,7 @@
                 
         getTokenizer = function(tokenID, RegExpID, RegExpGroups, Lex, Syntax, Style, parsedRegexes, parsedMatchers, parsedTokens) {
             
-            var tok, token = null, type, matchType, tokens;
+            var tok, token = null, type, matchType, tokens, action;
             
             if ( !parsedTokens[ tokenID ] )
             {
@@ -1075,8 +1314,9 @@
                 
                 if ( tok )
                 {
-                    type = tok.type;
+                    type = tok.type || "simple";
                     type = tokenTypes[ type.toUpperCase() ];
+                    action = tok.action || null;
                     
                     if ( T_BLOCK == type )
                     {
@@ -1084,7 +1324,8 @@
                                     tokenID,
                                     getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, parsedRegexes, parsedMatchers ), 
                                     type, 
-                                    Style[ tokenID ] || null
+                                    Style[ tokenID ] || null,
+                                    tok.multiline
                                 );
                     }
                     
@@ -1152,7 +1393,23 @@
                         }
                     }
                 }
-                
+                /*
+                if ( action )
+                {
+                    if ( T_ARRAY == get_type(action) )
+                    {
+                        if (action[1] && action[1].toLowerCase() == "before" )
+                            token.actionBefore = new Action( tokenID, action[0], token );
+                        
+                        else
+                            token.actionAfter = new Action( tokenID, action[0], token );
+                    }
+                    else
+                    {
+                        token.actionAfter = new Action( tokenID, action, token );
+                    }
+                }
+                */    
                 parsedTokens[ tokenID ] = token;
             }
             
@@ -1187,18 +1444,44 @@
                 
                 stack = state.stack = state.stack || [];
                 
+                /*if ( !state.context )
+                {
+                    state.context = new Context( { indentation:stream.indentation(), prev: null } );
+                }
+                
+                if ( stream.sol() )
+                {
+                    state.indentation = stream.indentation();
+                }*/
+                
+                //stackTrace( stack );
+                
+                /*if (stack.length && T_ACTION==stack[stack.length-1])
+                {
+                    token = stack.pop();
+                    console.log(token.toString());
+                    token.doAction(stream, state, LOCALS);
+                }*/
+                
                 if ( stream.eatSpace() ) 
                 {
+                    state.current = null;
                     state.currentToken = T_DEFAULT;
                     return DEFAULT;
                 }
                 
-                //stackTrace( stack );
-                
                 while ( stack.length )
                 {
                     token = stack.pop();
-                    style = token.tokenize(stream, state);
+                    
+                    /*if ( T_ACTION == token.type )
+                    {
+                        console.log(token.toString());
+                        token.doAction(stream, state, LOCALS);
+                        continue;
+                    }*/
+                    
+                    style = token.tokenize(stream, state, LOCALS);
                     
                     // match failed
                     if ( false === style )
@@ -1212,7 +1495,9 @@
                             stream.next();
                             //console.log(["ERROR", stream.current()]);
                             // generate error
+                            state.current = null;
                             state.currentToken = T_ERROR;
+                            state.sol = false;
                             return ERROR;
                         }
                         // optional
@@ -1224,6 +1509,8 @@
                     // found token
                     else
                     {
+                        state.current = token.tokenName;
+                        state.sol = false;
                         return style;
                     }
                 }
@@ -1231,7 +1518,7 @@
                 for (i=0; i<numTokens; i++)
                 {
                     token = tokens[i];
-                    style = token.tokenize(stream, state);
+                    style = token.tokenize(stream, state, LOCALS);
                     
                     // match failed
                     if ( false === style )
@@ -1245,7 +1532,9 @@
                             stream.next();
                             //console.log(["ERROR", stream.current()]);
                             // generate error
+                            state.current = null;
                             state.currentToken = T_ERROR;
+                            state.sol = false;
                             return ERROR;
                         }
                         // optional
@@ -1257,13 +1546,17 @@
                     // found token
                     else
                     {
+                        state.current = token.tokenName;
+                        state.sol = false;
                         return style;
                     }
                 }
                 
                 // unknown, bypass
                 stream.next();
+                state.current = null;
                 state.currentToken = T_DEFAULT;
+                state.sol = false;
                 return DEFAULT;
             };
             
@@ -1274,7 +1567,20 @@
             
             return function(state, textAfter) {
                 
+                /*
                 // TODO
+                //console.log(textAfter);
+                //console.log(state);
+                if ( state.context )
+                {
+                    if ( state.context.textAfter )
+                    {
+                        console.log('dedent');
+                        return state.context.textAfter( textAfter, state );
+                    }
+                    return state.context.indentation;
+                }
+                */
                 return CodeMirror.Pass;
             };
         }
@@ -1339,12 +1645,48 @@
             grammar.__parsed = true;
             
             return grammar;
+        },
+        
+        //
+        // default grammar settings
+        defaultGrammar = {
+            
+            // prefix ID for regular expressions used in the grammar
+            "RegExpID" : null,
+            
+            // lists of (simple/string) tokens to be grouped into one regular expression,
+            // else matched one by one, 
+            // this is usefull for speed fine-tuning the parser
+            "RegExpGroups" : null,
+            
+            //
+            // Style model
+            "Style" : {
+                
+                // lang token type  -> CodeMirror (style) tag
+                "error":                "error"
+            },
+
+            //
+            // Lexical model
+            "Lex" : null,
+            
+            //
+            // Syntax model and context-specific rules
+            "Syntax" : null,
+            
+            // what to parse and in what order
+            "Parser" : null
         }
     ;
     
     //
     //  CodeMirror Grammar main class
-    
+    /**[DOC_MARKDOWN]
+    *
+    * ###CodeMirrorGrammar Methods
+    *
+    [/DOC_MARKDOWN]**/
     var self = {
         
         VERSION : VERSION,
@@ -1354,12 +1696,46 @@
         },
         
         // extend a grammar using another base grammar
+        /**[DOC_MARKDOWN]
+        * __Method__: *extend*
+        *
+        * ```javascript
+        * extendedgrammar = CodeMirrorGrammar.extend(grammar, basegrammar1 [, basegrammar2, ..]);
+        * ```
+        *
+        * Extend a grammar with basegrammar1, basegrammar2, etc..
+        *
+        * This way arbitrary dialects and variations can be handled more easily
+        [/DOC_MARKDOWN]**/
         extend : extend,
         
         // parse a grammar
+        /**[DOC_MARKDOWN]
+        * __Method__: *parse*
+        *
+        * ```javascript
+        * parsedgrammar = CodeMirrorGrammar.parse(grammar);
+        * ```
+        *
+        * This is used internally by the CodeMirrorGrammar Class
+        * In order to parse a JSON grammar to a form suitable to be used by the syntax-highlight parser.
+        * However user can use this method to cache a parsedgrammar to be used later.
+        * Already parsed grammars are NOT re-parsed when passed through the parse method again
+        [/DOC_MARKDOWN]**/
         parse : parse,
         
         // get a codemirror syntax-highlight mode from a grammar
+        /**[DOC_MARKDOWN]
+        * __Method__: *getMode*
+        *
+        * ```javascript
+        * mode = CodeMirrorGrammar.getMode(grammar [, DEFAULT]);
+        * ```
+        *
+        * This is the main method which transforms a JSON grammar into a CodeMirror syntax-highlight parser.
+        * DEFAULT is the default return value (null by default) for things that are skipped or not styled
+        * In general there is no need to set this value, unlees you need to return something else
+        [/DOC_MARKDOWN]**/
         getMode : function(grammar, DEFAULT) {
             
             // build the grammar
@@ -1387,15 +1763,27 @@
                 
                 // return the (codemirror) parser mode for the grammar
                 return  {
-                    startState: function( basecolumn ) {
-                        
-                        LOCALS.basecolumn = basecolumn || 0;
+                    startState: function(  ) {
                         
                         return {
                             stack : null,
+                            //context : new Context({indentation:0, prev: null}),
+                            current : null,
                             currentToken : T_DEFAULT
                         };
                     },
+                    
+                    electricChars : (grammar.electricChars) ? grammar.electricChars : false,
+                    
+                    /*
+                    // maybe needed in the future
+                    
+                    copyState: function( state ) { },
+                    
+                    blankLine: function( state ) { },
+                    
+                    innerMode: function( state ) { },
+                    */
                     
                     token: parser,
                     

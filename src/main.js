@@ -58,12 +58,48 @@
             grammar.__parsed = true;
             
             return grammar;
+        },
+        
+        //
+        // default grammar settings
+        defaultGrammar = {
+            
+            // prefix ID for regular expressions used in the grammar
+            "RegExpID" : null,
+            
+            // lists of (simple/string) tokens to be grouped into one regular expression,
+            // else matched one by one, 
+            // this is usefull for speed fine-tuning the parser
+            "RegExpGroups" : null,
+            
+            //
+            // Style model
+            "Style" : {
+                
+                // lang token type  -> CodeMirror (style) tag
+                "error":                "error"
+            },
+
+            //
+            // Lexical model
+            "Lex" : null,
+            
+            //
+            // Syntax model and context-specific rules
+            "Syntax" : null,
+            
+            // what to parse and in what order
+            "Parser" : null
         }
     ;
     
     //
     //  CodeMirror Grammar main class
-    
+    /**[DOC_MARKDOWN]
+    *
+    * ###CodeMirrorGrammar Methods
+    *
+    [/DOC_MARKDOWN]**/
     var self = {
         
         VERSION : VERSION,
@@ -73,12 +109,46 @@
         },
         
         // extend a grammar using another base grammar
+        /**[DOC_MARKDOWN]
+        * __Method__: *extend*
+        *
+        * ```javascript
+        * extendedgrammar = CodeMirrorGrammar.extend(grammar, basegrammar1 [, basegrammar2, ..]);
+        * ```
+        *
+        * Extend a grammar with basegrammar1, basegrammar2, etc..
+        *
+        * This way arbitrary dialects and variations can be handled more easily
+        [/DOC_MARKDOWN]**/
         extend : extend,
         
         // parse a grammar
+        /**[DOC_MARKDOWN]
+        * __Method__: *parse*
+        *
+        * ```javascript
+        * parsedgrammar = CodeMirrorGrammar.parse(grammar);
+        * ```
+        *
+        * This is used internally by the CodeMirrorGrammar Class
+        * In order to parse a JSON grammar to a form suitable to be used by the syntax-highlight parser.
+        * However user can use this method to cache a parsedgrammar to be used later.
+        * Already parsed grammars are NOT re-parsed when passed through the parse method again
+        [/DOC_MARKDOWN]**/
         parse : parse,
         
         // get a codemirror syntax-highlight mode from a grammar
+        /**[DOC_MARKDOWN]
+        * __Method__: *getMode*
+        *
+        * ```javascript
+        * mode = CodeMirrorGrammar.getMode(grammar [, DEFAULT]);
+        * ```
+        *
+        * This is the main method which transforms a JSON grammar into a CodeMirror syntax-highlight parser.
+        * DEFAULT is the default return value (null by default) for things that are skipped or not styled
+        * In general there is no need to set this value, unlees you need to return something else
+        [/DOC_MARKDOWN]**/
         getMode : function(grammar, DEFAULT) {
             
             // build the grammar
@@ -106,15 +176,27 @@
                 
                 // return the (codemirror) parser mode for the grammar
                 return  {
-                    startState: function( basecolumn ) {
-                        
-                        LOCALS.basecolumn = basecolumn || 0;
+                    startState: function(  ) {
                         
                         return {
                             stack : null,
+                            //context : new Context({indentation:0, prev: null}),
+                            current : null,
                             currentToken : T_DEFAULT
                         };
                     },
+                    
+                    electricChars : (grammar.electricChars) ? grammar.electricChars : false,
+                    
+                    /*
+                    // maybe needed in the future
+                    
+                    copyState: function( state ) { },
+                    
+                    blankLine: function( state ) { },
+                    
+                    innerMode: function( state ) { },
+                    */
                     
                     token: parser,
                     

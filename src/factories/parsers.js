@@ -26,18 +26,44 @@
                 
                 stack = state.stack = state.stack || [];
                 
+                /*if ( !state.context )
+                {
+                    state.context = new Context( { indentation:stream.indentation(), prev: null } );
+                }
+                
+                if ( stream.sol() )
+                {
+                    state.indentation = stream.indentation();
+                }*/
+                
+                //stackTrace( stack );
+                
+                /*if (stack.length && T_ACTION==stack[stack.length-1])
+                {
+                    token = stack.pop();
+                    console.log(token.toString());
+                    token.doAction(stream, state, LOCALS);
+                }*/
+                
                 if ( stream.eatSpace() ) 
                 {
+                    state.current = null;
                     state.currentToken = T_DEFAULT;
                     return DEFAULT;
                 }
                 
-                //stackTrace( stack );
-                
                 while ( stack.length )
                 {
                     token = stack.pop();
-                    style = token.tokenize(stream, state);
+                    
+                    /*if ( T_ACTION == token.type )
+                    {
+                        console.log(token.toString());
+                        token.doAction(stream, state, LOCALS);
+                        continue;
+                    }*/
+                    
+                    style = token.tokenize(stream, state, LOCALS);
                     
                     // match failed
                     if ( false === style )
@@ -51,7 +77,9 @@
                             stream.next();
                             //console.log(["ERROR", stream.current()]);
                             // generate error
+                            state.current = null;
                             state.currentToken = T_ERROR;
+                            state.sol = false;
                             return ERROR;
                         }
                         // optional
@@ -63,6 +91,8 @@
                     // found token
                     else
                     {
+                        state.current = token.tokenName;
+                        state.sol = false;
                         return style;
                     }
                 }
@@ -70,7 +100,7 @@
                 for (i=0; i<numTokens; i++)
                 {
                     token = tokens[i];
-                    style = token.tokenize(stream, state);
+                    style = token.tokenize(stream, state, LOCALS);
                     
                     // match failed
                     if ( false === style )
@@ -84,7 +114,9 @@
                             stream.next();
                             //console.log(["ERROR", stream.current()]);
                             // generate error
+                            state.current = null;
                             state.currentToken = T_ERROR;
+                            state.sol = false;
                             return ERROR;
                         }
                         // optional
@@ -96,13 +128,17 @@
                     // found token
                     else
                     {
+                        state.current = token.tokenName;
+                        state.sol = false;
                         return style;
                     }
                 }
                 
                 // unknown, bypass
                 stream.next();
+                state.current = null;
                 state.currentToken = T_DEFAULT;
+                state.sol = false;
                 return DEFAULT;
             };
             
@@ -113,7 +149,20 @@
             
             return function(state, textAfter) {
                 
+                /*
                 // TODO
+                //console.log(textAfter);
+                //console.log(state);
+                if ( state.context )
+                {
+                    if ( state.context.textAfter )
+                    {
+                        console.log('dedent');
+                        return state.context.textAfter( textAfter, state );
+                    }
+                    return state.context.indentation;
+                }
+                */
                 return CodeMirror.Pass;
             };
         }

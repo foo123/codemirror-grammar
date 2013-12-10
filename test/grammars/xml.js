@@ -7,8 +7,7 @@ var xml_grammar = {
         // lists of (simple/string) tokens to be grouped into one regular expression,
         // else matched one by one, 
         // this is usefull for speed fine-tuning the parser
-        "RegExpGroups" : {
-        },
+        "RegExpGroups" : { },
     
         //
         // Style model
@@ -21,6 +20,7 @@ var xml_grammar = {
             "cdataBlock":           "atom",
             "startTag":             "tag",
             "endTag":               "tag",
+            "autocloseTag":         "tag",
             "closeTag":             "tag",
             "attribute":            "attribute",
             "assignment":           "operator",
@@ -29,6 +29,7 @@ var xml_grammar = {
             "string":               "string"
         },
 
+        "electricChars" : null,
         
         //
         // Lexical model
@@ -131,11 +132,15 @@ var xml_grammar = {
             
             "endTag" : {
                 "type" : "simple",
-                "tokens" : [
-                    "RegExp::/?>"
-                ]
+                "tokens" : [ ">" ]
             },
             
+            "autocloseTag" : {
+                "type" : "simple",
+                "tokens" : [ "/>" ]
+            },
+            
+            // close tag, outdent action
             "closeTag" : {
                 "type" : "simple",
                 "tokens" : [
@@ -166,11 +171,17 @@ var xml_grammar = {
                 "tokens" : [ "tagAttribute" ]
             },
             
+            "startCloseTag" : { 
+                "type" : "group",
+                "match" : "either",
+                "tokens" : [ "endTag", "autocloseTag" ]
+            },
+            
             // n-grams define syntax sequences
             "openTag" : { 
                 "type" : "n-gram",
                 "tokens" :[
-                    [ "startTag", "tagAttributes", "endTag" ]
+                    [ "startTag", "tagAttributes", "startCloseTag" ]
                 ]
             }
         },

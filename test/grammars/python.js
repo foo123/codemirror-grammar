@@ -8,8 +8,8 @@ var python_grammar = {
         // else matched one by one, 
         // this is usefull for speed fine-tuning the parser
         "RegExpGroups" : {
-            "keyword" : true,
-            "builtin" : true,
+            "keyword" : "\\b", // group into regex and use this boundary
+            "builtin" : "\\b", // group into regex and use this boundary
             "operator" : true,
             "delimiter" : true
         },
