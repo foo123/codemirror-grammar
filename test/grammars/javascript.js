@@ -8,8 +8,8 @@ var js_grammar = {
     // else matched one by one, 
     // this is usefull for speed fine-tuning the parser
     "RegExpGroups" : {
-        "atom" : true,
-        "keyword" : true,
+        "atom" : "\\b",
+        "keyword" : "\\b",
         "builtin" : true,
         "operator" : true
     },
@@ -52,7 +52,7 @@ var js_grammar = {
         // general identifiers
         "identifier" : {
             "type" : "simple",
-            "tokens" : "RegExp::[_A-Za-z][_A-Za-z0-9]*"
+            "tokens" : "RegExp::[_A-Za-z$][_A-Za-z0-9$]*"
         },
         
         "dot" : {
@@ -67,7 +67,7 @@ var js_grammar = {
         
         "property" : {
             "type" : "simple",
-            "tokens" : "RegExp::[_A-Za-z][_A-Za-z0-9]*"
+            "tokens" : "RegExp::[_A-Za-z$][_A-Za-z0-9$]*"
         },
         
         // numbers, in order of matching
