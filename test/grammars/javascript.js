@@ -22,6 +22,7 @@ var js_grammar = {
         "comment":    "comment",
         "atom":       "atom",
         "keyword":    "keyword",
+        "this":       "keyword",
         "builtin":    "builtin",
         "operator":   "operator",
         "identifier": "variable",
@@ -62,7 +63,12 @@ var js_grammar = {
         
         "rightBracket" : {
             "type" : "simple",
-            "tokens" : "]"
+            "tokens" : ["]", ")"]
+        },
+        
+        "this" : {
+            "type" : "simple",
+            "tokens" : "this"
         },
         
         "property" : {
@@ -136,7 +142,7 @@ var js_grammar = {
                 "return", "break", "continue", "new", "delete", "throw",
                 "var", "const", "let", "function", "catch",
                 "for", "switch", "case", "default",
-                "in", "typeof", "instanceof", "this"
+                "in", "typeof", "instanceof"
             ]
         },
         
@@ -154,16 +160,16 @@ var js_grammar = {
     // Syntax model
     "Syntax" : {
         
-        "builtinOrIdentifier" : {
-            "type" : "group",
-            "match" : "either",
-            "tokens" : [ "rightBracket", "builtin", "identifier" ]
-        },
-        
         "dotProperty" : {
             "type" : "group",
             "match" : "all",
             "tokens" : [ "dot", "property" ]
+        },
+        
+        "builtinOrIdentifier" : {
+            "type" : "group",
+            "match" : "either",
+            "tokens" : [ "rightBracket", "this", "builtin", "identifier", "dotProperty" ]
         },
         
         "dotProperties" : {
