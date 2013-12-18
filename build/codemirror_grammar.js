@@ -8,7 +8,7 @@
 *   https://github.com/foo123/codemirror-grammar
 *
 **/
-(function(root, undef){
+(function(undef){
     
     var VERSION = "0.4";
         
