@@ -160,7 +160,7 @@
                 LOCALS = { 
                     // default return code, when no match or empty found
                     // 'null' should be used in most cases
-                    DEFAULT: DEFAULT || null
+                    DEFAULT: DEFAULT || DEFAULTTYPE
                 },
                 parser, indentation
             ;

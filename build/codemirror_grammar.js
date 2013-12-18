@@ -15,6 +15,8 @@
     //
     // parser types
     var    
+        DEFAULTTYPE = null,
+        
         //
         // javascript variable types
         T_NUM = 2,
@@ -1324,7 +1326,7 @@
                                     tokenID,
                                     getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, parsedRegexes, parsedMatchers ), 
                                     type, 
-                                    Style[ tokenID ] || null,
+                                    Style[ tokenID ] || DEFAULTTYPE,
                                     tok.multiline
                                 );
                     }
@@ -1335,7 +1337,7 @@
                                     tokenID,
                                     getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, parsedRegexes, parsedMatchers ), 
                                     type, 
-                                    Style[ tokenID ] || null,
+                                    Style[ tokenID ] || DEFAULTTYPE,
                                     tok.escape || "\\",
                                     tok.multiline || false
                                 );
@@ -1347,7 +1349,7 @@
                                     tokenID,
                                     getCompositeMatcher( tokenID, tok.tokens.slice(), RegExpID, RegExpGroups[ tokenID ], parsedRegexes, parsedMatchers ), 
                                     type, 
-                                    Style[ tokenID ] || null
+                                    Style[ tokenID ] || DEFAULTTYPE
                                 );
                     }
                     
@@ -1433,7 +1435,7 @@
             
             var DEFAULT = LOCALS.DEFAULT,
                 Style = grammar.Style || {},
-                ERROR = Style.error || null,
+                ERROR = Style.error || "error",
                 tokens = grammar.Parser || [],
                 numTokens = tokens.length
             ;
@@ -1747,7 +1749,7 @@
                 LOCALS = { 
                     // default return code, when no match or empty found
                     // 'null' should be used in most cases
-                    DEFAULT: DEFAULT || null
+                    DEFAULT: DEFAULT || DEFAULTTYPE
                 },
                 parser, indentation
             ;

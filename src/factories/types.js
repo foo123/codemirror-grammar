@@ -2,6 +2,8 @@
     //
     // parser types
     var    
+        DEFAULTTYPE = null,
+        
         //
         // javascript variable types
         T_NUM = 2,

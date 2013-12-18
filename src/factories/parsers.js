@@ -15,7 +15,7 @@
             
             var DEFAULT = LOCALS.DEFAULT,
                 Style = grammar.Style || {},
-                ERROR = Style.error || null,
+                ERROR = Style.error || "error",
                 tokens = grammar.Parser || [],
                 numTokens = tokens.length
             ;

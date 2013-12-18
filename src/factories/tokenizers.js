@@ -727,7 +727,7 @@
                                     tokenID,
                                     getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, parsedRegexes, parsedMatchers ), 
                                     type, 
-                                    Style[ tokenID ] || null,
+                                    Style[ tokenID ] || DEFAULTTYPE,
                                     tok.multiline
                                 );
                     }
@@ -738,7 +738,7 @@
                                     tokenID,
                                     getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, parsedRegexes, parsedMatchers ), 
                                     type, 
-                                    Style[ tokenID ] || null,
+                                    Style[ tokenID ] || DEFAULTTYPE,
                                     tok.escape || "\\",
                                     tok.multiline || false
                                 );
@@ -750,7 +750,7 @@
                                     tokenID,
                                     getCompositeMatcher( tokenID, tok.tokens.slice(), RegExpID, RegExpGroups[ tokenID ], parsedRegexes, parsedMatchers ), 
                                     type, 
-                                    Style[ tokenID ] || null
+                                    Style[ tokenID ] || DEFAULTTYPE
                                 );
                     }
                     
