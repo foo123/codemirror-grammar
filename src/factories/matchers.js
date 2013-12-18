@@ -26,8 +26,6 @@
                     regex = new RegExp( regexID );
                     analyzer = new RegexAnalyzer( regex ).analyze();
                     peek = analyzer.getPeekChars();
-                    //console.log(analyzer.regex);
-                    //console.log(peek);
                     if ( !Object.keys(peek.peek).length )  peek.peek = null;
                     if ( !Object.keys(peek.negativepeek).length )  peek.negativepeek = null;
                     
@@ -51,7 +49,6 @@
                 peek[ tokens[i].charAt(0) ] = 1;
                 tokens[i] = tokens[i].replace(ESC, '\\$1');
             }
-            //return [ new RegExp("^((" + tokens.sort( byLength ).join( ")|(" ) + "))\\b"), { peek: peek, negativepeek: null } ];
             return [ new RegExp("^(" + tokens.sort( byLength ).join( "|" ) + ")"+b), { peek: peek, negativepeek: null }, 1 ];
         },
         
@@ -79,20 +76,12 @@
                 return s;
             },
             
-            test : function(str) {
-                return true;
-            },
-            
             match : function(stream, eat) { 
                 return [ this.key, this.pattern ];
             }
         }),
         
         // get a fast customized matcher for < pattern >
-        
-        // manipulate the codemirror stream directly for speed,
-        // if codemirror code for stream matching changes,
-        // only this part of the code needs to be adapted
         
         CharMatcher = Extends( DummyMatcher, {
             
@@ -103,20 +92,10 @@
                 this.key = key || 0;
             },
             
-            test : function(str) {
-                return (this.pattern == str.charAt(0));
-            },
-            
             match : function(stream, eat) {
-                    
-                // manipulate the codemirror stream directly for speed
-                eat = (false !== eat);
-                var ch = stream.string.charAt(stream.pos) || '';
-                if (this.pattern == ch) 
-                {
-                    if (eat) stream.pos += 1;
-                    return [ this.key, ch ];
-                }
+                var match;    
+                if ( match = stream.matchChar(this.pattern, eat) )
+                    return [ this.key, match ];
                 return false;
             }
         }),
@@ -132,30 +111,10 @@
                 this.key = key || 0;
             },
             
-            test : function(str) {
-                var ch = str.charAt(0);
-                if ( this.peek.peek[ ch ] )
-                {
-                    var len = this.pattern.length, s = str.substr(0, len);
-                    if (this.pattern == s) return true;
-                }
-                return false;
-            },
-            
             match : function(stream, eat) {
-                
-                // manipulate the codemirror stream directly for speed
-                eat = (false !== eat);
-                var pos = stream.pos, ch = stream.string.charAt(pos);
-                if ( this.peek.peek[ ch ] )
-                {
-                    var len = this.pattern.length, str = stream.string.substr(pos, len);
-                    if (this.pattern == str) 
-                    {
-                        if (eat) stream.pos += len;
-                        return [ this.key, str ];
-                    }
-                }
+                var match;    
+                if ( match = stream.matchStr(this.pattern, this.peek, eat) )
+                    return [ this.key, match ];
                 return false;
             }
         }),
@@ -173,29 +132,10 @@
             
             isComposite : 0,
             
-            test : function(str) {
-                var ch = str.charAt(0);
-                if ( ( this.peek.peek && this.peek.peek[ ch ] ) || ( this.peek.negativepeek && !this.peek.negativepeek[ ch ] ) )
-                {
-                    var match = str.match(this.pattern);
-                    if (!match || match.index > 0) return false;
-                    return true;
-                }
-                return false;
-            },
-            
             match : function(stream, eat) {
-                
-                // manipulate the codemirror stream directly for speed
-                eat = (false !== eat);
-                var pos = stream.pos, ch = stream.string.charAt(pos);
-                if ( ( this.peek.peek && this.peek.peek[ ch ] ) || ( this.peek.negativepeek && !this.peek.negativepeek[ ch ] ) )
-                {
-                    var match = stream.string.slice(pos).match(this.pattern);
-                    if (!match || match.index > 0) return false;
-                    if (eat) stream.pos += match[this.isComposite].length;
+                var match;    
+                if ( match = stream.matchRegex(this.pattern, this.peek, eat, this.isComposite) )
                     return [ this.key, match ];
-                }
                 return false;
             }
         }),
@@ -209,18 +149,13 @@
             },
             
             match : function(stream, eat) { 
-                // manipulate the codemirror stream directly for speed
-                if (false !== eat) stream.pos = stream.string.length; // skipToEnd
+                if (false !== eat) stream.skipToEnd(); // skipToEnd
                 return [ this.key, "" ];
             }
         }),
         
         getSimpleMatcher = function(tokenID, pattern, key, parsedMatchers) {
             // get a fast customized matcher for < pattern >
-            
-            // manipulate the codemirror stream directly for speed,
-            // if codemirror code for stream matching changes,
-            // only this part of the code needs to be adapted
             
             key = key || 0;
             

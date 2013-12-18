@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.3.2
+*   @version: 0.4
 *   Transform a grammar specification in JSON format,
 *   into a CodeMirror syntax-highlight parser mode
 *
@@ -10,12 +10,12 @@
 **/
 (function(root, undef){
     
-    var VERSION = "0.3.2";
+    var VERSION = "0.4";
         
     //
     // parser types
     var    
-        DEFAULTTYPE = null,
+        DEFAULTTYPE,
         
         //
         // javascript variable types
@@ -57,22 +57,15 @@
         T_ONEORMORE = 2048,
         T_GROUP = 4096,
         T_NGRAM = 8192,
-        /*T_ACTION = 16384,
-        T_INDENT = 16385,
-        T_OUTDENT = 16386,*/
         
         //
         // tokenizer types
-        /*actionTypes = {
-            "INDENT" : T_INDENT, "OUTDENT" : T_OUTDENT
-        },*/
-        
         groupTypes = {
             "ONEOF" : T_EITHER, "EITHER" : T_EITHER, "ALL" : T_ALL, "ALLOF" : T_ALL, "ZEROORONE" : T_ZEROORONE, "ZEROORMORE" : T_ZEROORMORE, "ONEORMORE" : T_ONEORMORE
         },
         
         tokenTypes = {
-            "BLOCK" : T_BLOCK, "ESCAPED-BLOCK" : T_ESCBLOCK, "SIMPLE" : T_SIMPLE, "GROUP" : T_GROUP, "NGRAM" : T_NGRAM, "N-GRAM" : T_NGRAM/*, "ACTION" : T_ACTION*/
+            "BLOCK" : T_BLOCK, "ESCAPED-BLOCK" : T_ESCBLOCK, "SIMPLE" : T_SIMPLE, "GROUP" : T_GROUP, "NGRAM" : T_NGRAM, "N-GRAM" : T_NGRAM
         }
     ;
     
@@ -192,7 +185,157 @@
             return o;
         }
     ;
-    
+    //
+    // Stream Class
+    var
+        // a class to manipulate a string as a stream, based on Codemirror StringStream
+        Stream = Extends(Object, {
+            
+            constructor: function( line, stream ) {
+                if (stream)
+                {
+                    this.stream = stream;
+                    this.string = ''+stream.string;
+                    this.start = stream.start;
+                    this.pos = stream.pos;
+                }
+                else
+                {
+                    this.string = ''+line;
+                    this.start = this.pos = 0;
+                }
+            },
+            
+            stream: null,
+            string: '',
+            start: 0,
+            pos: 0,
+            
+            sol: function( ) { 
+                return 0 == this.pos; 
+            },
+            
+            eol: function( ) { 
+                return this.pos >= this.string.length; 
+            },
+            
+            matchChar : function(pattern, eat) {
+                eat = (false !== eat);
+                var ch = this.string.charAt(this.pos) || '';
+                
+                if (pattern == ch) 
+                {
+                    if (eat) 
+                    {
+                        this.pos += 1;
+                        if ( this.stream )
+                            this.stream.pos = this.pos;
+                    }
+                    return ch;
+                }
+                return false;
+            },
+            
+            matchStr : function(pattern, chars, eat) {
+                eat = (false !== eat);
+                var pos = this.pos, ch = this.string.charAt(pos);
+                
+                if ( chars.peek[ ch ] )
+                {
+                    var len = pattern.length, str = this.string.substr(pos, len);
+                    if (pattern == str) 
+                    {
+                        if (eat) 
+                        {
+                            this.pos += len;
+                            if ( this.stream )
+                                this.stream.pos = this.pos;
+                        }
+                        return str;
+                    }
+                }
+                return false;
+            },
+            
+            matchRegex : function(pattern, chars, eat, group) {
+                eat = (false !== eat);
+                group = group || 0;
+                var pos = this.pos, ch = this.string.charAt(pos);
+                
+                if ( ( chars.peek && chars.peek[ ch ] ) || ( chars.negativepeek && !chars.negativepeek[ ch ] ) )
+                {
+                    var match = this.string.slice(pos).match(pattern);
+                    if (!match || match.index > 0) return false;
+                    if (eat)
+                    {
+                        this.pos += match[group].length;
+                        if ( this.stream )
+                            this.stream.pos = this.pos;
+                    }
+                    return match;
+                }
+                return false;
+            },
+            
+            /*matchEol: function() { 
+                return true;
+            },*/
+            
+            skipToEnd: function() {
+                this.pos = this.string.length; // skipToEnd
+                if ( this.stream )
+                    this.stream.pos = this.pos;
+                return this;
+            },
+            
+            peek: function( ) { 
+                return this.string.charAt(this.pos) || undef; 
+            },
+            
+            next: function( ) {
+                if (this.pos < this.string.length)
+                {
+                    var ch = this.string.charAt(this.pos++);
+                    if ( this.stream )
+                        this.stream.pos = this.pos;
+                    return ch;
+                }
+                return undef;
+            },
+            
+            backUp: function( n ) {
+                this.pos -= n;
+                if ( this.stream )
+                    this.stream.pos = this.pos;
+                return this;
+            },
+            
+            backTrack: function( pos ) {
+                var n = this.pos - pos;
+                this.pos -= n;
+                if ( this.stream )
+                    this.stream.pos = this.pos;
+                return this;
+            },
+            
+            eatSpace: function( ) {
+                var start = this.pos;
+                while (/[\s\u00a0]/.test(this.string.charAt(this.pos))) ++this.pos;
+                if ( this.stream )
+                    this.stream.pos = this.pos;
+                return this.pos > start;
+            },
+            
+            current: function( ) {
+                return this.string.slice(this.start, this.pos);
+            },
+            
+            shift: function( ) {
+                this.start = this.pos;
+                return this;
+            }
+        })
+    ;    
     //
     // matcher factories
     var ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
@@ -220,8 +363,6 @@
                     regex = new RegExp( regexID );
                     analyzer = new RegexAnalyzer( regex ).analyze();
                     peek = analyzer.getPeekChars();
-                    //console.log(analyzer.regex);
-                    //console.log(peek);
                     if ( !Object.keys(peek.peek).length )  peek.peek = null;
                     if ( !Object.keys(peek.negativepeek).length )  peek.negativepeek = null;
                     
@@ -245,7 +386,6 @@
                 peek[ tokens[i].charAt(0) ] = 1;
                 tokens[i] = tokens[i].replace(ESC, '\\$1');
             }
-            //return [ new RegExp("^((" + tokens.sort( byLength ).join( ")|(" ) + "))\\b"), { peek: peek, negativepeek: null } ];
             return [ new RegExp("^(" + tokens.sort( byLength ).join( "|" ) + ")"+b), { peek: peek, negativepeek: null }, 1 ];
         },
         
@@ -273,20 +413,12 @@
                 return s;
             },
             
-            test : function(str) {
-                return true;
-            },
-            
             match : function(stream, eat) { 
                 return [ this.key, this.pattern ];
             }
         }),
         
         // get a fast customized matcher for < pattern >
-        
-        // manipulate the codemirror stream directly for speed,
-        // if codemirror code for stream matching changes,
-        // only this part of the code needs to be adapted
         
         CharMatcher = Extends( DummyMatcher, {
             
@@ -297,20 +429,10 @@
                 this.key = key || 0;
             },
             
-            test : function(str) {
-                return (this.pattern == str.charAt(0));
-            },
-            
             match : function(stream, eat) {
-                    
-                // manipulate the codemirror stream directly for speed
-                eat = (false !== eat);
-                var ch = stream.string.charAt(stream.pos) || '';
-                if (this.pattern == ch) 
-                {
-                    if (eat) stream.pos += 1;
-                    return [ this.key, ch ];
-                }
+                var match;    
+                if ( match = stream.matchChar(this.pattern, eat) )
+                    return [ this.key, match ];
                 return false;
             }
         }),
@@ -326,30 +448,10 @@
                 this.key = key || 0;
             },
             
-            test : function(str) {
-                var ch = str.charAt(0);
-                if ( this.peek.peek[ ch ] )
-                {
-                    var len = this.pattern.length, s = str.substr(0, len);
-                    if (this.pattern == s) return true;
-                }
-                return false;
-            },
-            
             match : function(stream, eat) {
-                
-                // manipulate the codemirror stream directly for speed
-                eat = (false !== eat);
-                var pos = stream.pos, ch = stream.string.charAt(pos);
-                if ( this.peek.peek[ ch ] )
-                {
-                    var len = this.pattern.length, str = stream.string.substr(pos, len);
-                    if (this.pattern == str) 
-                    {
-                        if (eat) stream.pos += len;
-                        return [ this.key, str ];
-                    }
-                }
+                var match;    
+                if ( match = stream.matchStr(this.pattern, this.peek, eat) )
+                    return [ this.key, match ];
                 return false;
             }
         }),
@@ -367,29 +469,10 @@
             
             isComposite : 0,
             
-            test : function(str) {
-                var ch = str.charAt(0);
-                if ( ( this.peek.peek && this.peek.peek[ ch ] ) || ( this.peek.negativepeek && !this.peek.negativepeek[ ch ] ) )
-                {
-                    var match = str.match(this.pattern);
-                    if (!match || match.index > 0) return false;
-                    return true;
-                }
-                return false;
-            },
-            
             match : function(stream, eat) {
-                
-                // manipulate the codemirror stream directly for speed
-                eat = (false !== eat);
-                var pos = stream.pos, ch = stream.string.charAt(pos);
-                if ( ( this.peek.peek && this.peek.peek[ ch ] ) || ( this.peek.negativepeek && !this.peek.negativepeek[ ch ] ) )
-                {
-                    var match = stream.string.slice(pos).match(this.pattern);
-                    if (!match || match.index > 0) return false;
-                    if (eat) stream.pos += match[this.isComposite].length;
+                var match;    
+                if ( match = stream.matchRegex(this.pattern, this.peek, eat, this.isComposite) )
                     return [ this.key, match ];
-                }
                 return false;
             }
         }),
@@ -403,18 +486,13 @@
             },
             
             match : function(stream, eat) { 
-                // manipulate the codemirror stream directly for speed
-                if (false !== eat) stream.pos = stream.string.length; // skipToEnd
+                if (false !== eat) stream.skipToEnd(); // skipToEnd
                 return [ this.key, "" ];
             }
         }),
         
         getSimpleMatcher = function(tokenID, pattern, key, parsedMatchers) {
             // get a fast customized matcher for < pattern >
-            
-            // manipulate the codemirror stream directly for speed,
-            // if codemirror code for stream matching changes,
-            // only this part of the code needs to be adapted
             
             key = key || 0;
             
@@ -601,70 +679,6 @@
     //
     // tokenizer factories
     var
-        // state scope/context
-        /*Context = function( args ) {
-            if ( args )
-            {
-                for (var p in args)  
-                    this[p] = args[p];
-            }
-        },
-        
-        pushContext = function(state, ctx) {
-            ctx.prev = state.context || null;
-            return state.context = new Context( ctx );
-        },
-        
-        popContext = function(state) {
-            if ( state.context )
-                state.context = state.context.prev || null;
-            return state.context;
-        },
-            
-        Action = Extends( Object, {
-            
-            constructor : function(name, action, token) {
-                this.type = T_ACTION;
-                this.name = name || null;
-                this.action = (action) ? actionTypes[ action.toUpperCase() ] : null;
-                this.token = token || null;
-            },    
-            
-            type : null,
-            name : null,
-            action : null,
-            token : null,
-            
-            toString : function() {
-                return '[Action: ' + ((T_INDENT == this.action) ? 'INDENT' : 'OUTDENT') + ']';
-            },
-            
-            doAction : function(stream, state, LOCALS) {
-                
-                var indentUnit = LOCALS.conf.indentUnit;
-                
-                if ( T_INDENT == this.action )
-                {
-                    //if ( !state.context || state.context.type != state.current )
-                    console.log('indent action')
-                    pushContext( state, { token: state.current, current: stream.current(), indentation: stream.indentation() + indentUnit } );
-                }
-                
-                else if ( T_OUTDENT == this.action )
-                {
-                    if ( state.context )
-                    {
-                        state.context.textAfter = function( textAfter, state ) {
-                            popContext( state );
-                            return ( state.context ) ? (state.context.indentation) : 0;
-                        };
-                    }
-                }
-                
-                return true;
-            }
-        }),
-        */
         SimpleTokenizer = Extends( Object, {
             
             constructor : function(name, token, type, style) {
@@ -698,11 +712,6 @@
             
             required : function(bool) { 
                 this.isRequired = (bool) ? true : false;
-                return this;
-            },
-            
-            backTrack : function(stream) {
-                stream.pos -= (stream.pos - this.streamPos);
                 return this;
             },
             
@@ -744,27 +753,13 @@
                 return null;
             },
             
-            test : function(textAfter) {
-                return this.token.test( textAfter );
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
-                
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
                 
                 if ( this.token.match(stream) )
                 {
                     state.currentToken = this.type;
-                    /*if ( this.actionAfter )
-                    {
-                        this.actionAfter.doAction(stream, state, LOCALS);
-                    }*/
                     return this.style;
                 }
-                
                 return false;
             }
         }),
@@ -788,11 +783,6 @@
             
                 var ended = false, found = false;
                 
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
-                
                 if ( state.inBlock == this.name )
                 {
                     found = true;
@@ -812,7 +802,6 @@
                     
                     while ( !ended && !stream.eol() ) 
                     {
-                        //stream.next();
                         if ( this.endBlock.match(stream) ) 
                         {
                             ended = true;
@@ -834,11 +823,6 @@
                     {
                         state.inBlock = null;
                         state.endBlock = null;
-                        
-                        /*if ( this.actionAfter )
-                        {
-                            this.actionAfter.doAction(stream, state, LOCALS);
-                        }*/
                     }
                     
                     state.currentToken = this.type;
@@ -871,11 +855,6 @@
             
                 var next = "", ended = false, found = false, isEscaped = false;
                 
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
-                
                 if ( state.inBlock == this.name )
                 {
                     found = true;
@@ -896,7 +875,6 @@
                     
                     while ( !ended && !stream.eol() ) 
                     {
-                        //stream.next();
                         if ( !isEscaped && this.endBlock.match(stream) ) 
                         {
                             ended = true; 
@@ -919,11 +897,6 @@
                     {
                         state.inBlock = null;
                         state.endBlock = null;
-                        
-                        /*if ( this.actionAfter )
-                        {
-                            this.actionAfter.doAction(stream, state, LOCALS);
-                        }*/
                     }
                     
                     state.currentToken = this.type;
@@ -965,16 +938,7 @@
                 this.tokenName = this.name;
             },
             
-            test : function(textAfter) {
-                return this.token.test( textAfter );
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
-                
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
                 
                 // this is optional
                 this.isRequired = false;
@@ -982,13 +946,8 @@
                 this.streamPos = stream.pos;
                 var style = this.token.tokenize(stream, state);
                 
-                if ( token.ERROR ) this.backTrack( stream );
+                if ( token.ERROR ) stream.backTrack( this.streamPos );
                 
-                /*if ( style && this.actionAfter )
-                {
-                    this.actionAfter.doAction(stream, state, LOCALS);
-                }*/
-
                 return style;
             }
         }),
@@ -1002,16 +961,6 @@
                 this.tokenName = this.name;
             },
             
-            test : function(textAfter) {
-                var ret;
-                for (var i=0, n=this.tokens.length; i<n; i++)
-                {
-                    ret = this.tokens[i].test( textAfter );
-                    if (ret) return true;
-                }
-                return false;
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
             
                 var i, token, style, n = this.tokens.length, tokensErr = 0, ret = false;
@@ -1022,11 +971,6 @@
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
                 
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
-                
                 for (i=0; i<n; i++)
                 {
                     token = this.tokens[i];
@@ -1036,18 +980,12 @@
                     {
                         // push it to the stack for more
                         this.pushToken( state.stack, this );
-                        
-                        /*if ( this.actionAfter )
-                        {
-                            this.actionAfter.doAction(stream, state, LOCALS);
-                        }*/
-                        
                         return style;
                     }
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        this.backTrack( stream );
+                        stream.backTrack( this.streamPos );
                     }
                 }
                 
@@ -1068,16 +1006,6 @@
             
             foundOne : false,
             
-            test : function(textAfter) {
-                var ret;
-                for (var i=0, n=this.tokens.length; i<n; i++)
-                {
-                    ret = this.tokens[i].test( textAfter );
-                    if (ret) return true;
-                }
-                return false;
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
         
                 var style, token, i, n = this.tokens.length, tokensRequired = 0, tokensErr = 0;
@@ -1086,11 +1014,6 @@
                 this.ERROR = false;
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
-                
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
                 
                 for (i=0; i<n; i++)
                 {
@@ -1108,17 +1031,12 @@
                         this.pushToken( state.stack, this.clone(OneOrMoreTokens, "tokens", "foundOne") );
                         this.foundOne = false;
                         
-                        /*if ( this.actionAfter )
-                        {
-                            this.actionAfter.doAction(stream, state, LOCALS);
-                        }*/
-                        
                         return style;
                     }
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        this.backTrack( stream );
+                        stream.backTrack( this.streamPos );
                     }
                 }
                 
@@ -1136,16 +1054,6 @@
                 this.tokenName = this.name;
             },
             
-            test : function(textAfter) {
-                var ret;
-                for (var i=0, n=this.tokens.length; i<n; i++)
-                {
-                    ret = this.tokens[i].test( textAfter );
-                    if (ret) return true;
-                }
-                return false;
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
             
                 var style, token, i, n = this.tokens.length, tokensRequired = 0, tokensErr = 0;
@@ -1153,11 +1061,6 @@
                 this.isRequired = true;
                 this.ERROR = false;
                 this.streamPos = stream.pos;
-                
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
                 
                 for (i=0; i<n; i++)
                 {
@@ -1168,17 +1071,12 @@
                     
                     if ( false !== style )
                     {
-                        /*if ( this.actionAfter )
-                        {
-                            this.actionAfter.doAction(stream, state, LOCALS);
-                        }*/
-                        
                         return style;
                     }
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        this.backTrack( stream );
+                        stream.backTrack( this.streamPos );
                     }
                 }
                 
@@ -1197,10 +1095,6 @@
                 this.tokenName = this.name;
             },
             
-            test : function(textAfter) {
-                return this.tokens[this.tokens.length-1].test( textAfter );
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
                 
                 var token, style, n = this.tokens.length, ret = false, off=0;
@@ -1211,22 +1105,12 @@
                 this.stackPos = state.stack.length;
                 
                 
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
-                
                 token = this.tokens[ 0 ];
                 style = token.required(true).tokenize(stream, state, LOCALS);
                 
                 if ( false !== style )
                 {
                     this.stackPos = state.stack.length;
-                    /*if ( this.actionAfter )
-                    {
-                        this.pushToken( state.stack, this.actionAfter, 1 );
-                        off=1;
-                    }*/
                     for (var i=n-1; i>0; i--)
                     {
                         this.pushToken( state.stack, this.tokens[i].required(true), n-i+off );
@@ -1238,7 +1122,7 @@
                 else if ( token.ERROR )
                 {
                     this.ERROR = true;
-                    this.backTrack( stream );
+                    stream.backTrack( this.streamPos );
                 }
                 else if ( token.isRequired )
                 {
@@ -1258,10 +1142,6 @@
                 this.tokenName = this.tokens[0].name;
             },
             
-            test : function( textAfter ) {
-                return this.tokens[this.tokens.length-1].test( textAfter );
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
                 
                 var token, style, n = this.tokens.length, ret = false, off=0;
@@ -1272,23 +1152,12 @@
                 this.stackPos = state.stack.length;
                 
                 
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
-                
                 token = this.tokens[ 0 ];
                 style = token.required(false).tokenize(stream, state, LOCALS);
                 
                 if ( false !== style )
                 {
                     this.stackPos = state.stack.length;
-                    /*if ( this.actionAfter )
-                    {
-                        console.log('pushed action after: '+this.actionAfter.toString());
-                        this.pushToken( state.stack, this.actionAfter, 1 );
-                        off=1;
-                    }*/
                     for (var i=n-1; i>0; i--)
                     {
                         this.pushToken( state.stack, this.tokens[i].required(true), n-i+off );
@@ -1299,7 +1168,7 @@
                 else if ( token.ERROR )
                 {
                     //this.ERROR = true;
-                    this.backTrack( stream );
+                    stream.backTrack( this.streamPos );
                 }
                 
                 return ret;
@@ -1395,23 +1264,6 @@
                         }
                     }
                 }
-                /*
-                if ( action )
-                {
-                    if ( T_ARRAY == get_type(action) )
-                    {
-                        if (action[1] && action[1].toLowerCase() == "before" )
-                            token.actionBefore = new Action( tokenID, action[0], token );
-                        
-                        else
-                            token.actionAfter = new Action( tokenID, action[0], token );
-                    }
-                    else
-                    {
-                        token.actionAfter = new Action( tokenID, action, token );
-                    }
-                }
-                */    
                 parsedTokens[ tokenID ] = token;
             }
             
@@ -1422,48 +1274,42 @@
     //
     // parser factories
     var
-        /*stackTrace = function(stack) {
-            console.log( "Stack Trace Begin" );
+        Parser = Extends(Object, {
             
-            for (var i=stack.length-1; i>=0; i--)
-                console.log( stack[i].toString() );
+            constructor: function(grammar, LOCALS) {
+                this.LOCALS = LOCALS;
+                this.Style = grammar.Style || {};
+                this.tokens = grammar.Parser || [];
+                //this.state = null;
+            },
             
-            console.log( "Stack Trace End" );
-        },*/
-        
-        parserFactory = function(grammar, LOCALS) {
+            LOCALS: null,
+            Style: null,
+            tokens: null,
+            //state: null,
             
-            var DEFAULT = LOCALS.DEFAULT,
-                Style = grammar.Style || {},
-                ERROR = Style.error || "error",
-                tokens = grammar.Parser || [],
-                numTokens = tokens.length
-            ;
+            resetState: function( state ) {
+                state.stack = []; 
+                state.inBlock = null; 
+                state.current = null; 
+                state.currentToken = T_DEFAULT;
+                state.init = null;
+                return state;
+            },
             
-            var parser = function(stream, state) {
+            parse: function(cmStream, state) {
                 
-                var i, token, style, stack;
+                var i, token, style, stream, stack, numTokens = this.tokens.length;
                 
-                stack = state.stack = state.stack || [];
+                var DEFAULT = this.LOCALS.DEFAULT;
+                var ERROR = this.Style.error || "error";
                 
-                /*if ( !state.context )
+                if ( state.init )
                 {
-                    state.context = new Context( { indentation:stream.indentation(), prev: null } );
+                    this.resetState( state );
                 }
-                
-                if ( stream.sol() )
-                {
-                    state.indentation = stream.indentation();
-                }*/
-                
-                //stackTrace( stack );
-                
-                /*if (stack.length && T_ACTION==stack[stack.length-1])
-                {
-                    token = stack.pop();
-                    console.log(token.toString());
-                    token.doAction(stream, state, LOCALS);
-                }*/
+                stack = state.stack;
+                stream = new Stream(null, cmStream);
                 
                 if ( stream.eatSpace() ) 
                 {
@@ -1475,15 +1321,7 @@
                 while ( stack.length )
                 {
                     token = stack.pop();
-                    
-                    /*if ( T_ACTION == token.type )
-                    {
-                        console.log(token.toString());
-                        token.doAction(stream, state, LOCALS);
-                        continue;
-                    }*/
-                    
-                    style = token.tokenize(stream, state, LOCALS);
+                    style = token.tokenize(stream, state, this.LOCALS);
                     
                     // match failed
                     if ( false === style )
@@ -1495,11 +1333,9 @@
                             state.stack.length = 0;
                             // skip this character
                             stream.next();
-                            //console.log(["ERROR", stream.current()]);
                             // generate error
                             state.current = null;
                             state.currentToken = T_ERROR;
-                            state.sol = false;
                             return ERROR;
                         }
                         // optional
@@ -1512,15 +1348,14 @@
                     else
                     {
                         state.current = token.tokenName;
-                        state.sol = false;
                         return style;
                     }
                 }
                 
                 for (i=0; i<numTokens; i++)
                 {
-                    token = tokens[i];
-                    style = token.tokenize(stream, state, LOCALS);
+                    token = this.tokens[i];
+                    style = token.tokenize(stream, state, this.LOCALS);
                     
                     // match failed
                     if ( false === style )
@@ -1532,11 +1367,9 @@
                             state.stack.length = 0;
                             // skip this character
                             stream.next();
-                            //console.log(["ERROR", stream.current()]);
                             // generate error
                             state.current = null;
                             state.currentToken = T_ERROR;
-                            state.sol = false;
                             return ERROR;
                         }
                         // optional
@@ -1549,7 +1382,6 @@
                     else
                     {
                         state.current = token.tokenName;
-                        state.sol = false;
                         return style;
                     }
                 }
@@ -1558,37 +1390,55 @@
                 stream.next();
                 state.current = null;
                 state.currentToken = T_DEFAULT;
-                state.sol = false;
                 return DEFAULT;
-            };
-            
-            return parser;
+            }
+        }),
+        
+        parserFactory = function(grammar, LOCALS) {
+            return new Parser(grammar, LOCALS);
         },
         
         indentationFactory = function(LOCALS) {
             
             return function(state, textAfter) {
-                
-                /*
-                // TODO
-                //console.log(textAfter);
-                //console.log(state);
-                if ( state.context )
-                {
-                    if ( state.context.textAfter )
-                    {
-                        console.log('dedent');
-                        return state.context.textAfter( textAfter, state );
-                    }
-                    return state.context.indentation;
-                }
-                */
                 return CodeMirror.Pass;
             };
         }
     ;
       
     var 
+        //
+        // default grammar settings
+        defaultGrammar = {
+            
+            // prefix ID for regular expressions used in the grammar
+            "RegExpID" : null,
+            
+            // lists of (simple/string) tokens to be grouped into one regular expression,
+            // else matched one by one, 
+            // this is usefull for speed fine-tuning the parser
+            "RegExpGroups" : null,
+            
+            //
+            // Style model
+            "Style" : {
+                
+                // lang token type  -> CodeMirror (style) tag
+                "error":                "error"
+            },
+
+            //
+            // Lexical model
+            "Lex" : null,
+            
+            //
+            // Syntax model and context-specific rules
+            "Syntax" : null,
+            
+            // what to parse and in what order
+            "Parser" : null
+        },
+        
         parse = function(grammar) {
             var RegExpID, RegExpGroups, tokens, numTokens, _tokens, 
                 Style, Lex, Syntax, t, tokenID, token, tok,
@@ -1647,38 +1497,6 @@
             grammar.__parsed = true;
             
             return grammar;
-        },
-        
-        //
-        // default grammar settings
-        defaultGrammar = {
-            
-            // prefix ID for regular expressions used in the grammar
-            "RegExpID" : null,
-            
-            // lists of (simple/string) tokens to be grouped into one regular expression,
-            // else matched one by one, 
-            // this is usefull for speed fine-tuning the parser
-            "RegExpGroups" : null,
-            
-            //
-            // Style model
-            "Style" : {
-                
-                // lang token type  -> CodeMirror (style) tag
-                "error":                "error"
-            },
-
-            //
-            // Lexical model
-            "Lex" : null,
-            
-            //
-            // Syntax model and context-specific rules
-            "Syntax" : null,
-            
-            // what to parse and in what order
-            "Parser" : null
         }
     ;
     
@@ -1740,6 +1558,8 @@
         [/DOC_MARKDOWN]**/
         getMode : function(grammar, DEFAULT) {
             
+            DEFAULTTYPE = null;
+            
             // build the grammar
             grammar = parse( grammar );
             
@@ -1750,15 +1570,10 @@
                     // default return code, when no match or empty found
                     // 'null' should be used in most cases
                     DEFAULT: DEFAULT || DEFAULTTYPE
-                },
-                parser, indentation
+                }
             ;
             
-            parser = parserFactory( grammar, LOCALS );
-            indentation = indentationFactory( LOCALS );
-            
-            // generate parser with token factories (grammar, LOCALS are available locally by closures)
-            return function(conf, parserConf) {
+            var mode = function(conf, parserConf) {
                 
                 LOCALS.conf = conf;
                 LOCALS.parserConf = parserConf;
@@ -1768,10 +1583,7 @@
                     startState: function(  ) {
                         
                         return {
-                            stack : null,
-                            //context : new Context({indentation:0, prev: null}),
-                            current : null,
-                            currentToken : T_DEFAULT
+                            init : 1
                         };
                     },
                     
@@ -1787,11 +1599,14 @@
                     innerMode: function( state ) { },
                     */
                     
-                    token: parser,
+                    token: function( parser ) { return function(stream, state) { return parser.parse(stream, state); } }( parserFactory( grammar, LOCALS ) ),
                     
-                    indent: indentation
+                    indent: indentationFactory( LOCALS )
                 };
             };
+            
+            // Codemirror compatible
+            return mode;
         }
     };
     

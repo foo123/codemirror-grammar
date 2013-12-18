@@ -2,70 +2,6 @@
     //
     // tokenizer factories
     var
-        // state scope/context
-        /*Context = function( args ) {
-            if ( args )
-            {
-                for (var p in args)  
-                    this[p] = args[p];
-            }
-        },
-        
-        pushContext = function(state, ctx) {
-            ctx.prev = state.context || null;
-            return state.context = new Context( ctx );
-        },
-        
-        popContext = function(state) {
-            if ( state.context )
-                state.context = state.context.prev || null;
-            return state.context;
-        },
-            
-        Action = Extends( Object, {
-            
-            constructor : function(name, action, token) {
-                this.type = T_ACTION;
-                this.name = name || null;
-                this.action = (action) ? actionTypes[ action.toUpperCase() ] : null;
-                this.token = token || null;
-            },    
-            
-            type : null,
-            name : null,
-            action : null,
-            token : null,
-            
-            toString : function() {
-                return '[Action: ' + ((T_INDENT == this.action) ? 'INDENT' : 'OUTDENT') + ']';
-            },
-            
-            doAction : function(stream, state, LOCALS) {
-                
-                var indentUnit = LOCALS.conf.indentUnit;
-                
-                if ( T_INDENT == this.action )
-                {
-                    //if ( !state.context || state.context.type != state.current )
-                    console.log('indent action')
-                    pushContext( state, { token: state.current, current: stream.current(), indentation: stream.indentation() + indentUnit } );
-                }
-                
-                else if ( T_OUTDENT == this.action )
-                {
-                    if ( state.context )
-                    {
-                        state.context.textAfter = function( textAfter, state ) {
-                            popContext( state );
-                            return ( state.context ) ? (state.context.indentation) : 0;
-                        };
-                    }
-                }
-                
-                return true;
-            }
-        }),
-        */
         SimpleTokenizer = Extends( Object, {
             
             constructor : function(name, token, type, style) {
@@ -99,11 +35,6 @@
             
             required : function(bool) { 
                 this.isRequired = (bool) ? true : false;
-                return this;
-            },
-            
-            backTrack : function(stream) {
-                stream.pos -= (stream.pos - this.streamPos);
                 return this;
             },
             
@@ -145,27 +76,13 @@
                 return null;
             },
             
-            test : function(textAfter) {
-                return this.token.test( textAfter );
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
-                
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
                 
                 if ( this.token.match(stream) )
                 {
                     state.currentToken = this.type;
-                    /*if ( this.actionAfter )
-                    {
-                        this.actionAfter.doAction(stream, state, LOCALS);
-                    }*/
                     return this.style;
                 }
-                
                 return false;
             }
         }),
@@ -189,11 +106,6 @@
             
                 var ended = false, found = false;
                 
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
-                
                 if ( state.inBlock == this.name )
                 {
                     found = true;
@@ -213,7 +125,6 @@
                     
                     while ( !ended && !stream.eol() ) 
                     {
-                        //stream.next();
                         if ( this.endBlock.match(stream) ) 
                         {
                             ended = true;
@@ -235,11 +146,6 @@
                     {
                         state.inBlock = null;
                         state.endBlock = null;
-                        
-                        /*if ( this.actionAfter )
-                        {
-                            this.actionAfter.doAction(stream, state, LOCALS);
-                        }*/
                     }
                     
                     state.currentToken = this.type;
@@ -272,11 +178,6 @@
             
                 var next = "", ended = false, found = false, isEscaped = false;
                 
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
-                
                 if ( state.inBlock == this.name )
                 {
                     found = true;
@@ -297,7 +198,6 @@
                     
                     while ( !ended && !stream.eol() ) 
                     {
-                        //stream.next();
                         if ( !isEscaped && this.endBlock.match(stream) ) 
                         {
                             ended = true; 
@@ -320,11 +220,6 @@
                     {
                         state.inBlock = null;
                         state.endBlock = null;
-                        
-                        /*if ( this.actionAfter )
-                        {
-                            this.actionAfter.doAction(stream, state, LOCALS);
-                        }*/
                     }
                     
                     state.currentToken = this.type;
@@ -366,16 +261,7 @@
                 this.tokenName = this.name;
             },
             
-            test : function(textAfter) {
-                return this.token.test( textAfter );
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
-                
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
                 
                 // this is optional
                 this.isRequired = false;
@@ -383,13 +269,8 @@
                 this.streamPos = stream.pos;
                 var style = this.token.tokenize(stream, state);
                 
-                if ( token.ERROR ) this.backTrack( stream );
+                if ( token.ERROR ) stream.backTrack( this.streamPos );
                 
-                /*if ( style && this.actionAfter )
-                {
-                    this.actionAfter.doAction(stream, state, LOCALS);
-                }*/
-
                 return style;
             }
         }),
@@ -403,16 +284,6 @@
                 this.tokenName = this.name;
             },
             
-            test : function(textAfter) {
-                var ret;
-                for (var i=0, n=this.tokens.length; i<n; i++)
-                {
-                    ret = this.tokens[i].test( textAfter );
-                    if (ret) return true;
-                }
-                return false;
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
             
                 var i, token, style, n = this.tokens.length, tokensErr = 0, ret = false;
@@ -423,11 +294,6 @@
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
                 
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
-                
                 for (i=0; i<n; i++)
                 {
                     token = this.tokens[i];
@@ -437,18 +303,12 @@
                     {
                         // push it to the stack for more
                         this.pushToken( state.stack, this );
-                        
-                        /*if ( this.actionAfter )
-                        {
-                            this.actionAfter.doAction(stream, state, LOCALS);
-                        }*/
-                        
                         return style;
                     }
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        this.backTrack( stream );
+                        stream.backTrack( this.streamPos );
                     }
                 }
                 
@@ -469,16 +329,6 @@
             
             foundOne : false,
             
-            test : function(textAfter) {
-                var ret;
-                for (var i=0, n=this.tokens.length; i<n; i++)
-                {
-                    ret = this.tokens[i].test( textAfter );
-                    if (ret) return true;
-                }
-                return false;
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
         
                 var style, token, i, n = this.tokens.length, tokensRequired = 0, tokensErr = 0;
@@ -487,11 +337,6 @@
                 this.ERROR = false;
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
-                
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
                 
                 for (i=0; i<n; i++)
                 {
@@ -509,17 +354,12 @@
                         this.pushToken( state.stack, this.clone(OneOrMoreTokens, "tokens", "foundOne") );
                         this.foundOne = false;
                         
-                        /*if ( this.actionAfter )
-                        {
-                            this.actionAfter.doAction(stream, state, LOCALS);
-                        }*/
-                        
                         return style;
                     }
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        this.backTrack( stream );
+                        stream.backTrack( this.streamPos );
                     }
                 }
                 
@@ -537,16 +377,6 @@
                 this.tokenName = this.name;
             },
             
-            test : function(textAfter) {
-                var ret;
-                for (var i=0, n=this.tokens.length; i<n; i++)
-                {
-                    ret = this.tokens[i].test( textAfter );
-                    if (ret) return true;
-                }
-                return false;
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
             
                 var style, token, i, n = this.tokens.length, tokensRequired = 0, tokensErr = 0;
@@ -554,11 +384,6 @@
                 this.isRequired = true;
                 this.ERROR = false;
                 this.streamPos = stream.pos;
-                
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
                 
                 for (i=0; i<n; i++)
                 {
@@ -569,17 +394,12 @@
                     
                     if ( false !== style )
                     {
-                        /*if ( this.actionAfter )
-                        {
-                            this.actionAfter.doAction(stream, state, LOCALS);
-                        }*/
-                        
                         return style;
                     }
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        this.backTrack( stream );
+                        stream.backTrack( this.streamPos );
                     }
                 }
                 
@@ -598,10 +418,6 @@
                 this.tokenName = this.name;
             },
             
-            test : function(textAfter) {
-                return this.tokens[this.tokens.length-1].test( textAfter );
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
                 
                 var token, style, n = this.tokens.length, ret = false, off=0;
@@ -612,22 +428,12 @@
                 this.stackPos = state.stack.length;
                 
                 
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
-                
                 token = this.tokens[ 0 ];
                 style = token.required(true).tokenize(stream, state, LOCALS);
                 
                 if ( false !== style )
                 {
                     this.stackPos = state.stack.length;
-                    /*if ( this.actionAfter )
-                    {
-                        this.pushToken( state.stack, this.actionAfter, 1 );
-                        off=1;
-                    }*/
                     for (var i=n-1; i>0; i--)
                     {
                         this.pushToken( state.stack, this.tokens[i].required(true), n-i+off );
@@ -639,7 +445,7 @@
                 else if ( token.ERROR )
                 {
                     this.ERROR = true;
-                    this.backTrack( stream );
+                    stream.backTrack( this.streamPos );
                 }
                 else if ( token.isRequired )
                 {
@@ -659,10 +465,6 @@
                 this.tokenName = this.tokens[0].name;
             },
             
-            test : function( textAfter ) {
-                return this.tokens[this.tokens.length-1].test( textAfter );
-            },
-            
             tokenize : function( stream, state, LOCALS ) {
                 
                 var token, style, n = this.tokens.length, ret = false, off=0;
@@ -673,23 +475,12 @@
                 this.stackPos = state.stack.length;
                 
                 
-                /*if ( this.actionBefore )
-                {
-                    this.actionBefore.doAction(stream, state, LOCALS);
-                }*/
-                
                 token = this.tokens[ 0 ];
                 style = token.required(false).tokenize(stream, state, LOCALS);
                 
                 if ( false !== style )
                 {
                     this.stackPos = state.stack.length;
-                    /*if ( this.actionAfter )
-                    {
-                        console.log('pushed action after: '+this.actionAfter.toString());
-                        this.pushToken( state.stack, this.actionAfter, 1 );
-                        off=1;
-                    }*/
                     for (var i=n-1; i>0; i--)
                     {
                         this.pushToken( state.stack, this.tokens[i].required(true), n-i+off );
@@ -700,7 +491,7 @@
                 else if ( token.ERROR )
                 {
                     //this.ERROR = true;
-                    this.backTrack( stream );
+                    stream.backTrack( this.streamPos );
                 }
                 
                 return ret;
@@ -796,23 +587,6 @@
                         }
                     }
                 }
-                /*
-                if ( action )
-                {
-                    if ( T_ARRAY == get_type(action) )
-                    {
-                        if (action[1] && action[1].toLowerCase() == "before" )
-                            token.actionBefore = new Action( tokenID, action[0], token );
-                        
-                        else
-                            token.actionAfter = new Action( tokenID, action[0], token );
-                    }
-                    else
-                    {
-                        token.actionAfter = new Action( tokenID, action, token );
-                    }
-                }
-                */    
                 parsedTokens[ tokenID ] = token;
             }
             

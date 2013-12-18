@@ -2,7 +2,7 @@
     //
     // parser types
     var    
-        DEFAULTTYPE = null,
+        DEFAULTTYPE,
         
         //
         // javascript variable types
@@ -44,21 +44,14 @@
         T_ONEORMORE = 2048,
         T_GROUP = 4096,
         T_NGRAM = 8192,
-        /*T_ACTION = 16384,
-        T_INDENT = 16385,
-        T_OUTDENT = 16386,*/
         
         //
         // tokenizer types
-        /*actionTypes = {
-            "INDENT" : T_INDENT, "OUTDENT" : T_OUTDENT
-        },*/
-        
         groupTypes = {
             "ONEOF" : T_EITHER, "EITHER" : T_EITHER, "ALL" : T_ALL, "ALLOF" : T_ALL, "ZEROORONE" : T_ZEROORONE, "ZEROORMORE" : T_ZEROORMORE, "ONEORMORE" : T_ONEORMORE
         },
         
         tokenTypes = {
-            "BLOCK" : T_BLOCK, "ESCAPED-BLOCK" : T_ESCBLOCK, "SIMPLE" : T_SIMPLE, "GROUP" : T_GROUP, "NGRAM" : T_NGRAM, "N-GRAM" : T_NGRAM/*, "ACTION" : T_ACTION*/
+            "BLOCK" : T_BLOCK, "ESCAPED-BLOCK" : T_ESCBLOCK, "SIMPLE" : T_SIMPLE, "GROUP" : T_GROUP, "NGRAM" : T_NGRAM, "N-GRAM" : T_NGRAM
         }
     ;

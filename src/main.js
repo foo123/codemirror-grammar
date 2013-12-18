@@ -1,5 +1,37 @@
     
     var 
+        //
+        // default grammar settings
+        defaultGrammar = {
+            
+            // prefix ID for regular expressions used in the grammar
+            "RegExpID" : null,
+            
+            // lists of (simple/string) tokens to be grouped into one regular expression,
+            // else matched one by one, 
+            // this is usefull for speed fine-tuning the parser
+            "RegExpGroups" : null,
+            
+            //
+            // Style model
+            "Style" : {
+                
+                // lang token type  -> CodeMirror (style) tag
+                "error":                "error"
+            },
+
+            //
+            // Lexical model
+            "Lex" : null,
+            
+            //
+            // Syntax model and context-specific rules
+            "Syntax" : null,
+            
+            // what to parse and in what order
+            "Parser" : null
+        },
+        
         parse = function(grammar) {
             var RegExpID, RegExpGroups, tokens, numTokens, _tokens, 
                 Style, Lex, Syntax, t, tokenID, token, tok,
@@ -58,38 +90,6 @@
             grammar.__parsed = true;
             
             return grammar;
-        },
-        
-        //
-        // default grammar settings
-        defaultGrammar = {
-            
-            // prefix ID for regular expressions used in the grammar
-            "RegExpID" : null,
-            
-            // lists of (simple/string) tokens to be grouped into one regular expression,
-            // else matched one by one, 
-            // this is usefull for speed fine-tuning the parser
-            "RegExpGroups" : null,
-            
-            //
-            // Style model
-            "Style" : {
-                
-                // lang token type  -> CodeMirror (style) tag
-                "error":                "error"
-            },
-
-            //
-            // Lexical model
-            "Lex" : null,
-            
-            //
-            // Syntax model and context-specific rules
-            "Syntax" : null,
-            
-            // what to parse and in what order
-            "Parser" : null
         }
     ;
     
@@ -151,6 +151,8 @@
         [/DOC_MARKDOWN]**/
         getMode : function(grammar, DEFAULT) {
             
+            DEFAULTTYPE = null;
+            
             // build the grammar
             grammar = parse( grammar );
             
@@ -161,15 +163,10 @@
                     // default return code, when no match or empty found
                     // 'null' should be used in most cases
                     DEFAULT: DEFAULT || DEFAULTTYPE
-                },
-                parser, indentation
+                }
             ;
             
-            parser = parserFactory( grammar, LOCALS );
-            indentation = indentationFactory( LOCALS );
-            
-            // generate parser with token factories (grammar, LOCALS are available locally by closures)
-            return function(conf, parserConf) {
+            var mode = function(conf, parserConf) {
                 
                 LOCALS.conf = conf;
                 LOCALS.parserConf = parserConf;
@@ -179,10 +176,7 @@
                     startState: function(  ) {
                         
                         return {
-                            stack : null,
-                            //context : new Context({indentation:0, prev: null}),
-                            current : null,
-                            currentToken : T_DEFAULT
+                            init : 1
                         };
                     },
                     
@@ -198,10 +192,13 @@
                     innerMode: function( state ) { },
                     */
                     
-                    token: parser,
+                    token: function( parser ) { return function(stream, state) { return parser.parse(stream, state); } }( parserFactory( grammar, LOCALS ) ),
                     
-                    indent: indentation
+                    indent: indentationFactory( LOCALS )
                 };
             };
+            
+            // Codemirror compatible
+            return mode;
         }
     };

@@ -17,8 +17,9 @@
 
 @DEPENDENCIES =[]
     ./src/header.js
-    ./src/factories/types.js
+    ./src/utils/types.js
     ./src/utils/utils.js
+    ./src/utils/stream.js
     ./src/factories/matchers.js
     ./src/factories/tokenizers.js
     ./src/factories/parsers.js
@@ -32,7 +33,7 @@
 
 # do any replacements to the source (map)
 @REPLACE ={}
-    "@@VERSION@@" = "0.3.2"
+    "@@VERSION@@" = "0.4"
 @ # end block
 
 # TODO, allow some post-process to take place
