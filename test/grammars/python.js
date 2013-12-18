@@ -112,7 +112,7 @@ var python_grammar = {
                 "tokens" : [ 
                     "(", ")", "[", "]", "{", "}", ",", ":", "`", "=", ";", ".",
                     "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", 
-                    ">>=", "<<=", "//=", "**=" 
+                    ">>=", "<<=", "//=", "**=", "@" 
                 ]
             },
             
@@ -159,11 +159,11 @@ var python_grammar = {
             "heredoc",
             "number",
             "string",
+            "decorator",
             "operator",
             "delimiter",
             "keyword",
             "builtin",
-            "decorator",
             "identifier"
         ]
 };

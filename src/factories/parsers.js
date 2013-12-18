@@ -8,15 +8,14 @@
                 this.LOCALS = LOCALS;
                 this.Style = grammar.Style || {};
                 this.tokens = grammar.Parser || [];
-                //this.state = null;
             },
             
             LOCALS: null,
             Style: null,
             tokens: null,
-            //state: null,
             
             resetState: function( state ) {
+                state = state || {};
                 state.stack = []; 
                 state.inBlock = null; 
                 state.current = null; 
@@ -25,19 +24,30 @@
                 return state;
             },
             
-            parse: function(cmStream, state) {
+            copyState: function( state ) {
+                var copy = {};
+                for (var k in state)
+                {
+                    if ( T_ARRAY == get_type(state[k]) )
+                        copy[k] = state[k].slice();
+                    else
+                        copy[k] = state[k];
+                }
+                return copy;
+            },
+            
+            // Codemirror Tokenizer compatible
+            getToken: function(_stream, state) {
                 
                 var i, token, style, stream, stack, numTokens = this.tokens.length;
                 
                 var DEFAULT = this.LOCALS.DEFAULT;
                 var ERROR = this.Style.error || "error";
                 
-                if ( state.init )
-                {
-                    this.resetState( state );
-                }
+                if ( state.init ) this.resetState( state );
+                
                 stack = state.stack;
-                stream = new Stream(null, cmStream);
+                stream = new Stream(null, _stream);
                 
                 if ( stream.eatSpace() ) 
                 {
@@ -122,13 +132,12 @@
             }
         }),
         
-        parserFactory = function(grammar, LOCALS) {
+        getParser = function(grammar, LOCALS) {
             return new Parser(grammar, LOCALS);
         },
         
-        indentationFactory = function(LOCALS) {
-            
-            return function(state, textAfter) {
+        getIndentation = function(LOCALS) {
+            return function(state, textAfter, fullLine) {
                 return CodeMirror.Pass;
             };
         }

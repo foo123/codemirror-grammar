@@ -185,6 +185,7 @@
             return o;
         }
     ;
+    
     //
     // Stream Class
     var
@@ -310,9 +311,8 @@
                 return this;
             },
             
-            backTrack: function( pos ) {
-                var n = this.pos - pos;
-                this.pos -= n;
+            backTo: function( pos ) {
+                this.pos = pos;
                 if ( this.stream )
                     this.stream.pos = this.pos;
                 return this;
@@ -335,7 +335,8 @@
                 return this;
             }
         })
-    ;    
+    ;
+        
     //
     // matcher factories
     var ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
@@ -946,7 +947,7 @@
                 this.streamPos = stream.pos;
                 var style = this.token.tokenize(stream, state);
                 
-                if ( token.ERROR ) stream.backTrack( this.streamPos );
+                if ( token.ERROR ) stream.backTo( this.streamPos );
                 
                 return style;
             }
@@ -985,7 +986,7 @@
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        stream.backTrack( this.streamPos );
+                        stream.backTo( this.streamPos );
                     }
                 }
                 
@@ -1036,7 +1037,7 @@
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        stream.backTrack( this.streamPos );
+                        stream.backTo( this.streamPos );
                     }
                 }
                 
@@ -1076,7 +1077,7 @@
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        stream.backTrack( this.streamPos );
+                        stream.backTo( this.streamPos );
                     }
                 }
                 
@@ -1122,7 +1123,7 @@
                 else if ( token.ERROR )
                 {
                     this.ERROR = true;
-                    stream.backTrack( this.streamPos );
+                    stream.backTo( this.streamPos );
                 }
                 else if ( token.isRequired )
                 {
@@ -1168,7 +1169,7 @@
                 else if ( token.ERROR )
                 {
                     //this.ERROR = true;
-                    stream.backTrack( this.streamPos );
+                    stream.backTo( this.streamPos );
                 }
                 
                 return ret;
@@ -1280,15 +1281,14 @@
                 this.LOCALS = LOCALS;
                 this.Style = grammar.Style || {};
                 this.tokens = grammar.Parser || [];
-                //this.state = null;
             },
             
             LOCALS: null,
             Style: null,
             tokens: null,
-            //state: null,
             
             resetState: function( state ) {
+                state = state || {};
                 state.stack = []; 
                 state.inBlock = null; 
                 state.current = null; 
@@ -1297,19 +1297,30 @@
                 return state;
             },
             
-            parse: function(cmStream, state) {
+            copyState: function( state ) {
+                var copy = {};
+                for (var k in state)
+                {
+                    if ( T_ARRAY == get_type(state[k]) )
+                        copy[k] = state[k].slice();
+                    else
+                        copy[k] = state[k];
+                }
+                return copy;
+            },
+            
+            // Codemirror Tokenizer compatible
+            getToken: function(_stream, state) {
                 
                 var i, token, style, stream, stack, numTokens = this.tokens.length;
                 
                 var DEFAULT = this.LOCALS.DEFAULT;
                 var ERROR = this.Style.error || "error";
                 
-                if ( state.init )
-                {
-                    this.resetState( state );
-                }
+                if ( state.init ) this.resetState( state );
+                
                 stack = state.stack;
-                stream = new Stream(null, cmStream);
+                stream = new Stream(null, _stream);
                 
                 if ( stream.eatSpace() ) 
                 {
@@ -1394,13 +1405,12 @@
             }
         }),
         
-        parserFactory = function(grammar, LOCALS) {
+        getParser = function(grammar, LOCALS) {
             return new Parser(grammar, LOCALS);
         },
         
-        indentationFactory = function(LOCALS) {
-            
-            return function(state, textAfter) {
+        getIndentation = function(LOCALS) {
+            return function(state, textAfter, fullLine) {
                 return CodeMirror.Pass;
             };
         }
@@ -1573,6 +1583,7 @@
                 }
             ;
             
+            var parser = getParser( grammar, LOCALS );
             var mode = function(conf, parserConf) {
                 
                 LOCALS.conf = conf;
@@ -1580,29 +1591,25 @@
                 
                 // return the (codemirror) parser mode for the grammar
                 return  {
-                    startState: function(  ) {
-                        
-                        return {
-                            init : 1
-                        };
-                    },
+                    startState: function( ) { return { init: 1 }; },
                     
-                    electricChars : (grammar.electricChars) ? grammar.electricChars : false,
+                    electricChars: (grammar.electricChars) ? grammar.electricChars : false,
                     
                     /*
                     // maybe needed in the future
-                    
-                    copyState: function( state ) { },
                     
                     blankLine: function( state ) { },
                     
                     innerMode: function( state ) { },
                     */
                     
-                    token: function( parser ) { return function(stream, state) { return parser.parse(stream, state); } }( parserFactory( grammar, LOCALS ) ),
+                    copyState: function( parser ) { return function(state) { return parser.copyState(state); } }( parser ),
                     
-                    indent: indentationFactory( LOCALS )
+                    token: function( parser ) { return function(stream, state) { return parser.getToken(stream, state); } }( parser ),
+                    
+                    indent: getIndentation( LOCALS )
                 };
+                
             };
             
             // Codemirror compatible

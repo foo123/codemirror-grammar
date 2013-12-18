@@ -269,7 +269,7 @@
                 this.streamPos = stream.pos;
                 var style = this.token.tokenize(stream, state);
                 
-                if ( token.ERROR ) stream.backTrack( this.streamPos );
+                if ( token.ERROR ) stream.backTo( this.streamPos );
                 
                 return style;
             }
@@ -308,7 +308,7 @@
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        stream.backTrack( this.streamPos );
+                        stream.backTo( this.streamPos );
                     }
                 }
                 
@@ -359,7 +359,7 @@
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        stream.backTrack( this.streamPos );
+                        stream.backTo( this.streamPos );
                     }
                 }
                 
@@ -399,7 +399,7 @@
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        stream.backTrack( this.streamPos );
+                        stream.backTo( this.streamPos );
                     }
                 }
                 
@@ -445,7 +445,7 @@
                 else if ( token.ERROR )
                 {
                     this.ERROR = true;
-                    stream.backTrack( this.streamPos );
+                    stream.backTo( this.streamPos );
                 }
                 else if ( token.isRequired )
                 {
@@ -491,7 +491,7 @@
                 else if ( token.ERROR )
                 {
                     //this.ERROR = true;
-                    stream.backTrack( this.streamPos );
+                    stream.backTo( this.streamPos );
                 }
                 
                 return ret;

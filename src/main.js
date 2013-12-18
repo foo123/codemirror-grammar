@@ -166,6 +166,7 @@
                 }
             ;
             
+            var parser = getParser( grammar, LOCALS );
             var mode = function(conf, parserConf) {
                 
                 LOCALS.conf = conf;
@@ -173,29 +174,25 @@
                 
                 // return the (codemirror) parser mode for the grammar
                 return  {
-                    startState: function(  ) {
-                        
-                        return {
-                            init : 1
-                        };
-                    },
+                    startState: function( ) { return { init: 1 }; },
                     
-                    electricChars : (grammar.electricChars) ? grammar.electricChars : false,
+                    electricChars: (grammar.electricChars) ? grammar.electricChars : false,
                     
                     /*
                     // maybe needed in the future
-                    
-                    copyState: function( state ) { },
                     
                     blankLine: function( state ) { },
                     
                     innerMode: function( state ) { },
                     */
                     
-                    token: function( parser ) { return function(stream, state) { return parser.parse(stream, state); } }( parserFactory( grammar, LOCALS ) ),
+                    copyState: function( parser ) { return function(state) { return parser.copyState(state); } }( parser ),
                     
-                    indent: indentationFactory( LOCALS )
+                    token: function( parser ) { return function(stream, state) { return parser.getToken(stream, state); } }( parser ),
+                    
+                    indent: getIndentation( LOCALS )
                 };
+                
             };
             
             // Codemirror compatible

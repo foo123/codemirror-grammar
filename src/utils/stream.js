@@ -1,3 +1,4 @@
+    
     //
     // Stream Class
     var
@@ -123,9 +124,8 @@
                 return this;
             },
             
-            backTrack: function( pos ) {
-                var n = this.pos - pos;
-                this.pos -= n;
+            backTo: function( pos ) {
+                this.pos = pos;
                 if ( this.stream )
                     this.stream.pos = this.pos;
                 return this;
@@ -149,3 +149,4 @@
             }
         })
     ;
+    
