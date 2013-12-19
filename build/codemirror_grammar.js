@@ -1,16 +1,31 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.4
+*   @version: 0.4.1
 *   Transform a grammar specification in JSON format,
 *   into a CodeMirror syntax-highlight parser mode
 *
 *   https://github.com/foo123/codemirror-grammar
 *
 **/
-(function(undef){
+!function (root, moduleName, moduleDefinition) {
+
+    //
+    // export the module
     
-    var VERSION = "0.4";
+    // node, CommonJS, etc..
+    if ( 'object' == typeof(module) && module.exports ) module.exports = moduleDefinition();
+    
+    // AMD, etc..
+    else if ( 'function' == typeof(define) && define.amd ) define( moduleDefinition );
+    
+    // browser, etc..
+    else root[ moduleName ] = moduleDefinition();
+
+
+}(this, 'CodeMirrorGrammar', function( undef ) {
+    
+    var VERSION = "0.4.1";
         
     //
     // parser types
@@ -1618,11 +1633,5 @@
     };
     
     // export it
-    if ('undefined' != typeof (module) && module.exports)  module.exports = self;
-    
-    else if ('undefined' != typeof (exports)) exports = self;
-    
-    else this.CodeMirrorGrammar = self;
-
-    
-}).call(this);
+    return self;
+});
