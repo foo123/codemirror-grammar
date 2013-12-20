@@ -52,7 +52,7 @@
             return [ new RegExp("^(" + tokens.sort( byLength ).join( "|" ) + ")"+b), { peek: peek, negativepeek: null }, 1 ];
         },
         
-        DummyMatcher = Extends( Object, {
+        DummyMatcher = Class({
             
             constructor : function(name, pattern, key, type) {
                 this.name = name;
@@ -83,7 +83,7 @@
         
         // get a fast customized matcher for < pattern >
         
-        CharMatcher = Extends( DummyMatcher, {
+        CharMatcher = Class({Extends: DummyMatcher}, {
             
             constructor : function(name, pattern, key) {
                 this.name = name;
@@ -100,7 +100,7 @@
             }
         }),
         
-        StrMatcher = Extends( DummyMatcher, {
+        StrMatcher = Class({Extends: DummyMatcher}, {
             
             constructor : function(name, pattern, key) {
                 this.name = name;
@@ -119,7 +119,7 @@
             }
         }),
         
-        RegexMatcher = Extends( DummyMatcher, {
+        RegexMatcher = Class({Extends: DummyMatcher}, {
             
             constructor : function(name, pattern, key) {
                 this.name = name;
@@ -140,7 +140,7 @@
             }
         }),
         
-        EolMatcher = Extends( DummyMatcher, {
+        EolMatcher = Class({Extends: DummyMatcher}, {
             
             constructor : function(name, pattern, key) {
                 this.name = name;
@@ -186,7 +186,7 @@
             return parsedMatchers[ name ];
         },
         
-        CompositeMatcher = Extends( DummyMatcher, {
+        CompositeMatcher = Class({Extends: DummyMatcher}, {
             
             constructor : function(name, matchers, useOwnKey) {
                 this.name = name;
@@ -275,7 +275,7 @@
             return parsedMatchers[ name ];
         },
         
-        BlockMatcher = Extends( DummyMatcher, {
+        BlockMatcher = Class({Extends: DummyMatcher}, {
             
             constructor : function(name, start, end) {
                 this.name = name;

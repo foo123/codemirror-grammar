@@ -15,6 +15,14 @@
 # A key and/or value can be quoted (with ", ' or `, quotes) or unquoted
 # Lines with one or multiple '@'s define the end of that many previous blocks
 
+@EXTERNAL =[]
+    
+    ## external dependencies ##
+    ./src/dependencies/classy.min.js
+    ./src/dependencies/regexanalyzer.min.js
+
+@ # end block
+
 @DEPENDENCIES =[]
     ./src/header.js
     ./src/utils/types.js
@@ -33,7 +41,7 @@
 
 # do any replacements to the source (map)
 @REPLACE ={}
-    "@@VERSION@@" = "0.4.1"
+    "@@VERSION@@" = "0.4.2"
 @ # end block
 
 # TODO, allow some post-process to take place

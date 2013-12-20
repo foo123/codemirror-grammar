@@ -2,6 +2,20 @@
 
 ###CodeMirrorGrammar Methods
 
+__For node with dependencies:__
+
+```javascript
+CodeMirrorGrammar = require('build/codemirror_grammar.js')(require('build/classy.min.js'), require('build/regexanalyzer.min.js'));
+```
+
+__For browser with dependencies:__
+
+```html
+<script src="../build/classy.min.js"></script>
+<script src="../build/regexanalyzer.min.js"></script>
+<script src="../build/codemirror_grammar.js"></script>
+```
+
     
 
 

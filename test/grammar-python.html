@@ -20,8 +20,6 @@
             }
         </style>
         
-        <!-- required -->
-        <script src="../build/regexanalyzer.min.js"></script>
         <script src="codemirror/codemirror.js"></script>
         <script src="../build/codemirror_grammar.js"></script>
         <script src="grammars/python.js"></script>
@@ -125,9 +123,6 @@ class ExampleClass(ParentClass):
 
         <script>
         // <![CDATA[
-        
-        // requires the RegExAnalyzer
-        CodeMirrorGrammar.init( RegExAnalyzer );
         
         // 2. parse the grammar into a Codemirror syntax-highlight mode
         var python_mode = CodeMirrorGrammar.getMode(python_grammar);

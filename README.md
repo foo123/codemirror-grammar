@@ -260,9 +260,6 @@ var xml_grammar = {
         ]
 };
         
-// requires the RegExAnalyzer
-CodeMirrorGrammar.init( RegExAnalyzer );
-
 // 2. parse the grammar into a Codemirror syntax-highlight mode
 var xml_mode = CodeMirrorGrammar.getMode(xml_grammar);
 

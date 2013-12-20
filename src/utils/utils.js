@@ -2,26 +2,6 @@
     var slice = Array.prototype.slice, splice = Array.prototype.splice, concat = Array.prototype.concat, 
         hasKey = Object.prototype.hasOwnProperty, Str = Object.prototype.toString,
         
-        RegexAnalyzer,
-        
-        Merge = function(o1, o2) { 
-            o1 = o1 || {}; 
-            for (var p in o2) 
-                if ( hasKey.call(o2, p) )  o1[p] = o2[p];  
-            
-            return o1; 
-        },
-        
-        Extends = function(Parent, ChildProto) {
-            var O = function(){}; 
-            var C = ChildProto.constructor;
-            O.prototype = Parent.prototype;
-            C.prototype = new O();
-            C.prototype.constructor = C;
-            C.prototype = Merge( C.prototype, ChildProto );
-            return C;
-        },
-        
         get_type = function(v) {
             var type_of = typeof(v), to_string = Str.call(v);
             

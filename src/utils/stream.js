@@ -2,8 +2,8 @@
     //
     // Stream Class
     var
-        // a class to manipulate a string as a stream, based on Codemirror StringStream
-        Stream = Extends(Object, {
+        // a wrapper-class to manipulate a string as a stream, based on Codemirror StringStream
+        StringStream = Class({
             
             constructor: function( line, stream ) {
                 if (stream)

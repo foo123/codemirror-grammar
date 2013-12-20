@@ -99,14 +99,24 @@
     *
     * ###CodeMirrorGrammar Methods
     *
+    * __For node with dependencies:__
+    *
+    * ```javascript
+    * CodeMirrorGrammar = require('build/codemirror_grammar.js')(require('build/classy.min.js'), require('build/regexanalyzer.min.js'));
+    * ```
+    *
+    * __For browser with dependencies:__
+    *
+    * ```html
+    * <script src="../build/classy.min.js"></script>
+    * <script src="../build/regexanalyzer.min.js"></script>
+    * <script src="../build/codemirror_grammar.js"></script>
+    * ```
+    *
     [/DOC_MARKDOWN]**/
     var self = {
         
         VERSION : VERSION,
-        
-        init : function(RegExAnalyzer) {
-            RegexAnalyzer = RegExAnalyzer;
-        },
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]
@@ -174,7 +184,7 @@
                 
                 // return the (codemirror) parser mode for the grammar
                 return  {
-                    startState: function( ) { return { init: 1 }; },
+                    startState: function( ) { return new StateContext(); },
                     
                     electricChars: (grammar.electricChars) ? grammar.electricChars : false,
                     
@@ -186,7 +196,7 @@
                     innerMode: function( state ) { },
                     */
                     
-                    copyState: function( parser ) { return function(state) { return parser.copyState(state); } }( parser ),
+                    copyState: function( state ) { return state.clone(); },
                     
                     token: function( parser ) { return function(stream, state) { return parser.getToken(stream, state); } }( parser ),
                     

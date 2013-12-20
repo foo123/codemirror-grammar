@@ -2,7 +2,38 @@
     //
     // tokenizer factories
     var
-        SimpleTokenizer = Extends( Object, {
+        StateContext = Class({
+            
+            constructor: function( id ) {
+                this.id = id || 0;
+                this.stack = [];
+                this.inBlock = null;
+                this.endBlock = null;
+                this.currentToken = T_DEFAULT;
+            },
+            
+            id: 0,
+            stack: null,
+            inBlock: null,
+            endBlock: null,
+            currentToken: null,
+            
+            clone: function() {
+                var copy = new this.__class__();
+                copy.id = this.id;
+                copy.stack = this.stack.slice();
+                copy.inBlock = this.inBlock;
+                copy.endBlock = this.endBlock;
+                copy.currentToken = this.currentToken;
+                return copy;
+            },
+            
+            toString: function() {
+                return "_" + this.id + "_" + (this.inBlock);
+            }
+        }),
+        
+        SimpleTokenizer = Class({
             
             constructor : function(name, token, type, style) {
                 if (name) this.name = name;
@@ -48,32 +79,25 @@
             
             clone : function(/* variable args here.. */) {
                 
-                var args = slice.call(arguments);
+                var t, i, args = slice.call(arguments), argslen = args.length;
                 
-                if (args.length)
-                {
-                    var thisClass = args.shift();
-                    
-                    var argslen = args.length;
-                    
-                    var t = new thisClass();
-                    
-                    t.name = this.name;
-                    t.type = this.type;
-                    t.isRequired = this.isRequired;
-                    t.ERROR = this.ERROR;
-                    t.actionBefore = this.actionBefore;
-                    t.actionAfter = this.actionAfter;
-                    
-                    for (var i=0; i<argslen; i++)   
-                    {
-                        t[ args[i] ] = this[ args[i] ];
-                    }
-                    
-                    return t;
-                }
+                t = new this.__class__();
+                t.name = this.name;
+                t.tokenName = this.tokenName;
+                t.token = this.token;
+                t.type = this.type;
+                t.style = this.style;
+                t.isRequired = this.isRequired;
+                t.ERROR = this.ERROR;
+                t.streamPos = this.streamPos;
+                t.stackPos = this.stackPos;
+                t.actionBefore = this.actionBefore;
+                t.actionAfter = this.actionAfter;
                 
-                return null;
+                for (i=0; i<argslen; i++)   
+                    t[ args[i] ] = this[ args[i] ];
+                
+                return t;
             },
             
             tokenize : function( stream, state, LOCALS ) {
@@ -87,7 +111,7 @@
             }
         }),
         
-        BlockTokenizer = Extends( SimpleTokenizer, {
+        BlockTokenizer = Class({Extends: SimpleTokenizer}, {
             
             constructor : function(name, token, type, style, multiline) {
                 if (name) this.name = name;
@@ -158,17 +182,16 @@
             }
         }),
                 
-        EscBlockTokenizer = Extends( BlockTokenizer, {
+        EscBlockTokenizer = Class({Extends: BlockTokenizer}, {
             
             constructor : function(name, token, type, style, escape, multiline) {
                 if (name) this.name = name;
                 if (token) this.token = token;
                 if (type) this.type = type;
                 if (style) this.style = style;
-                if (escape) this.escape = escape || "\\";
-                if (multiline) this.multiline = multiline || false;
+                this.escape = escape || "\\";
+                this.multiline = multiline || false;
                 this.endBlock = null;
-                this.isEscaped = false;
                 this.tokenName = this.name;
             },    
             
@@ -192,7 +215,6 @@
                 
                 if ( found )
                 {
-                    state.inBlock = this.name;
                     this.stackPos = state.stack.length;
                     ended = this.endBlock.match(stream);
                     
@@ -232,7 +254,7 @@
             }
         }),
                 
-        CompositeTokenizer = Extends( SimpleTokenizer, {
+        CompositeTokenizer = Class({Extends: SimpleTokenizer}, {
             
             constructor : function(name, type) {
                 if (name) this.name = name;
@@ -252,7 +274,7 @@
             }
         }),
         
-        ZeroOrOneTokens = Extends( CompositeTokenizer, {
+        ZeroOrOneTokens = Class({Extends: CompositeTokenizer}, {
                 
             constructor : function( name, tokens ) {
                 this.type = T_ZEROORONE;
@@ -275,7 +297,7 @@
             }
         }),
         
-        ZeroOrMoreTokens = Extends( CompositeTokenizer, {
+        ZeroOrMoreTokens = Class({Extends: CompositeTokenizer}, {
                 
             constructor : function( name, tokens ) {
                 this.type = T_ZEROORMORE;
@@ -317,7 +339,7 @@
             }
         }),
         
-        OneOrMoreTokens = Extends( CompositeTokenizer, {
+        OneOrMoreTokens = Class({Extends: CompositeTokenizer}, {
                 
             constructor : function( name, tokens ) {
                 this.type = T_ONEORMORE;
@@ -351,7 +373,7 @@
                         this.isRequired = false;
                         this.ERROR = false;
                         // push it to the stack for more
-                        this.pushToken( state.stack, this.clone(OneOrMoreTokens, "tokens", "foundOne") );
+                        this.pushToken( state.stack, this.clone("tokens", "foundOne") );
                         this.foundOne = false;
                         
                         return style;
@@ -368,7 +390,7 @@
             }
         }),
         
-        EitherTokens = Extends( CompositeTokenizer, {
+        EitherTokens = Class({Extends: CompositeTokenizer}, {
                 
             constructor : function( name, tokens ) {
                 this.type = T_EITHER;
@@ -409,7 +431,7 @@
             }
         }),
                 
-        AllTokens = Extends( CompositeTokenizer, {
+        AllTokens = Class({Extends: CompositeTokenizer}, {
                 
             constructor : function( name, tokens ) {
                 this.type = T_ALL;
@@ -420,7 +442,7 @@
             
             tokenize : function( stream, state, LOCALS ) {
                 
-                var token, style, n = this.tokens.length, ret = false, off=0;
+                var token, style, n = this.tokens.length, ret = false;
                 
                 this.isRequired = true;
                 this.ERROR = false;
@@ -435,9 +457,7 @@
                 {
                     this.stackPos = state.stack.length;
                     for (var i=n-1; i>0; i--)
-                    {
-                        this.pushToken( state.stack, this.tokens[i].required(true), n-i+off );
-                    }
+                        this.pushToken( state.stack, this.tokens[i].required(true), n-i );
                     
                     ret = style;
                     
@@ -456,7 +476,7 @@
             }
         }),
                 
-        NGramTokenizer = Extends( CompositeTokenizer, {
+        NGramTokenizer = Class({Extends: CompositeTokenizer}, {
                 
             constructor : function( name, tokens ) {
                 this.type = T_NGRAM;
@@ -467,7 +487,7 @@
             
             tokenize : function( stream, state, LOCALS ) {
                 
-                var token, style, n = this.tokens.length, ret = false, off=0;
+                var token, style, n = this.tokens.length, ret = false;
                 
                 this.isRequired = false;
                 this.ERROR = false;
@@ -482,9 +502,7 @@
                 {
                     this.stackPos = state.stack.length;
                     for (var i=n-1; i>0; i--)
-                    {
-                        this.pushToken( state.stack, this.tokens[i].required(true), n-i+off );
-                    }
+                        this.pushToken( state.stack, this.tokens[i].required(true), n-i );
                     
                     ret = style;
                 }
