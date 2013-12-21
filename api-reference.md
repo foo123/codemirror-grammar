@@ -5,15 +5,18 @@
 __For node with dependencies:__
 
 ```javascript
-CodeMirrorGrammar = require('build/codemirror_grammar.js')(require('build/classy.min.js'), require('build/regexanalyzer.min.js'));
+CodeMirrorGrammar = require('build/codemirror_grammar.js').CodeMirrorGrammar;
 ```
 
 __For browser with dependencies:__
 
 ```html
-<script src="../build/classy.min.js"></script>
-<script src="../build/regexanalyzer.min.js"></script>
+<script src="../build/codemirror_grammar.bundle.js"></script>
+<!-- or -->
+<script src="../build/classy.js"></script>
+<script src="../build/regexanalyzer.js"></script>
 <script src="../build/codemirror_grammar.js"></script>
+<script> // CodeMirrorGrammar.getMode(..) , etc.. </script>
 ```
 
     
