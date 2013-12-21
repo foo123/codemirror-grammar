@@ -7,16 +7,16 @@
             constructor: function( id ) {
                 this.id = id || 0;
                 this.stack = [];
+                this.t = T_DEFAULT;
                 this.inBlock = null;
                 this.endBlock = null;
-                this.currentToken = T_DEFAULT;
             },
             
             id: 0,
             stack: null,
+            t: null,
             inBlock: null,
             endBlock: null,
-            currentToken: null,
             
             clone: function() {
                 var copy = new this.$class();
@@ -24,12 +24,14 @@
                 copy.stack = this.stack.slice();
                 copy.inBlock = this.inBlock;
                 copy.endBlock = this.endBlock;
-                copy.currentToken = this.currentToken;
+                copy.t = this.t;
                 return copy;
             },
             
+            // used mostly for ACE which treats states as strings
             toString: function() {
-                return "_" + this.id + "_" + (this.inBlock)/* + "_" + ((T_ERROR == this.currentToken) ? 1 : 0)*/;
+                //return "_" + this.id + "_" + (this.inBlock);
+                return "_" + this.id + "_" + (this.t) + "_" + (this.inBlock);
             }
         })
     ;

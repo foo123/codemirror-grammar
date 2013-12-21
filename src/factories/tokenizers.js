@@ -9,12 +9,10 @@
                 if (token) this.token = token;
                 if (type) this.type = type;
                 if (style) this.style = style;
-                this.tokenName = this.name;
             },
             
             name : null,
             token : null,
-            tokenName : null,
             type : null,
             style : null,
             isRequired : false,
@@ -38,7 +36,7 @@
                 return this;
             },
             
-            pushToken : function(stack, token, i) {
+            push : function(stack, token, i) {
                 if ( this.stackPos )
                     stack.splice( this.stackPos+(i||0), 0, token );
                 else
@@ -52,7 +50,6 @@
                 
                 t = new this.$class();
                 t.name = this.name;
-                t.tokenName = this.tokenName;
                 t.token = this.token;
                 t.type = this.type;
                 t.style = this.style;
@@ -73,7 +70,7 @@
                 
                 if ( this.token.get(stream) )
                 {
-                    state.currentToken = this.type;
+                    state.t = this.type;
                     return this.style;
                 }
                 return false;
@@ -89,7 +86,6 @@
                 if (style) this.style = style;
                 this.multiline = (false!==multiline);
                 this.endBlock = null;
-                this.tokenName = this.name;
             },    
             
             multiline : false,
@@ -133,7 +129,7 @@
                     
                     if ( !ended )
                     {
-                        this.pushToken( state.stack, this );
+                        this.push( state.stack, this );
                     }
                     else
                     {
@@ -141,7 +137,7 @@
                         state.endBlock = null;
                     }
                     
-                    state.currentToken = this.type;
+                    state.t = this.type;
                     return this.style;
                 }
                 
@@ -161,7 +157,6 @@
                 this.escape = escape || "\\";
                 this.multiline = multiline || false;
                 this.endBlock = null;
-                this.tokenName = this.name;
             },    
             
             escape : "\\",
@@ -205,7 +200,7 @@
                     
                     if ( !ended )
                     {
-                        this.pushToken( state.stack, this );
+                        this.push( state.stack, this );
                     }
                     else
                     {
@@ -213,7 +208,7 @@
                         state.endBlock = null;
                     }
                     
-                    state.currentToken = this.type;
+                    state.t = this.type;
                     return this.style;
                 }
                 
@@ -228,7 +223,6 @@
             constructor : function(name, type) {
                 if (name) this.name = name;
                 if (type) this.type = type;
-                this.tokenName = this.name;
             },
             
             tokens : null,
@@ -249,7 +243,6 @@
                 this.type = T_ZEROORONE;
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
-                this.tokenName = this.name;
             },
             
             get : function( stream, state, LOCALS ) {
@@ -260,7 +253,7 @@
                 this.streamPos = stream.pos;
                 var style = this.token.get(stream, state);
                 
-                if ( token.ERROR ) stream.bck2( this.streamPos );
+                if ( this.token.ERROR ) stream.bck2( this.streamPos );
                 
                 return style;
             }
@@ -272,7 +265,6 @@
                 this.type = T_ZEROORMORE;
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
-                this.tokenName = this.name;
             },
             
             get : function( stream, state, LOCALS ) {
@@ -293,7 +285,7 @@
                     if ( false !== style )
                     {
                         // push it to the stack for more
-                        this.pushToken( state.stack, this );
+                        this.push( state.stack, this );
                         return style;
                     }
                     else if ( token.ERROR )
@@ -315,7 +307,6 @@
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
                 this.foundOne = false;
-                this.tokenName = this.name;
             },
             
             foundOne : false,
@@ -342,7 +333,7 @@
                         this.isRequired = false;
                         this.ERROR = false;
                         // push it to the stack for more
-                        this.pushToken( state.stack, this.clone("tokens", "foundOne") );
+                        this.push( state.stack, this.clone("tokens", "foundOne") );
                         this.foundOne = false;
                         
                         return style;
@@ -365,7 +356,6 @@
                 this.type = T_EITHER;
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
-                this.tokenName = this.name;
             },
             
             get : function( stream, state, LOCALS ) {
@@ -406,7 +396,6 @@
                 this.type = T_ALL;
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
-                this.tokenName = this.name;
             },
             
             get : function( stream, state, LOCALS ) {
@@ -426,7 +415,7 @@
                 {
                     this.stackPos = state.stack.length;
                     for (var i=n-1; i>0; i--)
-                        this.pushToken( state.stack, this.tokens[i].required(true), n-i );
+                        this.push( state.stack, this.tokens[i].required(true), n-i );
                     
                     ret = style;
                     
@@ -451,7 +440,6 @@
                 this.type = T_NGRAM;
                 if (name) this.name = name;
                 if (tokens) this.buildTokens( tokens );
-                this.tokenName = this.tokens[0].name;
             },
             
             get : function( stream, state, LOCALS ) {
@@ -471,7 +459,7 @@
                 {
                     this.stackPos = state.stack.length;
                     for (var i=n-1; i>0; i--)
-                        this.pushToken( state.stack, this.tokens[i].required(true), n-i );
+                        this.push( state.stack, this.tokens[i].required(true), n-i );
                     
                     ret = style;
                 }

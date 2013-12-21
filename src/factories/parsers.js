@@ -7,28 +7,26 @@
             constructor: function(grammar, LOCALS) {
                 this.LOC = LOCALS;
                 this.Grammar = grammar;
-                this.Style = grammar.Style || {};
                 this.Comments = grammar.Comments || {};
-                this.electricChars = (grammar.electricChars) ? grammar.electricChars : false;
-                this.tokens = grammar.Parser || [];
+                this.Tokens = grammar.Parser || [];
                 this.DEF = this.LOC.DEFAULT;
-                this.ERR = this.Style.error || this.LOC.ERROR;
+                this.ERR = (grammar.Style && grammar.Style.error) ? grammar.Style.error : this.LOC.ERROR;
+                this.electricChars = (grammar.electricChars) ? grammar.electricChars : false;
             },
             
             LOC: null,
             ERR: null,
             DEF: null,
             Grammar: null,
-            Style: null,
             Comments: null,
+            Tokens: null,
             electricChars: false,
-            tokens: null,
             
             // Codemirror Tokenizer compatible
             getToken: function(stream_, state) {
                 
                 var i,
-                    tokenizer, type, numTokens = this.tokens.length, 
+                    t, type, tokens = this.Tokens, numTokens = tokens.length, 
                     stream, stack,
                     LOC = this.LOC,
                     DEFAULT = this.DEF,
@@ -36,31 +34,31 @@
                 ;
                 
                 stack = state.stack;
-                stream = new StringStream().fromStream( stream_ );
+                stream = new ParserStream().fromStream( stream_ );
                 
-                if ( stream.space() ) 
+                if ( stream.spc() ) 
                 {
-                    state.currentToken = T_DEFAULT;
+                    state.t = T_DEFAULT;
                     return DEFAULT;
                 }
                 
                 while ( stack.length )
                 {
-                    tokenizer = stack.pop();
-                    type = tokenizer.get(stream, state, LOC);
+                    t = stack.pop();
+                    type = t.get(stream, state, LOC);
                     
                     // match failed
                     if ( false === type )
                     {
                         // error
-                        if ( tokenizer.ERROR || tokenizer.isRequired )
+                        if ( t.ERROR || t.isRequired )
                         {
                             // empty the stack
                             stack.length = 0;
                             // skip this character
                             stream.nxt();
                             // generate error
-                            state.currentToken = T_ERROR;
+                            state.t = T_ERROR;
                             return ERROR;
                         }
                         // optional
@@ -78,21 +76,21 @@
                 
                 for (i=0; i<numTokens; i++)
                 {
-                    tokenizer = this.tokens[i];
-                    type = tokenizer.get(stream, state, LOC);
+                    t = tokens[i];
+                    type = t.get(stream, state, LOC);
                     
                     // match failed
                     if ( false === type )
                     {
                         // error
-                        if ( tokenizer.ERROR || tokenizer.isRequired )
+                        if ( t.ERROR || t.isRequired )
                         {
                             // empty the stack
                             stack.length = 0;
                             // skip this character
                             stream.nxt();
                             // generate error
-                            state.currentToken = T_ERROR;
+                            state.t = T_ERROR;
                             return ERROR;
                         }
                         // optional
@@ -110,7 +108,7 @@
                 
                 // unknown, bypass
                 stream.nxt();
-                state.currentToken = T_DEFAULT;
+                state.t = T_DEFAULT;
                 return DEFAULT;
             },
             

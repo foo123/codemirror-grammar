@@ -2,8 +2,8 @@
     //
     // Stream Class
     var
-        // a wrapper-class to manipulate a string as a stream, based on Codemirror StringStream
-        StringStream = Class({
+        // a wrapper-class to manipulate a string as a stream, based on Codemirror's StringStream
+        ParserStream = Class({
             
             constructor: function( line ) {
                 this.string = (line) ? ''+line : '';
@@ -23,6 +23,8 @@
                 this.pos = stream.pos;
                 return this;
             },
+            
+            // abbreviations used for optimal minification
             
             // string start?
             sol: function( ) { 
@@ -96,14 +98,14 @@
             },
             
             // general pattern match
-            mch: function(pattern, consume, caseInsensitive, group) {
+            mch: function(pattern, eat, caseInsensitive, group) {
                 if (typeof pattern == "string") 
                 {
                     var cased = function(str) {return caseInsensitive ? str.toLowerCase() : str;};
                     var substr = this.string.substr(this.pos, pattern.length);
                     if (cased(substr) == cased(pattern)) 
                     {
-                        if (consume !== false) this.pos += pattern.length;
+                        if (eat !== false) this.pos += pattern.length;
                         return true;
                     }
                 } 
@@ -112,7 +114,7 @@
                     group = group || 0;
                     var match = this.string.slice(this.pos).match(pattern);
                     if (match && match.index > 0) return null;
-                    if (match && consume !== false) this.pos += match[group].length;
+                    if (match && eat !== false) this.pos += match[group].length;
                     return match;
                 }
             },
@@ -149,7 +151,7 @@
                 return this;
             },
             
-            // back-track to this pos
+            // back-track to pos
             bck2: function( pos ) {
                 this.pos = pos;
                 if ( this.stream )
@@ -158,9 +160,10 @@
             },
             
             // eat space
-            space: function( ) {
-                var start = this.pos;
-                while (/[\s\u00a0]/.test(this.string.charAt(this.pos))) ++this.pos;
+            spc: function( ) {
+                var start = this.pos, pos = this.pos;
+                while (/[\s\u00a0]/.test(this.string.charAt(pos))) ++pos;
+                this.pos = pos;
                 if ( this.stream )
                     this.stream.pos = this.pos;
                 return this.pos > start;
