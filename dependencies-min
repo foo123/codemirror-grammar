@@ -34,15 +34,7 @@
 #@PREPROCESS
 
 @REPLACE ={}
-    "@@VERSION@@" = "0.5"
-@ # end block
-
-# extract documentation from the source (map)
-@DOC ={}
-    "STARTDOC" = "/**[DOC_MARKDOWN]"
-    "ENDDOC" = "[/DOC_MARKDOWN]**/"
-    "TRIMX" = "\\s*\\*[ ]?"
-    "OUTPUT" = "./api-reference.md"
+    "@@VERSION@@" = "0.5.1"
 @ # end block
 
 # Minify the Package (map of lists)

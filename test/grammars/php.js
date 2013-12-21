@@ -40,7 +40,7 @@ var php_grammar = {
             
             // comments
             "comment" : {
-                "type" : "block",
+                "type" : "comment",
                 "tokens" : [
                     // line comments, null delim matches the end-of-line
                     [ "//", null ],

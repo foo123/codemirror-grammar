@@ -35,7 +35,7 @@
         parse = function(grammar) {
             var RegExpID, RegExpGroups, tokens, numTokens, _tokens, 
                 Style, Lex, Syntax, t, tokenID, token, tok,
-                parsedRegexes = {}, parsedMatchers = {}, parsedTokens = {};
+                parsedRegexes = {}, parsedMatchers = {}, parsedTokens = {}, comments = {};
             
             // grammar is parsed, return it
             // avoid reparsing already parsed grammars
@@ -71,7 +71,7 @@
             {
                 tokenID = _tokens[ t ];
                 
-                token = getTokenizer( tokenID, RegExpID, RegExpGroups, Lex, Syntax, Style, parsedRegexes, parsedMatchers, parsedTokens ) || null;
+                token = getTokenizer( tokenID, RegExpID, RegExpGroups, Lex, Syntax, Style, parsedRegexes, parsedMatchers, parsedTokens, comments ) || null;
                 
                 if ( token )
                 {
@@ -85,6 +85,7 @@
             
             grammar.Parser = tokens;
             grammar.Style = Style;
+            grammar.Comments = comments;
             
             // this grammar is parsed
             grammar.__parsed = true;

@@ -35,7 +35,7 @@
 
 # do any replacements to the source (map)
 @REPLACE ={}
-    "@@VERSION@@" = "0.5"
+    "@@VERSION@@" = "0.5.1"
 @ # end block
 
 # TODO, allow some post-process to take place

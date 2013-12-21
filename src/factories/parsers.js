@@ -6,17 +6,21 @@
             
             constructor: function(grammar, LOCALS) {
                 this.LOC = LOCALS;
+                this.Grammar = grammar;
                 this.Style = grammar.Style || {};
+                this.Comments = grammar.Comments || {};
                 this.electricChars = (grammar.electricChars) ? grammar.electricChars : false;
+                this.tokens = grammar.Parser || [];
                 this.DEF = this.LOC.DEFAULT;
                 this.ERR = this.Style.error || this.LOC.ERROR;
-                this.tokens = grammar.Parser || [];
             },
             
             LOC: null,
             ERR: null,
             DEF: null,
+            Grammar: null,
             Style: null,
+            Comments: null,
             electricChars: false,
             tokens: null,
             
@@ -136,19 +140,24 @@
                     
                     electricChars: parser.electricChars,
                     
-                    /*
-                    // maybe needed in later versions..
-                    
-                    blankLine: function( state ) { },
-                    
-                    innerMode: function( state ) { },
-                    */
+                    lineComment: (parser.Comments.lineCommentStart) ? parser.Comments.lineCommentStart[0] : null,
+                    blockCommentStart: (parser.Comments.blockCommentStart) ? parser.Comments.blockCommentStart[0] : null,
+                    blockCommentEnd: (parser.Comments.blockCommentEnd) ? parser.Comments.blockCommentEnd[0] : null,
+                    blockCommentLead: (parser.Comments.blockCommentLead) ? parser.Comments.blockCommentLead[0] : null,
                     
                     copyState: function( state ) { return state.clone(); },
                     
                     token: function(stream, state) { return parser.getToken(stream, state); },
                     
                     indent: function(state, textAfter, fullLine) { return parser.indent(state, textAfter, fullLine); }
+                    
+                    /*
+                    // maybe needed in later versions..
+                    
+                    blankLine: function( state ) { },
+                    
+                    innerMode: function( state ) { }
+                    */
                 };
                 
             };

@@ -39,7 +39,7 @@ var js_grammar = {
         
         // comments
         "comment" : {
-            "type" : "block",
+            "type" : "comment",
             "tokens" : [
                 // line comment
                 // start, end delims  (null matches end-of-line)
