@@ -37,6 +37,7 @@
         T_SIMPLE = 16,
         T_ESCBLOCK = 32,
         T_BLOCK = 64,
+        T_COMMENT = 65,
         T_EITHER = 128,
         T_ALL = 256,
         T_ZEROORONE = 512,
@@ -52,6 +53,6 @@
         },
         
         tokenTypes = {
-            "BLOCK" : T_BLOCK, "ESCAPED-BLOCK" : T_ESCBLOCK, "SIMPLE" : T_SIMPLE, "GROUP" : T_GROUP, "NGRAM" : T_NGRAM, "N-GRAM" : T_NGRAM
+            "BLOCK" : T_BLOCK, "COMMENT" : T_COMMENT, "ESCAPED-BLOCK" : T_ESCBLOCK, "SIMPLE" : T_SIMPLE, "GROUP" : T_GROUP, "NGRAM" : T_NGRAM, "N-GRAM" : T_NGRAM
         }
     ;

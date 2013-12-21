@@ -2,34 +2,39 @@
     //
     // parser factories
     var
-        Parser = Class({
+        CodemirrorParser = Class({
             
             constructor: function(grammar, LOCALS) {
-                this.LOCALS = LOCALS;
+                this.LOC = LOCALS;
                 this.Style = grammar.Style || {};
+                this.electricChars = (grammar.electricChars) ? grammar.electricChars : false;
+                this.DEF = this.LOC.DEFAULT;
+                this.ERR = this.Style.error || defaultGrammar.Style.error;
                 this.tokens = grammar.Parser || [];
             },
             
-            LOCALS: null,
+            LOC: null,
+            ERR: null,
+            DEF: null,
             Style: null,
+            electricChars: false,
             tokens: null,
             
             // Codemirror Tokenizer compatible
-            getToken: function(_stream, state) {
+            getToken: function(stream_, state) {
                 
                 var i,
                     tokenizer, type, numTokens = this.tokens.length, 
-                    stream, stack
+                    stream, stack,
+                    LOC = this.LOC,
+                    DEFAULT = this.DEF,
+                    ERROR = this.ERR
                 ;
                 
-                
-                var DEFAULT = this.LOCALS.DEFAULT;
-                var ERROR = this.Style.error || "error";
-                
                 stack = state.stack;
-                stream = new StringStream(null, _stream);
+                stream = new StringStream().fromStream( stream_ );
                 
-                if ( stream.eatSpace() ) 
+                if ( stream.space() ) 
                 {
                     state.currentToken = T_DEFAULT;
                     return DEFAULT;
@@ -38,7 +43,7 @@
                 while ( stack.length )
                 {
                     tokenizer = stack.pop();
-                    type = tokenizer.tokenize(stream, state, this.LOCALS);
+                    type = tokenizer.get(stream, state, LOC);
                     
                     // match failed
                     if ( false === type )
@@ -49,7 +54,7 @@
                             // empty the stack
                             stack.length = 0;
                             // skip this character
-                            stream.next();
+                            stream.nxt();
                             // generate error
                             state.currentToken = T_ERROR;
                             return ERROR;
@@ -70,7 +75,7 @@
                 for (i=0; i<numTokens; i++)
                 {
                     tokenizer = this.tokens[i];
-                    type = tokenizer.tokenize(stream, state, this.LOCALS);
+                    type = tokenizer.get(stream, state, LOC);
                     
                     // match failed
                     if ( false === type )
@@ -81,7 +86,7 @@
                             // empty the stack
                             stack.length = 0;
                             // skip this character
-                            stream.next();
+                            stream.nxt();
                             // generate error
                             state.currentToken = T_ERROR;
                             return ERROR;
@@ -100,19 +105,52 @@
                 }
                 
                 // unknown, bypass
-                stream.next();
+                stream.nxt();
                 state.currentToken = T_DEFAULT;
                 return DEFAULT;
+            },
+            
+            indent : function(state, textAfter, fullLine) {
+                // TODO
+                return CodeMirror.Pass;
             }
         }),
         
         getParser = function(grammar, LOCALS) {
-            return new Parser(grammar, LOCALS);
+            return new CodemirrorParser(grammar, LOCALS);
         },
         
-        getIndentation = function(LOCALS) {
-            return function(state, textAfter, fullLine) {
-                return CodeMirror.Pass;
+        getCodemirrorMode = function(parser) {
+                
+            //var startState = new ParserState();
+            
+            // Codemirror-compatible Mode
+            return function(conf, parserConf) {
+                
+                parser.LOC.conf = conf;
+                parser.LOC.parserConf = parserConf;
+                
+                // return the (codemirror) parser mode for the grammar
+                return  {
+                    startState: function( ) { return new ParserState(); },
+                    
+                    electricChars: parser.electricChars,
+                    
+                    /*
+                    // maybe needed in later versions..
+                    
+                    blankLine: function( state ) { },
+                    
+                    innerMode: function( state ) { },
+                    */
+                    
+                    copyState: function( state ) { return state.clone(); },
+                    
+                    token: function(stream, state) { return parser.getToken(stream, state); },
+                    
+                    indent: function(state, textAfter, fullLine) { return parser.indent(state, textAfter, fullLine); }
+                };
+                
             };
         }
     ;

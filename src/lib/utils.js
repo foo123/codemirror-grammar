@@ -93,5 +93,56 @@
                 }
             }
             return o;
+        },
+        
+        ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
+        
+        byLength = function(a, b) { return b.length - a.length },
+        
+        hasPrefix = function(s, id) {
+            return (
+                (T_STR & get_type(id)) && (T_STR & get_type(s)) && id.length &&
+                id.length <= s.length && id == s.substr(0, id.length)
+            );
+        },
+        
+        getRegexp = function(r, rid, parsedRegexes)  {
+            if ( !r || (T_NUM == get_type(r)) ) return r;
+            
+            var l = (rid) ? (rid.length||0) : 0;
+            
+            if ( l && rid == r.substr(0, l) ) 
+            {
+                var regexID = "^(" + r.substr(l) + ")", regex, peek, analyzer;
+                
+                if ( !parsedRegexes[ regexID ] )
+                {
+                    regex = new RegExp( regexID );
+                    analyzer = new RegexAnalyzer( regex ).analyze();
+                    peek = analyzer.getPeekChars();
+                    if ( !Object.keys(peek.peek).length )  peek.peek = null;
+                    if ( !Object.keys(peek.negativepeek).length )  peek.negativepeek = null;
+                    
+                    // shared, light-weight
+                    parsedRegexes[ regexID ] = [ regex, peek ];
+                }
+                
+                return parsedRegexes[ regexID ];
+            }
+            else
+            {
+                return r;
+            }
+        },
+        
+        getCombinedRegexp = function(tokens, boundary)  {
+            var peek = { }, i, l, b = "";
+            if ( T_STR == get_type(boundary)) b = boundary;
+            for (i=0, l=tokens.length; i<l; i++) 
+            {
+                peek[ tokens[i].charAt(0) ] = 1;
+                tokens[i] = tokens[i].replace(ESC, '\\$1');
+            }
+            return [ new RegExp("^(" + tokens.sort( byLength ).join( "|" ) + ")"+b), { peek: peek, negativepeek: null }, 1 ];
         }
     ;

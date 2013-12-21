@@ -1,57 +1,7 @@
     
     //
     // matcher factories
-    var ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
-        
-        byLength = function(a, b) { return b.length - a.length },
-        
-        hasPrefix = function(s, id) {
-            return (
-                (T_STR & get_type(id)) && (T_STR & get_type(s)) && id.length &&
-                id.length <= s.length && id == s.substr(0, id.length)
-            );
-        },
-        
-        getRegexp = function(r, rid, parsedRegexes)  {
-            if ( !r || (T_NUM == get_type(r)) ) return r;
-            
-            var l = (rid) ? (rid.length||0) : 0;
-            
-            if ( l && rid == r.substr(0, l) ) 
-            {
-                var regexID = "^(" + r.substr(l) + ")", regex, peek, analyzer;
-                
-                if ( !parsedRegexes[ regexID ] )
-                {
-                    regex = new RegExp( regexID );
-                    analyzer = new RegexAnalyzer( regex ).analyze();
-                    peek = analyzer.getPeekChars();
-                    if ( !Object.keys(peek.peek).length )  peek.peek = null;
-                    if ( !Object.keys(peek.negativepeek).length )  peek.negativepeek = null;
-                    
-                    // shared, light-weight
-                    parsedRegexes[ regexID ] = [ regex, peek ];
-                }
-                
-                return parsedRegexes[ regexID ];
-            }
-            else
-            {
-                return r;
-            }
-        },
-        
-        getCombinedRegexp = function(tokens, boundary)  {
-            var peek = { }, i, l, b = "";
-            if ( T_STR == get_type(boundary)) b = boundary;
-            for (i=0, l=tokens.length; i<l; i++) 
-            {
-                peek[ tokens[i].charAt(0) ] = 1;
-                tokens[i] = tokens[i].replace(ESC, '\\$1');
-            }
-            return [ new RegExp("^(" + tokens.sort( byLength ).join( "|" ) + ")"+b), { peek: peek, negativepeek: null }, 1 ];
-        },
-        
+    var 
         DummyMatcher = Class({
             
             constructor : function(name, pattern, key, type) {
@@ -76,7 +26,7 @@
                 return s;
             },
             
-            match : function(stream, eat) { 
+            get : function(stream, eat) { 
                 return [ this.key, this.pattern ];
             }
         }),
@@ -92,9 +42,9 @@
                 this.key = key || 0;
             },
             
-            match : function(stream, eat) {
+            get : function(stream, eat) {
                 var match;    
-                if ( match = stream.matchChar(this.pattern, eat) )
+                if ( match = stream.chr(this.pattern, eat) )
                     return [ this.key, match ];
                 return false;
             }
@@ -111,9 +61,9 @@
                 this.key = key || 0;
             },
             
-            match : function(stream, eat) {
+            get : function(stream, eat) {
                 var match;    
-                if ( match = stream.matchStr(this.pattern, this.peek, eat) )
+                if ( match = stream.str(this.pattern, this.peek, eat) )
                     return [ this.key, match ];
                 return false;
             }
@@ -132,9 +82,9 @@
             
             isComposite : 0,
             
-            match : function(stream, eat) {
+            get : function(stream, eat) {
                 var match;    
-                if ( match = stream.matchRegex(this.pattern, this.peek, eat, this.isComposite) )
+                if ( match = stream.rex(this.pattern, this.peek, eat, this.isComposite) )
                     return [ this.key, match ];
                 return false;
             }
@@ -148,9 +98,69 @@
                 this.key = key || 0;
             },
             
-            match : function(stream, eat) { 
-                if (false !== eat) stream.skipToEnd(); // skipToEnd
+            get : function(stream, eat) { 
+                if (false !== eat) stream.end(); // skipToEnd
                 return [ this.key, "" ];
+            }
+        }),
+        
+        CompositeMatcher = Class({Extends: DummyMatcher}, {
+            
+            constructor : function(name, matchers, useOwnKey) {
+                this.name = name;
+                this.matchers = matchers;
+                this.type = T_COMPOSITEMATCHER;
+                this.ownKey = (false!==useOwnKey);
+            },
+            
+            matchers : null,
+            ownKey : true,
+            
+            get : function(stream, eat) {
+                var i, m, matchers = this.matchers, l = matchers.length;
+                for (i=0; i<l; i++)
+                {
+                    // each one is a custom matcher in its own
+                    m = matchers[i].get(stream, eat);
+                    if ( m ) return ( this.ownKey ) ? [ i, m[1] ] : m;
+                }
+                return false;
+            }
+        }),
+        
+        BlockMatcher = Class({Extends: DummyMatcher}, {
+            
+            constructor : function(name, start, end) {
+                this.name = name;
+                this.type = T_BLOCKMATCHER;
+                this.start = new CompositeMatcher(this.name + '_StartMatcher', start, false);
+                this.pattern = this.start.pattern || null;
+                this.end = end;
+            },
+            
+            start : null,
+            end : null,
+            
+            get : function(stream, eat) {
+                    
+                var token = this.start.get(stream, eat);
+                
+                if ( token )
+                {
+                    var endMatcher = this.end[ token[0] ];
+                    
+                    // regex given, get the matched group for the ending of this block
+                    if ( T_NUM == get_type( endMatcher ) )
+                    {
+                        // the regex is wrapped in an additional group, 
+                        // add 1 to the requested regex group transparently
+                        endMatcher = new StrMatcher( this.name + '_EndMatcher', token[1][ endMatcher+1 ] );
+                    }
+                    
+                    return endMatcher;
+                }
+                
+                return false;
             }
         }),
         
@@ -185,41 +195,6 @@
             
             return parsedMatchers[ name ];
         },
-        
-        CompositeMatcher = Class({Extends: DummyMatcher}, {
-            
-            constructor : function(name, matchers, useOwnKey) {
-                this.name = name;
-                this.matchers = matchers;
-                this.type = T_COMPOSITEMATCHER;
-                this.useOwnKey = (false!==useOwnKey);
-            },
-            
-            matchers : null,
-            useOwnKey : true,
-            
-            test : function(str) {
-                var i, m, matchers = this.matchers, l = matchers.length;
-                for (i=0; i<l; i++)
-                {
-                    // each one is a custom matcher in its own
-                    m = matchers[i].test(str);
-                    if ( m ) return true;
-                }
-                return false;
-            },
-            
-            match : function(stream, eat) {
-                var i, m, matchers = this.matchers, l = matchers.length;
-                for (i=0; i<l; i++)
-                {
-                    // each one is a custom matcher in its own
-                    m = matchers[i].match(stream, eat);
-                    if ( m ) return ( this.useOwnKey ) ? [ i, m[1] ] : m;
-                }
-                return false;
-            }
-        }),
         
         getCompositeMatcher = function(tokenID, tokens, RegExpID, isRegExpGroup, parsedRegexes, parsedMatchers) {
             
@@ -274,46 +249,6 @@
             
             return parsedMatchers[ name ];
         },
-        
-        BlockMatcher = Class({Extends: DummyMatcher}, {
-            
-            constructor : function(name, start, end) {
-                this.name = name;
-                this.type = T_BLOCKMATCHER;
-                this.start = new CompositeMatcher(this.name + '_StartMatcher', start, false);
-                this.pattern = this.start.pattern || null;
-                this.end = end;
-            },
-            
-            start : null,
-            end : null,
-            
-            test : function(str) {
-                return this.start.test(str);
-            },
-            
-            match : function(stream, eat) {
-                    
-                var token = this.start.match(stream, eat);
-                
-                if ( token )
-                {
-                    var endMatcher = this.end[ token[0] ];
-                    
-                    // regex given, get the matched group for the ending of this block
-                    if ( T_NUM == get_type( endMatcher ) )
-                    {
-                        // the regex is wrapped in an additional group, 
-                        // add 1 to the requested regex group transparently
-                        endMatcher = new StrMatcher( this.name + '_EndMatcher', token[1][ endMatcher+1 ] );
-                    }
-                    
-                    return endMatcher;
-                }
-                
-                return false;
-            }
-        }),
         
         getBlockMatcher = function(tokenID, tokens, RegExpID, parsedRegexes, parsedMatchers) {
             var tmp, i, l, start, end, t1, t2;

@@ -2,37 +2,6 @@
     //
     // tokenizer factories
     var
-        StateContext = Class({
-            
-            constructor: function( id ) {
-                this.id = id || 0;
-                this.stack = [];
-                this.inBlock = null;
-                this.endBlock = null;
-                this.currentToken = T_DEFAULT;
-            },
-            
-            id: 0,
-            stack: null,
-            inBlock: null,
-            endBlock: null,
-            currentToken: null,
-            
-            clone: function() {
-                var copy = new this.__class__();
-                copy.id = this.id;
-                copy.stack = this.stack.slice();
-                copy.inBlock = this.inBlock;
-                copy.endBlock = this.endBlock;
-                copy.currentToken = this.currentToken;
-                return copy;
-            },
-            
-            toString: function() {
-                return "_" + this.id + "_" + (this.inBlock);
-            }
-        }),
-        
         SimpleTokenizer = Class({
             
             constructor : function(name, token, type, style) {
@@ -81,7 +50,7 @@
                 
                 var t, i, args = slice.call(arguments), argslen = args.length;
                 
-                t = new this.__class__();
+                t = new this.$class();
                 t.name = this.name;
                 t.tokenName = this.tokenName;
                 t.token = this.token;
@@ -100,9 +69,9 @@
                 return t;
             },
             
-            tokenize : function( stream, state, LOCALS ) {
+            get : function( stream, state, LOCALS ) {
                 
-                if ( this.token.match(stream) )
+                if ( this.token.get(stream) )
                 {
                     state.currentToken = this.type;
                     return this.style;
@@ -126,7 +95,7 @@
             multiline : false,
             endBlock : null,
             
-            tokenize : function( stream, state, LOCALS ) {
+            get : function( stream, state, LOCALS ) {
             
                 var ended = false, found = false;
                 
@@ -135,7 +104,7 @@
                     found = true;
                     this.endBlock = state.endBlock;
                 }    
-                else if ( !state.inBlock && (this.endBlock = this.token.match(stream)) )
+                else if ( !state.inBlock && (this.endBlock = this.token.get(stream)) )
                 {
                     found = true;
                     state.inBlock = this.name;
@@ -145,18 +114,18 @@
                 if ( found )
                 {
                     this.stackPos = state.stack.length;
-                    ended = this.endBlock.match(stream);
+                    ended = this.endBlock.get(stream);
                     
                     while ( !ended && !stream.eol() ) 
                     {
-                        if ( this.endBlock.match(stream) ) 
+                        if ( this.endBlock.get(stream) ) 
                         {
                             ended = true;
                             break;
                         }
                         else  
                         {
-                            stream.next();
+                            stream.nxt();
                         }
                     }
                     
@@ -197,7 +166,7 @@
             
             escape : "\\",
             
-            tokenize : function( stream, state, LOCALS ) {
+            get : function( stream, state, LOCALS ) {
             
                 var next = "", ended = false, found = false, isEscaped = false;
                 
@@ -206,7 +175,7 @@
                     found = true;
                     this.endBlock = state.endBlock;
                 }    
-                else if ( !state.inBlock && (this.endBlock = this.token.match(stream)) )
+                else if ( !state.inBlock && (this.endBlock = this.token.get(stream)) )
                 {
                     found = true;
                     state.inBlock = this.name;
@@ -216,18 +185,18 @@
                 if ( found )
                 {
                     this.stackPos = state.stack.length;
-                    ended = this.endBlock.match(stream);
+                    ended = this.endBlock.get(stream);
                     
                     while ( !ended && !stream.eol() ) 
                     {
-                        if ( !isEscaped && this.endBlock.match(stream) ) 
+                        if ( !isEscaped && this.endBlock.get(stream) ) 
                         {
                             ended = true; 
                             break;
                         }
                         else  
                         {
-                            next = stream.next();
+                            next = stream.nxt();
                         }
                         isEscaped = !isEscaped && next == this.escape;
                     }
@@ -283,15 +252,15 @@
                 this.tokenName = this.name;
             },
             
-            tokenize : function( stream, state, LOCALS ) {
+            get : function( stream, state, LOCALS ) {
                 
                 // this is optional
                 this.isRequired = false;
                 this.ERROR = false;
                 this.streamPos = stream.pos;
-                var style = this.token.tokenize(stream, state);
+                var style = this.token.get(stream, state);
                 
-                if ( token.ERROR ) stream.backTo( this.streamPos );
+                if ( token.ERROR ) stream.bck2( this.streamPos );
                 
                 return style;
             }
@@ -306,7 +275,7 @@
                 this.tokenName = this.name;
             },
             
-            tokenize : function( stream, state, LOCALS ) {
+            get : function( stream, state, LOCALS ) {
             
                 var i, token, style, n = this.tokens.length, tokensErr = 0, ret = false;
                 
@@ -319,7 +288,7 @@
                 for (i=0; i<n; i++)
                 {
                     token = this.tokens[i];
-                    style = token.tokenize(stream, state, LOCALS);
+                    style = token.get(stream, state, LOCALS);
                     
                     if ( false !== style )
                     {
@@ -330,7 +299,7 @@
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        stream.backTo( this.streamPos );
+                        stream.bck2( this.streamPos );
                     }
                 }
                 
@@ -351,7 +320,7 @@
             
             foundOne : false,
             
-            tokenize : function( stream, state, LOCALS ) {
+            get : function( stream, state, LOCALS ) {
         
                 var style, token, i, n = this.tokens.length, tokensRequired = 0, tokensErr = 0;
                 
@@ -363,7 +332,7 @@
                 for (i=0; i<n; i++)
                 {
                     token = this.tokens[i];
-                    style = token.tokenize(stream, state, LOCALS);
+                    style = token.get(stream, state, LOCALS);
                     
                     tokensRequired += (token.isRequired) ? 1 : 0;
                     
@@ -381,7 +350,7 @@
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        stream.backTo( this.streamPos );
+                        stream.bck2( this.streamPos );
                     }
                 }
                 
@@ -399,7 +368,7 @@
                 this.tokenName = this.name;
             },
             
-            tokenize : function( stream, state, LOCALS ) {
+            get : function( stream, state, LOCALS ) {
             
                 var style, token, i, n = this.tokens.length, tokensRequired = 0, tokensErr = 0;
                 
@@ -410,7 +379,7 @@
                 for (i=0; i<n; i++)
                 {
                     token = this.tokens[i];
-                    style = token.tokenize(stream, state, LOCALS);
+                    style = token.get(stream, state, LOCALS);
                     
                     tokensRequired += (token.isRequired) ? 1 : 0;
                     
@@ -421,7 +390,7 @@
                     else if ( token.ERROR )
                     {
                         tokensErr++;
-                        stream.backTo( this.streamPos );
+                        stream.bck2( this.streamPos );
                     }
                 }
                 
@@ -440,7 +409,7 @@
                 this.tokenName = this.name;
             },
             
-            tokenize : function( stream, state, LOCALS ) {
+            get : function( stream, state, LOCALS ) {
                 
                 var token, style, n = this.tokens.length, ret = false;
                 
@@ -451,7 +420,7 @@
                 
                 
                 token = this.tokens[ 0 ];
-                style = token.required(true).tokenize(stream, state, LOCALS);
+                style = token.required(true).get(stream, state, LOCALS);
                 
                 if ( false !== style )
                 {
@@ -465,7 +434,7 @@
                 else if ( token.ERROR )
                 {
                     this.ERROR = true;
-                    stream.backTo( this.streamPos );
+                    stream.bck2( this.streamPos );
                 }
                 else if ( token.isRequired )
                 {
@@ -485,7 +454,7 @@
                 this.tokenName = this.tokens[0].name;
             },
             
-            tokenize : function( stream, state, LOCALS ) {
+            get : function( stream, state, LOCALS ) {
                 
                 var token, style, n = this.tokens.length, ret = false;
                 
@@ -496,7 +465,7 @@
                 
                 
                 token = this.tokens[ 0 ];
-                style = token.required(false).tokenize(stream, state, LOCALS);
+                style = token.required(false).get(stream, state, LOCALS);
                 
                 if ( false !== style )
                 {
@@ -509,7 +478,7 @@
                 else if ( token.ERROR )
                 {
                     //this.ERROR = true;
-                    stream.backTo( this.streamPos );
+                    stream.bck2( this.streamPos );
                 }
                 
                 return ret;
@@ -530,7 +499,7 @@
                     type = tokenTypes[ type.toUpperCase() ];
                     action = tok.action || null;
                     
-                    if ( T_BLOCK == type )
+                    if ( T_BLOCK == type || T_COMMENT == type )
                     {
                         token = new BlockTokenizer( 
                                     tokenID,

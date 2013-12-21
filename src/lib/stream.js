@@ -5,19 +5,10 @@
         // a wrapper-class to manipulate a string as a stream, based on Codemirror StringStream
         StringStream = Class({
             
-            constructor: function( line, stream ) {
-                if (stream)
-                {
-                    this.stream = stream;
-                    this.string = ''+stream.string;
-                    this.start = stream.start;
-                    this.pos = stream.pos;
-                }
-                else
-                {
-                    this.string = ''+line;
-                    this.start = this.pos = 0;
-                }
+            constructor: function( line ) {
+                this.string = (line) ? ''+line : '';
+                this.start = this.pos = 0;
+                this.stream = null;
             },
             
             stream: null,
@@ -25,15 +16,26 @@
             start: 0,
             pos: 0,
             
+            fromStream: function( stream ) {
+                this.stream = stream;
+                this.string = ''+stream.string;
+                this.start = stream.start;
+                this.pos = stream.pos;
+                return this;
+            },
+            
+            // string start?
             sol: function( ) { 
                 return 0 == this.pos; 
             },
             
+            // string ended?
             eol: function( ) { 
                 return this.pos >= this.string.length; 
             },
             
-            matchChar : function(pattern, eat) {
+            // char match
+            chr : function(pattern, eat) {
                 eat = (false !== eat);
                 var ch = this.string.charAt(this.pos) || '';
                 
@@ -50,7 +52,8 @@
                 return false;
             },
             
-            matchStr : function(pattern, chars, eat) {
+            // string match
+            str : function(pattern, chars, eat) {
                 eat = (false !== eat);
                 var pos = this.pos, ch = this.string.charAt(pos);
                 
@@ -71,7 +74,8 @@
                 return false;
             },
             
-            matchRegex : function(pattern, chars, eat, group) {
+            // regex match
+            rex : function(pattern, chars, eat, group) {
                 eat = (false !== eat);
                 group = group || 0;
                 var pos = this.pos, ch = this.string.charAt(pos);
@@ -91,22 +95,43 @@
                 return false;
             },
             
-            /*matchEol: function() { 
-                return true;
-            },*/
+            // general pattern match
+            mch: function(pattern, consume, caseInsensitive, group) {
+                if (typeof pattern == "string") 
+                {
+                    var cased = function(str) {return caseInsensitive ? str.toLowerCase() : str;};
+                    var substr = this.string.substr(this.pos, pattern.length);
+                    if (cased(substr) == cased(pattern)) 
+                    {
+                        if (consume !== false) this.pos += pattern.length;
+                        return true;
+                    }
+                } 
+                else 
+                {
+                    group = group || 0;
+                    var match = this.string.slice(this.pos).match(pattern);
+                    if (match && match.index > 0) return null;
+                    if (match && consume !== false) this.pos += match[group].length;
+                    return match;
+                }
+            },
             
-            skipToEnd: function() {
-                this.pos = this.string.length; // skipToEnd
+            // skip to end
+            end: function() {
+                this.pos = this.string.length;
                 if ( this.stream )
                     this.stream.pos = this.pos;
                 return this;
             },
             
-            peek: function( ) { 
-                return this.string.charAt(this.pos) || undef; 
+            // peek next char
+            pk: function( ) { 
+                return this.string.charAt(this.pos); 
             },
             
-            next: function( ) {
+            // get next char
+            nxt: function( ) {
                 if (this.pos < this.string.length)
                 {
                     var ch = this.string.charAt(this.pos++);
@@ -114,24 +139,26 @@
                         this.stream.pos = this.pos;
                     return ch;
                 }
-                return undef;
             },
             
-            backUp: function( n ) {
+            // back-up n steps
+            bck: function( n ) {
                 this.pos -= n;
                 if ( this.stream )
                     this.stream.pos = this.pos;
                 return this;
             },
             
-            backTo: function( pos ) {
+            // back-track to this pos
+            bck2: function( pos ) {
                 this.pos = pos;
                 if ( this.stream )
                     this.stream.pos = this.pos;
                 return this;
             },
             
-            eatSpace: function( ) {
+            // eat space
+            space: function( ) {
                 var start = this.pos;
                 while (/[\s\u00a0]/.test(this.string.charAt(this.pos))) ++this.pos;
                 if ( this.stream )
@@ -139,11 +166,13 @@
                 return this.pos > start;
             },
             
-            current: function( ) {
+            // current stream selection
+            cur: function( ) {
                 return this.string.slice(this.start, this.pos);
             },
             
-            shift: function( ) {
+            // move/shift stream
+            sft: function( ) {
                 this.start = this.pos;
                 return this;
             }
