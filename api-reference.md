@@ -6,6 +6,8 @@ __For node with dependencies:__
 
 ```javascript
 CodeMirrorGrammar = require('build/codemirror_grammar.js').CodeMirrorGrammar;
+// or
+CodeMirrorGrammar = require('build/codemirror_grammar.bundle.js').CodeMirrorGrammar;
 ```
 
 __For browser with dependencies:__

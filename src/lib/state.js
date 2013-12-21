@@ -29,7 +29,7 @@
             },
             
             toString: function() {
-                return "_" + this.id + "_" + (this.inBlock);
+                return "_" + this.id + "_" + (this.inBlock)/* + "_" + ((T_ERROR == this.currentToken) ? 1 : 0)*/;
             }
         })
     ;

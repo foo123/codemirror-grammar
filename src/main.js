@@ -103,6 +103,8 @@
     *
     * ```javascript
     * CodeMirrorGrammar = require('build/codemirror_grammar.js').CodeMirrorGrammar;
+    * // or
+    * CodeMirrorGrammar = require('build/codemirror_grammar.bundle.js').CodeMirrorGrammar;
     * ```
     *
     * __For browser with dependencies:__
@@ -175,7 +177,8 @@
                 LOCALS = { 
                     // default return code, when no match or empty found
                     // 'null' should be used in most cases
-                    DEFAULT: DEFAULT || DEFAULTTYPE
+                    DEFAULT: DEFAULT || DEFAULTTYPE,
+                    ERROR: defaultGrammar.Style.error
                 }
             ;
             

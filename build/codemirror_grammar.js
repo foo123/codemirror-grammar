@@ -480,7 +480,7 @@
             },
             
             toString: function() {
-                return "_" + this.id + "_" + (this.inBlock);
+                return "_" + this.id + "_" + (this.inBlock)/* + "_" + ((T_ERROR == this.currentToken) ? 1 : 0)*/;
             }
         })
     ;
@@ -1352,7 +1352,7 @@
                 this.Style = grammar.Style || {};
                 this.electricChars = (grammar.electricChars) ? grammar.electricChars : false;
                 this.DEF = this.LOC.DEFAULT;
-                this.ERR = this.Style.error || defaultGrammar.Style.error;
+                this.ERR = this.Style.error || this.LOC.ERROR;
                 this.tokens = grammar.Parser || [];
             },
             
@@ -1602,6 +1602,8 @@
     *
     * ```javascript
     * CodeMirrorGrammar = require('build/codemirror_grammar.js').CodeMirrorGrammar;
+    * // or
+    * CodeMirrorGrammar = require('build/codemirror_grammar.bundle.js').CodeMirrorGrammar;
     * ```
     *
     * __For browser with dependencies:__
@@ -1674,7 +1676,8 @@
                 LOCALS = { 
                     // default return code, when no match or empty found
                     // 'null' should be used in most cases
-                    DEFAULT: DEFAULT || DEFAULTTYPE
+                    DEFAULT: DEFAULT || DEFAULTTYPE,
+                    ERROR: defaultGrammar.Style.error
                 }
             ;
             

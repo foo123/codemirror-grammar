@@ -9,7 +9,7 @@
                 this.Style = grammar.Style || {};
                 this.electricChars = (grammar.electricChars) ? grammar.electricChars : false;
                 this.DEF = this.LOC.DEFAULT;
-                this.ERR = this.Style.error || defaultGrammar.Style.error;
+                this.ERR = this.Style.error || this.LOC.ERROR;
                 this.tokens = grammar.Parser || [];
             },
             
