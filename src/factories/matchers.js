@@ -2,122 +2,111 @@
     //
     // matcher factories
     var 
-        DummyMatcher = Class({
+        // get a fast customized matcher for < pattern >
+        CharMatcher = Class({
             
-            constructor : function(name, pattern, key, type) {
+            constructor : function(name, pattern, key) {
+                this.type = T_CHARMATCHER;
                 this.name = name;
-                this.pattern = pattern;
-                this.key = key || 0;
-                this.type = type || T_DUMMYMATCHER;
+                this.t = pattern;
+                this.k = key || 0;
+                this.p = null;
             },
             
-            name : null,
-            pattern : null,
-            peek : null,
-            type : null,
-            key : 0,
+            // token type
+            type: null,
+            // token name
+            name: null,
+            // token pattern
+            t: null,
+            // key
+            k: 0,
+            // peek chars
+            p: null,
             
             toString : function() {
                 var s = '[';
                 s += 'Matcher: ' + this.name;
                 s += ', Type: ' + this.type;
-                s += ', Pattern: ' + ((this.pattern) ? this.pattern.toString() : null);
+                s += ', Pattern: ' + ((this.t) ? this.t.toString() : null);
                 s += ']';
                 return s;
             },
             
-            get : function(stream, eat) { 
-                return [ this.key, this.pattern ];
-            }
-        }),
-        
-        // get a fast customized matcher for < pattern >
-        
-        CharMatcher = Class({Extends: DummyMatcher}, {
-            
-            constructor : function(name, pattern, key) {
-                this.name = name;
-                this.pattern = pattern;
-                this.type = T_CHARMATCHER;
-                this.key = key || 0;
-            },
-            
             get : function(stream, eat) {
                 var match;    
-                if ( match = stream.chr(this.pattern, eat) )
-                    return [ this.key, match ];
+                if ( match = stream.chr(this.t, eat) )
+                    return [ this.k, match ];
                 return false;
             }
         }),
         
-        StrMatcher = Class({Extends: DummyMatcher}, {
+        StrMatcher = Class(CharMatcher, {
             
             constructor : function(name, pattern, key) {
-                this.name = name;
-                this.pattern = pattern;
-                this.peek = { peek: {}, negativepeek: null };
-                this.peek.peek[ '' + pattern.charAt(0) ] = 1;
+                this.$super('constructor', name, pattern, key);
                 this.type = T_STRMATCHER;
-                this.key = key || 0;
+                this.p = { peek: {}, negativepeek: null };
+                this.p.peek[ '' + pattern.charAt(0) ] = 1;
             },
             
             get : function(stream, eat) {
                 var match;    
-                if ( match = stream.str(this.pattern, this.peek, eat) )
-                    return [ this.key, match ];
+                if ( match = stream.str(this.t, this.p, eat) )
+                    return [ this.k, match ];
                 return false;
             }
         }),
         
-        RegexMatcher = Class({Extends: DummyMatcher}, {
+        RegexMatcher = Class(CharMatcher, {
             
             constructor : function(name, pattern, key) {
-                this.name = name;
-                this.pattern = pattern[ 0 ];
-                this.peek = pattern[ 1 ];
-                this.isComposite = pattern[2] || 0;
+                this.$super('constructor', name, pattern, key);
                 this.type = T_REGEXMATCHER;
-                this.key = key || 0;
+                this.t = pattern[ 0 ];
+                this.p = pattern[ 1 ];
+                this.g = pattern[ 2 ] || 0;
             },
             
-            isComposite : 0,
+            g : 0,
             
             get : function(stream, eat) {
                 var match;    
-                if ( match = stream.rex(this.pattern, this.peek, eat, this.isComposite) )
-                    return [ this.key, match ];
+                if ( match = stream.rex(this.t, this.p, eat, this.g) )
+                    return [ this.k, match ];
                 return false;
             }
         }),
         
-        EolMatcher = Class({Extends: DummyMatcher}, {
+        EolMatcher = Class(CharMatcher, {
             
             constructor : function(name, pattern, key) {
-                this.name = name;
+                this.$super('constructor', name, pattern, key);
                 this.type = T_EOLMATCHER;
-                this.key = key || 0;
+                this.t = null;
             },
             
             get : function(stream, eat) { 
                 if (false !== eat) stream.end(); // skipToEnd
-                return [ this.key, "" ];
+                return [ this.k, "" ];
             }
         }),
         
-        CompositeMatcher = Class({Extends: DummyMatcher}, {
+        CompositeMatcher = Class(CharMatcher, {
             
             constructor : function(name, matchers, useOwnKey) {
-                this.name = name;
-                this.matchers = matchers;
                 this.type = T_COMPOSITEMATCHER;
+                this.name = name;
+                this.ms = matchers;
                 this.ownKey = (false!==useOwnKey);
             },
             
-            matchers : null,
+            // group of matchers
+            ms : null,
             ownKey : true,
             
             get : function(stream, eat) {
-                var i, m, matchers = this.matchers, l = matchers.length;
+                var i, m, matchers = this.ms, l = matchers.length;
                 for (i=0; i<l; i++)
                 {
                     // each one is a custom matcher in its own
@@ -128,26 +117,28 @@
             }
         }),
         
-        BlockMatcher = Class({Extends: DummyMatcher}, {
+        BlockMatcher = Class(CharMatcher, {
             
             constructor : function(name, start, end) {
-                this.name = name;
                 this.type = T_BLOCKMATCHER;
-                this.start = new CompositeMatcher(this.name + '_StartMatcher', start, false);
-                this.pattern = this.start.pattern || null;
-                this.end = end;
+                this.name = name;
+                this.s = new CompositeMatcher(this.name + '_StartMatcher', start, false);
+                this.t = this.s.t || null;
+                this.e = end;
             },
             
-            start : null,
-            end : null,
+            // start block matcher
+            s : null,
+            // end block matcher
+            e : null,
             
             get : function(stream, eat) {
                     
-                var token = this.start.get(stream, eat);
+                var token = this.s.get(stream, eat);
                 
                 if ( token )
                 {
-                    var endMatcher = this.end[ token[0] ];
+                    var endMatcher = this.e[ token[0] ];
                     
                     // regex given, get the matched group for the ending of this block
                     if ( T_NUM == get_type( endMatcher ) )
@@ -177,9 +168,9 @@
             
             if ( !parsedMatchers[ name ] )
             {
-                if ( T_BOOL == T ) matcher = new DummyMatcher(name, pattern, key);
+                //if ( T_BOOL == T ) matcher = new DummyMatcher(name, pattern, key);
                 
-                else if ( T_NULL == T ) matcher = new EolMatcher(name, pattern, key);
+                /*else */if ( T_NULL == T ) matcher = new EolMatcher(name, pattern, key);
                 
                 else if ( T_CHAR == T ) matcher = new CharMatcher(name, pattern, key);
                 

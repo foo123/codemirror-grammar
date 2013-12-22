@@ -24,6 +24,8 @@
                 return this;
             },
             
+            toString: function() { return this.string; },
+            
             // abbreviations used for optimal minification
             
             // string start?

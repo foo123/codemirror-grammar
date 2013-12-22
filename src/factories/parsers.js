@@ -138,10 +138,10 @@
                     
                     electricChars: parser.electricChars,
                     
-                    lineComment: (parser.Comments.lineCommentStart) ? parser.Comments.lineCommentStart[0] : null,
-                    blockCommentStart: (parser.Comments.blockCommentStart) ? parser.Comments.blockCommentStart[0] : null,
-                    blockCommentEnd: (parser.Comments.blockCommentEnd) ? parser.Comments.blockCommentEnd[0] : null,
-                    blockCommentLead: (parser.Comments.blockCommentLead) ? parser.Comments.blockCommentLead[0] : null,
+                    lineComment: (parser.Comments.line) ? parser.Comments.line[0] : null,
+                    blockCommentStart: (parser.Comments.block) ? parser.Comments.block[0][0] : null,
+                    blockCommentEnd: (parser.Comments.block) ? parser.Comments.block[0][1] : null,
+                    blockCommentLead: (parser.Comments.block) ? parser.Comments.block[0][2] : null,
                     
                     copyState: function( state ) { return state.clone(); },
                     
