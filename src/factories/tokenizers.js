@@ -2,208 +2,144 @@
     //
     // tokenizer factories
     var
-        SimpleTokenizer = Class({
+        SimpleToken = Class({
             
-            constructor : function(name, token, type, style) {
-                this.type = type || null;
-                this.name = name || null;
-                this.t = token || null;
-                this.v = style || null;
+            constructor : function(name, token, style) {
+                this.tt = T_SIMPLE;
+                this.tn = name;
+                this.t = token;
+                this.r = style;
+                this.required = 0;
+                this.ERR = 0;
+                this.toClone = ['t', 'r'];
             },
             
-            name : null,
-            type : null,
+            // tokenizer/token name
+            tn : null,
+            // tokenizer type
+            tt : null,
+            // tokenizer token matcher
             t : null,
-            v : null,
-            isRequired : false,
-            ERROR : false,
+            // tokenizer return val
+            r : null,
+            required : 0,
+            ERR : 0,
             streamPos : null,
             stackPos : null,
+            toClone: null,
             actionBefore : null,
             actionAfter : null,
             
-            toString : function() {
-                var s = '[';
-                s += 'Tokenizer: ' + this.name;
-                s += ', Type: ' + this.type;
-                s += ', Token: ' + ((this.t) ? this.t.toString() : null);
-                s += ']';
-                return s;
+            get : function( stream, state ) {
+                if ( this.t.get(stream) ) { state.t = this.tt; return this.r; }
+                return false;
             },
             
-            required : function(bool) { 
-                this.isRequired = (bool) ? true : false;
+            require : function(bool) { 
+                this.required = (bool) ? 1 : 0;
                 return this;
             },
             
             push : function(stack, token, i) {
-                if ( this.stackPos )
-                    stack.splice( this.stackPos+(i||0), 0, token );
-                else
-                    stack.push( token );
+                if ( this.stackPos ) stack.splice( this.stackPos+(i||0), 0, token );
+                else stack.push( token );
                 return this;
             },
             
-            clone : function(/* variable args here.. */) {
-                
-                var t, i, args = slice.call(arguments), argslen = args.length;
+            clone : function() {
+                var t, toClone = this.toClone, toClonelen;
                 
                 t = new this.$class();
-                t.type = this.type;
-                t.name = this.name;
-                t.t = this.t;
-                t.v = this.v;
-                t.isRequired = this.isRequired;
-                t.ERROR = this.ERROR;
+                t.tt = this.tt;
+                t.tn = this.tn;
                 t.streamPos = this.streamPos;
                 t.stackPos = this.stackPos;
                 t.actionBefore = this.actionBefore;
                 t.actionAfter = this.actionAfter;
+                //t.required = this.required;
+                //t.ERR = this.ERR;
                 
-                for (i=0; i<argslen; i++)   
-                    t[ args[i] ] = this[ args[i] ];
-                
+                if (toClone && toClone.length)
+                {
+                    toClonelen = toClone.length;
+                    for (var i=0; i<toClonelen; i++)   
+                        t[ toClone[i] ] = this[ toClone[i] ];
+                }
                 return t;
             },
             
-            get : function( stream, state, LOCALS ) {
-                
-                if ( this.t.get(stream) )
-                {
-                    state.t = this.type;
-                    return this.v;
-                }
-                return false;
+            toString : function() {
+                return ['[', 'Tokenizer: ', this.tn, ', Matcher: ', ((this.t) ? this.t.toString() : null), ']'].join('');
             }
         }),
         
-        BlockTokenizer = Class(SimpleTokenizer, {
+        BlockToken = Class(SimpleToken, {
             
-            constructor : function(name, token, type, style, multiline) {
-                this.$super('constructor', name, token, type, style);
-                this.multiline = (false!==multiline);
-                this.e = null;
+            constructor : function(type, name, token, style, allowMultiline, escChar) {
+                this.$super('constructor', name, token, style);
+                this.tt = type;
+                // a block is multiline by default
+                this.mline = ( T_UNDEF & get_type(allowMultiline) ) ? 1 : allowMultiline;
+                this.esc = escChar || "\\";
+                this.toClone = ['t', 'r', 'mline', 'esc'];
             },    
             
-            multiline : false,
-            e : null,
+            mline : 0,
+            esc : null,
             
-            get : function( stream, state, LOCALS ) {
+            get : function( stream, state ) {
             
-                var ended = false, found = false;
+                var ended = 0, found = 0, endBlock, next = "", continueToNextLine,
+                    allowMultiline = this.mline, startBlock = this.t, thisBlock = this.tn,
+                    charIsEscaped = 0, isEscapedBlock = (T_ESCBLOCK == this.tt), escChar = this.esc
+                ;
                 
-                if ( state.inBlock == this.name )
+                if ( state.inBlock == thisBlock )
                 {
-                    found = true;
-                    this.e = state.endBlock;
+                    found = 1;
+                    endBlock = state.endBlock;
                 }    
-                else if ( !state.inBlock && (this.e = this.t.get(stream)) )
+                else if ( !state.inBlock && (endBlock = startBlock.get(stream)) )
                 {
-                    found = true;
-                    state.inBlock = this.name;
-                    state.endBlock = this.e;
+                    found = 1;
+                    state.inBlock = thisBlock;
+                    state.endBlock = endBlock;
                 }    
                 
                 if ( found )
                 {
                     this.stackPos = state.stack.length;
-                    ended = this.e.get(stream);
+                    ended = endBlock.get(stream);
+                    continueToNextLine = allowMultiline;
                     
                     while ( !ended && !stream.eol() ) 
                     {
-                        if ( this.e.get(stream) ) 
+                        //next = stream.nxt();
+                        if ( !(isEscapedBlock && charIsEscaped) && endBlock.get(stream) ) 
                         {
-                            ended = true;
+                            ended = 1; 
                             break;
                         }
-                        else  
-                        {
-                            stream.nxt();
-                        }
-                    }
-                    
-                    ended = ( ended || ( !this.multiline && stream.eol() ) );
-                    
-                    if ( !ended )
-                    {
-                        this.push( state.stack, this );
-                    }
-                    else
-                    {
-                        state.inBlock = null;
-                        state.endBlock = null;
-                    }
-                    
-                    state.t = this.type;
-                    return this.v;
-                }
-                
-                state.inBlock = null;
-                state.endBlock = null;
-                return false;
-            }
-        }),
-                
-        EscBlockTokenizer = Class(BlockTokenizer, {
-            
-            constructor : function(name, token, type, style, escape, multiline) {
-                this.$super('constructor', name, token, type, style);
-                this.esc = escape || "\\";
-                this.multiline = multiline || false;
-                this.e = null;
-            },    
-            
-            esc : "\\",
-            
-            get : function( stream, state, LOCALS ) {
-            
-                var next = "", ended = false, found = false, isEscaped = false;
-                
-                if ( state.inBlock == this.name )
-                {
-                    found = true;
-                    this.e = state.endBlock;
-                }    
-                else if ( !state.inBlock && (this.e = this.t.get(stream)) )
-                {
-                    found = true;
-                    state.inBlock = this.name;
-                    state.endBlock = this.e;
-                }    
-                
-                if ( found )
-                {
-                    this.stackPos = state.stack.length;
-                    ended = this.e.get(stream);
-                    
-                    while ( !ended && !stream.eol() ) 
-                    {
-                        if ( !isEscaped && this.e.get(stream) ) 
-                        {
-                            ended = true; 
-                            break;
-                        }
-                        else  
+                        else
                         {
                             next = stream.nxt();
                         }
-                        isEscaped = !isEscaped && next == this.esc;
+                        charIsEscaped = !charIsEscaped && next == escChar;
                     }
+                    continueToNextLine = allowMultiline && (!isEscapedBlock || charIsEscaped);
                     
-                    ended = ended || !(isEscaped && this.multiline);
-                    
-                    if ( !ended )
-                    {
-                        this.push( state.stack, this );
-                    }
-                    else
+                    if ( ended || !continueToNextLine )
                     {
                         state.inBlock = null;
                         state.endBlock = null;
                     }
+                    else
+                    {
+                        this.push( state.stack, this );
+                    }
                     
-                    state.t = this.type;
-                    return this.v;
+                    state.t = this.tt;
+                    return this.r;
                 }
                 
                 state.inBlock = null;
@@ -212,70 +148,86 @@
             }
         }),
                 
-        CompositeTokenizer = Class(SimpleTokenizer, {
-            
-            constructor : function(name, type) {
-                this.$super('constructor', name, type);
+        ZeroOrOneTokens = Class(SimpleToken, {
+                
+            constructor : function( name, tokens ) {
+                this.tt = T_ZEROORONE;
+                this.tn = name || null;
+                this.t = null;
                 this.ts = null;
+                this.foundOne = 0;
+                this.toClone = ['ts', 'foundOne'];
+                if (tokens) this.makeToks( tokens );
             },
             
             ts : null,
+            foundOne : 0,
             
             makeToks : function( tokens ) {
-                if ( tokens )
-                {
-                    this.ts = make_array( tokens );
-                    this.t = this.ts[0];
-                }
+                if ( tokens ) this.ts = make_array( tokens );
                 return this;
-            }
-        }),
-        
-        ZeroOrOneTokens = Class(CompositeTokenizer, {
-                
-            constructor : function( name, tokens ) {
-                this.type = T_ZEROORONE;
-                this.name = name || null;
-                if (tokens) this.makeToks( tokens );
             },
             
-            get : function( stream, state, LOCALS ) {
+            get : function( stream, state ) {
+            
+                var i, token, style, tokens = this.ts, n = tokens.length, tokensErr = 0, ret = false;
+                
+                this.ERR = this.foundOne;
+                // already found one, no more
+                if ( this.ERR ) return false;
                 
                 // this is optional
-                this.isRequired = false;
-                this.ERROR = false;
+                this.required = 0;
                 this.streamPos = stream.pos;
-                var tok = this.t;
-                var style = tok.get(stream, state);
+                this.stackPos = state.stack.length;
                 
-                if ( tok.ERROR ) stream.bck2( this.streamPos );
                 
-                return style;
+                for (i=0; i<n; i++)
+                {
+                    token = tokens[i];
+                    style = token.get(stream, state);
+                    
+                    if ( false !== style )
+                    {
+                        // push it to the stack for more
+                        this.foundOne = 1;
+                        this.push( state.stack, this.clone() );
+                        this.foundOne = 0;
+                        return style;
+                    }
+                    else if ( token.ERR )
+                    {
+                        tokensErr++;
+                        stream.bck2( this.streamPos );
+                    }
+                }
+                
+                //this.ERR = (n == tokensErr) ? true : false;
+                return false;
             }
         }),
         
-        ZeroOrMoreTokens = Class(CompositeTokenizer, {
+        ZeroOrMoreTokens = Class(ZeroOrOneTokens, {
                 
             constructor : function( name, tokens ) {
-                this.type = T_ZEROORMORE;
-                this.name = name || null;
-                if (tokens) this.makeToks( tokens );
+                this.$super('constructor', name, tokens);
+                this.tt = T_ZEROORMORE;
             },
             
-            get : function( stream, state, LOCALS ) {
+            get : function( stream, state ) {
             
                 var i, token, style, tokens = this.ts, n = tokens.length, tokensErr = 0, ret = false;
                 
                 // this is optional
-                this.isRequired = false;
-                this.ERROR = false;
+                this.required = 0;
+                this.ERR = 0;
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
                 
                 for (i=0; i<n; i++)
                 {
                     token = tokens[i];
-                    style = token.get(stream, state, LOCALS);
+                    style = token.get(stream, state);
                     
                     if ( false !== style )
                     {
@@ -283,184 +235,178 @@
                         this.push( state.stack, this );
                         return style;
                     }
-                    else if ( token.ERROR )
+                    else if ( token.ERR )
                     {
                         tokensErr++;
                         stream.bck2( this.streamPos );
                     }
                 }
                 
-                //this.ERROR = (n == tokensErr) ? true : false;
+                //this.ERR = (n == tokensErr) ? true : false;
                 return false;
             }
         }),
         
-        OneOrMoreTokens = Class(CompositeTokenizer, {
+        OneOrMoreTokens = Class(ZeroOrOneTokens, {
                 
             constructor : function( name, tokens ) {
-                this.type = T_ONEORMORE;
-                this.name = name || null;
-                if (tokens) this.makeToks( tokens );
-                this.foundOne = false;
+                this.$super('constructor', name, tokens);
+                this.tt = T_ONEORMORE;
+                this.foundOne = 0;
             },
             
-            foundOne : false,
-            
-            get : function( stream, state, LOCALS ) {
+            get : function( stream, state ) {
         
                 var style, token, i, tokens = this.ts, n = tokens.length, tokensRequired = 0, tokensErr = 0;
                 
-                this.isRequired = !this.foundOne;
-                this.ERROR = false;
+                this.required = !this.foundOne;
+                this.ERR = 0;
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
                 
                 for (i=0; i<n; i++)
                 {
                     token = tokens[i];
-                    style = token.get(stream, state, LOCALS);
+                    style = token.get(stream, state);
                     
-                    tokensRequired += (token.isRequired) ? 1 : 0;
+                    tokensRequired += (token.required) ? 1 : 0;
                     
                     if ( false !== style )
                     {
-                        this.foundOne = true;
-                        this.isRequired = false;
-                        this.ERROR = false;
+                        this.foundOne = 1;
+                        this.required = 0;
+                        this.ERR = 0;
                         // push it to the stack for more
-                        this.push( state.stack, this.clone("ts", "foundOne") );
-                        this.foundOne = false;
+                        this.push( state.stack, this.clone() );
+                        this.foundOne = 0;
                         
                         return style;
                     }
-                    else if ( token.ERROR )
+                    else if ( token.ERR )
                     {
                         tokensErr++;
                         stream.bck2( this.streamPos );
                     }
                 }
                 
-                this.ERROR = (!this.foundOne /*|| n == tokensErr*/) ? true : false;
+                this.ERR = (!this.foundOne /*|| n == tokensErr*/) ? 1 : 0;
                 return false;
             }
         }),
         
-        EitherTokens = Class(CompositeTokenizer, {
+        EitherTokens = Class(ZeroOrOneTokens, {
                 
             constructor : function( name, tokens ) {
-                this.type = T_EITHER;
-                this.name = name || null;
-                if (tokens) this.makeToks( tokens );
+                this.$super('constructor', name, tokens);
+                this.tt = T_EITHER;
             },
             
-            get : function( stream, state, LOCALS ) {
+            get : function( stream, state ) {
             
                 var style, token, i, tokens = this.ts, n = tokens.length, tokensRequired = 0, tokensErr = 0;
                 
-                this.isRequired = true;
-                this.ERROR = false;
+                this.required = 1;
+                this.ERR = 0;
                 this.streamPos = stream.pos;
                 
                 for (i=0; i<n; i++)
                 {
                     token = tokens[i];
-                    style = token.get(stream, state, LOCALS);
+                    style = token.get(stream, state);
                     
-                    tokensRequired += (token.isRequired) ? 1 : 0;
+                    tokensRequired += (token.required) ? 1 : 0;
                     
                     if ( false !== style )
                     {
                         return style;
                     }
-                    else if ( token.ERROR )
+                    else if ( token.ERR )
                     {
                         tokensErr++;
                         stream.bck2( this.streamPos );
                     }
                 }
                 
-                this.isRequired = (tokensRequired > 0) ? true : false;
-                this.ERROR = (n == tokensErr && tokensRequired > 0) ? true : false;
+                this.required = (tokensRequired > 0) ? 1 : 0;
+                this.ERR = (n == tokensErr && tokensRequired > 0) ? 1 : 0;
                 return false;
             }
         }),
                 
-        AllTokens = Class(CompositeTokenizer, {
+        AllTokens = Class(ZeroOrOneTokens, {
                 
             constructor : function( name, tokens ) {
-                this.type = T_ALL;
-                this.name = name || null;
-                if (tokens) this.makeToks( tokens );
+                this.$super('constructor', name, tokens);
+                this.tt = T_ALL;
             },
             
-            get : function( stream, state, LOCALS ) {
+            get : function( stream, state ) {
                 
                 var token, style, tokens = this.ts, n = tokens.length, ret = false;
                 
-                this.isRequired = true;
-                this.ERROR = false;
+                this.required = 1;
+                this.ERR = 0;
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
                 
                 
                 token = tokens[ 0 ];
-                style = token.required(true).get(stream, state, LOCALS);
+                style = token.require(0).get(stream, state);
                 
                 if ( false !== style )
                 {
                     this.stackPos = state.stack.length;
                     for (var i=n-1; i>0; i--)
-                        this.push( state.stack, tokens[i].required(true), n-i );
+                        this.push( state.stack, tokens[i].require(1), n-i );
                     
                     ret = style;
                     
                 }
-                else if ( token.ERROR )
+                else if ( token.ERR )
                 {
-                    this.ERROR = true;
+                    this.ERR = 1;
                     stream.bck2( this.streamPos );
                 }
-                else if ( token.isRequired )
+                else if ( token.required )
                 {
-                    this.ERROR = true;
+                    this.ERR = 1;
                 }
                 
                 return ret;
             }
         }),
                 
-        NGramTokenizer = Class(CompositeTokenizer, {
+        NGramToken = Class(ZeroOrOneTokens, {
                 
             constructor : function( name, tokens ) {
-                this.type = T_NGRAM;
-                this.name = name || null;
-                if (tokens) this.makeToks( tokens );
+                this.$super('constructor', name, tokens);
+                this.tt = T_NGRAM;
             },
             
-            get : function( stream, state, LOCALS ) {
+            get : function( stream, state ) {
                 
                 var token, style, tokens = this.ts, n = tokens.length, ret = false;
                 
-                this.isRequired = false;
-                this.ERROR = false;
+                this.required = 0;
+                this.ERR = 0;
                 this.streamPos = stream.pos;
                 this.stackPos = state.stack.length;
                 
                 
                 token = tokens[ 0 ];
-                style = token.required(false).get(stream, state, LOCALS);
+                style = token.require(0).get(stream, state);
                 
                 if ( false !== style )
                 {
                     this.stackPos = state.stack.length;
                     for (var i=n-1; i>0; i--)
-                        this.push( state.stack, tokens[i].required(true), n-i );
+                        this.push( state.stack, tokens[i].require(1), n-i );
                     
                     ret = style;
                 }
-                else if ( token.ERROR )
+                else if ( token.ERR )
                 {
-                    //this.ERROR = true;
+                    //this.ERR = 1;
                     stream.bck2( this.streamPos );
                 }
                 
@@ -468,6 +414,104 @@
             }
         }),
                 
+        getTokenizer = function(tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords) {
+            
+            if ( !cachedTokens[ tokenID ] )
+            {
+                var tok, token = null, type, combine, action, matchType, tokens, T;
+            
+                tok = Lex[ tokenID ] || Syntax[ tokenID ] || null;
+                
+                if ( tok )
+                {
+                    T = get_type( tok );
+                    // tokens given directly, no token configuration object, wrap it
+                    if ( (T_STR | T_ARRAY) & T )
+                    {
+                        tok = { type: "simple", tokens: tok };
+                    }
+                    
+                    // provide some defaults
+                    //type = tok.type || "simple";
+                    type = (tok.type) ? tokenTypes[ tok.type.toUpperCase().replace('-', '').replace('_', '') ] : T_SIMPLE;
+                    tok.tokens = make_array( tok.tokens );
+                    action = tok.action || null;
+                    
+                    if ( T_SIMPLE & type )
+                    {
+                        if ( tok.autocomplete ) getAutoComplete(tok, tokenID, keywords);
+                        
+                        // combine by default if possible using word-boundary delimiter
+                        combine = ( 'undefined' ===  typeof(tok.combine) ) ? "\\b" : tok.combine;
+                        token = new SimpleToken( 
+                                    tokenID,
+                                    getCompositeMatcher( tokenID, tok.tokens.slice(), RegExpID, combine, cachedRegexes, cachedMatchers ), 
+                                    Style[ tokenID ] || DEFAULTSTYLE
+                                );
+                    }
+                    
+                    else if ( T_BLOCK & type )
+                    {
+                        if ( T_COMMENT & type ) getComments(tok, comments);
+
+                        token = new BlockToken( 
+                                    type,
+                                    tokenID,
+                                    getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, cachedRegexes, cachedMatchers ), 
+                                    Style[ tokenID ] || DEFAULTSTYLE,
+                                    tok.multiline,
+                                    tok.escape
+                                );
+                    }
+                    
+                    else if ( T_GROUP & type )
+                    {
+                        matchType = groupTypes[ tok.match.toUpperCase() ]; 
+                        tokens = tok.tokens.slice();
+                        
+                        for (var i=0, l=tokens.length; i<l; i++)
+                            tokens[i] = getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords );
+                        
+                        if (T_ZEROORONE & matchType) 
+                            token = new ZeroOrOneTokens(tokenID, tokens);
+                        
+                        else if (T_ZEROORMORE & matchType) 
+                            token = new ZeroOrMoreTokens(tokenID, tokens);
+                        
+                        else if (T_ONEORMORE & matchType) 
+                            token = new OneOrMoreTokens(tokenID, tokens);
+                        
+                        else if (T_EITHER & matchType) 
+                            token = new EitherTokens(tokenID, tokens);
+                        
+                        else //if (T_ALL == matchType)
+                            token = new AllTokens(tokenID, tokens);
+                    }
+                    
+                    else if ( T_NGRAM & type )
+                    {
+                        // get n-gram tokenizer
+                        token = make_array_2( tok.tokens.slice() ).slice(); // array of arrays
+                        
+                        for (var i=0, l=token.length; i<l; i++)
+                        {
+                            // get tokenizers for each ngram part
+                            var ngram = token[i];
+                            
+                            for (var j=0, l2=ngram.length; j<l2; j++)
+                                ngram[j] = getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords );
+                            
+                            // get a tokenizer for whole ngram
+                            token[i] = new NGramToken( tokenID + '_NGRAM_' + i, ngram );
+                        }
+                    }
+                }
+                cachedTokens[ tokenID ] = token;
+            }
+            
+            return cachedTokens[ tokenID ];
+        },
+        
         getComments = function(tok, comments) {
             // build start/end mappings
             var tmp = make_array_2(tok.tokens.slice()); // array of arrays
@@ -493,101 +537,66 @@
             }
         },
         
-        getTokenizer = function(tokenID, RegExpID, RegExpGroups, Lex, Syntax, Style, parsedRegexes, parsedMatchers, parsedTokens, comments) {
+        getAutoComplete = function(tok, type, keywords) {
+            var kws = [].concat(make_array(tok.tokens)).map(function(word) { return { word: word, meta: type }; });
+            keywords.autocomplete = concat.apply( keywords.autocomplete || [], kws );
+        },
+        
+        parseGrammar = function(grammar) {
+            var RegExpID, tokens, numTokens, _tokens, 
+                Style, Lex, Syntax, t, tokenID, token, tok,
+                cachedRegexes, cachedMatchers, cachedTokens, comments, keywords;
             
-            var tok, token = null, type, matchType, tokens, action;
+            // grammar is parsed, return it
+            // avoid reparsing already parsed grammars
+            if ( grammar.__parsed ) return grammar;
             
-            if ( !parsedTokens[ tokenID ] )
+            cachedRegexes = {}; cachedMatchers = {}; cachedTokens = {}; comments = {}; keywords = {};
+            grammar = extend(grammar, defaultGrammar);
+            
+            RegExpID = grammar.RegExpID || null;
+            grammar.RegExpID = null;
+            delete grammar.RegExpID;
+            
+            Lex = grammar.Lex || {};
+            grammar.Lex = null;
+            delete grammar.Lex;
+            
+            Syntax = grammar.Syntax || {};
+            grammar.Syntax = null;
+            delete grammar.Syntax;
+            
+            Style = grammar.Style || {};
+            
+            _tokens = grammar.Parser || [];
+            numTokens = _tokens.length;
+            tokens = [];
+            
+            
+            // build tokens
+            for (t=0; t<numTokens; t++)
             {
-                tok = Lex[ tokenID ] || Syntax[ tokenID ] || null;
+                tokenID = _tokens[ t ];
                 
-                if ( tok )
+                token = getTokenizer( tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords ) || null;
+                
+                if ( token )
                 {
-                    type = tok.type || "simple";
-                    type = tokenTypes[ type.toUpperCase() ];
-                    action = tok.action || null;
+                    if ( T_ARRAY & get_type( token ) )  tokens = tokens.concat( token );
                     
-                    if ( T_BLOCK == type || T_COMMENT == type )
-                    {
-                        if ( T_COMMENT == type ) getComments(tok, comments);
-                            
-                        token = new BlockTokenizer( 
-                                    tokenID,
-                                    getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, parsedRegexes, parsedMatchers ), 
-                                    type, 
-                                    Style[ tokenID ] || DEFAULTTYPE,
-                                    tok.multiline
-                                );
-                    }
-                    
-                    else if ( T_ESCBLOCK == type )
-                    {
-                        token = new EscBlockTokenizer( 
-                                    tokenID,
-                                    getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, parsedRegexes, parsedMatchers ), 
-                                    type, 
-                                    Style[ tokenID ] || DEFAULTTYPE,
-                                    tok.escape || "\\",
-                                    tok.multiline || false
-                                );
-                    }
-                    
-                    else if ( T_SIMPLE == type )
-                    {
-                        token = new SimpleTokenizer( 
-                                    tokenID,
-                                    getCompositeMatcher( tokenID, tok.tokens.slice(), RegExpID, RegExpGroups[ tokenID ], parsedRegexes, parsedMatchers ), 
-                                    type, 
-                                    Style[ tokenID ] || DEFAULTTYPE
-                                );
-                    }
-                    
-                    else if ( T_GROUP == type )
-                    {
-                        matchType = groupTypes[ tok.match.toUpperCase() ]; 
-                        tokens = make_array( tok.tokens ).slice();
-                        
-                        for (var i=0, l=tokens.length; i<l; i++)
-                            tokens[i] = getTokenizer(tokens[i], RegExpID, RegExpGroups, Lex, Syntax, Style, parsedRegexes, parsedMatchers, parsedTokens, comments);
-                        
-                        if (T_ZEROORONE == matchType) 
-                            token = new ZeroOrOneTokens(tokenID, tokens);
-                        
-                        else if (T_ZEROORMORE == matchType) 
-                            token = new ZeroOrMoreTokens(tokenID, tokens);
-                        
-                        else if (T_ONEORMORE == matchType) 
-                            token = new OneOrMoreTokens(tokenID, tokens);
-                        
-                        else if (T_EITHER == matchType) 
-                            token = new EitherTokens(tokenID, tokens);
-                        
-                        else //if (T_ALL == matchType)
-                            token = new AllTokens(tokenID, tokens);
-                    }
-                    
-                    else if ( T_NGRAM == type )
-                    {
-                        // get n-gram tokenizer
-                        token = make_array_2( make_array( tok.tokens ).slice() ).slice(); // array of arrays
-                        
-                        for (var i=0, l=token.length; i<l; i++)
-                        {
-                            // get tokenizers for each ngram part
-                            var ngram = token[i];
-                            
-                            for (var j=0, l2=ngram.length; j<l2; j++)
-                                ngram[j] = getTokenizer( ngram[j], RegExpID, RegExpGroups, Lex, Syntax, Style, parsedRegexes, parsedMatchers, parsedTokens, comments );
-                            
-                            // get a tokenizer for whole ngram
-                            token[i] = new NGramTokenizer( tokenID + '_NGRAM_' + i, ngram );
-                        }
-                    }
+                    else  tokens.push( token );
                 }
-                parsedTokens[ tokenID ] = token;
             }
             
-            return parsedTokens[ tokenID ];
+            grammar.Parser = tokens;
+            grammar.Style = Style;
+            grammar.Comments = comments;
+            grammar.Keywords = keywords;
+            
+            // this grammar is parsed
+            grammar.__parsed = 1;
+            
+            return grammar;
         }
     ;
   

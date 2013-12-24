@@ -42,7 +42,7 @@
 #@PREPROCESS
 
 @REPLACE ={}
-    "@@VERSION@@" = "0.5.2"
+    "@@VERSION@@" = "0.6"
 @ # end block
 
 # extract documentation from the source (map)

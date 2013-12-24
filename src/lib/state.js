@@ -19,19 +19,18 @@
             endBlock: null,
             
             clone: function() {
-                var copy = new this.$class();
-                copy.id = this.id;
+                var copy = new this.$class( this.id );
+                copy.t = this.t;
                 copy.stack = this.stack.slice();
                 copy.inBlock = this.inBlock;
                 copy.endBlock = this.endBlock;
-                copy.t = this.t;
                 return copy;
             },
             
             // used mostly for ACE which treats states as strings
             toString: function() {
-                //return "_" + this.id + "_" + (this.inBlock);
-                return "_" + this.id + "_" + (this.t) + "_" + (this.inBlock);
+                //return ['', this.id, this.inBlock||'0'].join('_');
+                return ['', this.id, this.t, this.inBlock||'0'].join('_');
             }
         })
     ;

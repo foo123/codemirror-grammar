@@ -21,10 +21,12 @@
         </style>
         
         <script src="codemirror/codemirror.js"></script>
+        <script src="codemirror/addon/comment/comment.js"></script>
         <script src="../build/classy.js"></script>
         <script src="../build/regexanalyzer.js"></script>
         <script src="../build/codemirror_grammar.js"></script>
         <script src="grammars/javascript.js"></script>
+        <script src="demo.js"></script>
         
         <title>CodeMirror: Dynamic JavaScript Grammar Demo</title>
     </head>
@@ -33,102 +35,23 @@
         <h3>CodeMirror: Dynamic JavaScript Grammar</h3>
 
 <textarea id="code" name="code">
-    // this is part of the CodeMirrorGrammar code itself
+// this is part of the CodeMirrorGrammar code itself
+
+getMode = function(grammar, DEFAULT) {
     
-    // Codemirror Tokenizer compatible
-    var getToken= function(_stream, state) {
-        
-        var i, token, style, stream, stack, numTokens = this.tokens.length;
-        
-        var DEFAULT = this.LOCALS.DEFAULT;
-        var ERROR = this.Style.error || "error";
-        
-        if ( state.init ) this.resetState( state );
-        
-        stack = state.stack;
-        stream = new Stream(null, _stream);
-        
-        if ( stream.eatSpace() ) 
-        {
-            state.current = null;
-            state.currentToken = T_DEFAULT;
-            return DEFAULT;
+    var LOCALS = { 
+            // default return code for skipped or not-styled tokens
+            // 'null' should be used in most cases
+            DEFAULT: DEFAULT || DEFAULTSTYLE,
+            ERROR: DEFAULTERROR
         }
-        
-        while ( stack.length )
-        {
-            token = stack.pop();
-            style = token.tokenize(stream, state, this.LOCALS);
-            
-            // match failed
-            if ( false === style )
-            {
-                // error
-                if ( token.ERROR || token.isRequired )
-                {
-                    // empty the stack
-                    state.stack.length = 0;
-                    // skip this character
-                    stream.next();
-                    // generate error
-                    state.current = null;
-                    state.currentToken = T_ERROR;
-                    return ERROR;
-                }
-                // optional
-                else
-                {
-                    continue;
-                }
-            }
-            // found token
-            else
-            {
-                state.current = token.tokenName;
-                return style;
-            }
-        }
-        
-        for (i=0; i<numTokens; i++)
-        {
-            token = this.tokens[i];
-            style = token.tokenize(stream, state, this.LOCALS);
-            
-            // match failed
-            if ( false === style )
-            {
-                // error
-                if ( token.ERROR || token.isRequired )
-                {
-                    // empty the stack
-                    state.stack.length = 0;
-                    // skip this character
-                    stream.next();
-                    // generate error
-                    state.current = null;
-                    state.currentToken = T_ERROR;
-                    return ERROR;
-                }
-                // optional
-                else
-                {
-                    continue;
-                }
-            }
-            // found token
-            else
-            {
-                state.current = token.tokenName;
-                return style;
-            }
-        }
-        
-        // unknown, bypass
-        stream.next();
-        state.current = null;
-        state.currentToken = T_DEFAULT;
-        return DEFAULT;
-    }
+    ;
+    
+    // build the grammar
+    grammar = parseGrammar( grammar );
+    //console.log(grammar);
+    
+    return getCodemirrorMode( getParser( grammar, LOCALS ) );
 }
 </textarea>
         <p></p>
@@ -137,20 +60,11 @@
         // <![CDATA[
         
         // 2. parse the grammar into a Codemirror syntax-highlight mode
-        var js_mode = CodeMirrorGrammar.getMode(js_grammar);
-        
         // 3. register the mode with Codemirror
-        CodeMirror.defineMode("js", js_mode);
+        CodeMirror.defineMode("js", CodeMirrorGrammar.getMode(js_grammar));
         
         // use it!
-        var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
-            mode: "js",
-            lineNumbers: true,
-            matchBrackets: true,
-            indentUnit: 4,
-            indentWithTabs: false
-        });
-        editor.setSize(null, 500);
+        codemirror_grammar_demo(document.getElementById("code"), "js");
         
         // ]]>
         </script>

@@ -8,48 +8,56 @@
             constructor: function( line ) {
                 this.string = (line) ? ''+line : '';
                 this.start = this.pos = 0;
-                this.stream = null;
+                this._ = null;
             },
             
-            stream: null,
+            // abbreviations used for optimal minification
+            
+            _: null,
             string: '',
             start: 0,
             pos: 0,
             
-            fromStream: function( stream ) {
-                this.stream = stream;
-                this.string = ''+stream.string;
-                this.start = stream.start;
-                this.pos = stream.pos;
+            fromStream: function( _ ) {
+                this._ = _;
+                this.string = ''+_.string;
+                this.start = _.start;
+                this.pos = _.pos;
                 return this;
             },
             
             toString: function() { return this.string; },
             
-            // abbreviations used for optimal minification
+            // string start-of-line?
+            sol: function( ) { return 0 == this.pos; },
             
-            // string start?
-            sol: function( ) { 
-                return 0 == this.pos; 
-            },
-            
-            // string ended?
-            eol: function( ) { 
-                return this.pos >= this.string.length; 
-            },
+            // string end-of-line?
+            eol: function( ) { return this.pos >= this.string.length; },
             
             // char match
             chr : function(pattern, eat) {
-                eat = (false !== eat);
-                var ch = this.string.charAt(this.pos) || '';
-                
-                if (pattern == ch) 
+                var ch = this.string.charAt(this.pos) || null;
+                if (ch && pattern == ch) 
                 {
-                    if (eat) 
+                    if (false !== eat) 
                     {
                         this.pos += 1;
-                        if ( this.stream )
-                            this.stream.pos = this.pos;
+                        if ( this._ ) this._.pos = this.pos;
+                    }
+                    return ch;
+                }
+                return false;
+            },
+            
+            // char list match
+            chl : function(pattern, eat) {
+                var ch = this.string.charAt(this.pos) || null;
+                if ( ch && (-1 < pattern.indexOf( ch )) ) 
+                {
+                    if (false !== eat) 
+                    {
+                        this.pos += 1;
+                        if ( this._ ) this._.pos = this.pos;
                     }
                     return ch;
                 }
@@ -57,50 +65,43 @@
             },
             
             // string match
-            str : function(pattern, chars, eat) {
-                eat = (false !== eat);
-                var pos = this.pos, ch = this.string.charAt(pos);
-                
-                if ( chars.peek[ ch ] )
+            str : function(pattern, startsWith, eat) {
+                var pos = this.pos, str = this.string, ch = str.charAt(pos) || null;
+                if ( ch && startsWith[ ch ] )
                 {
-                    var len = pattern.length, str = this.string.substr(pos, len);
-                    if (pattern == str) 
+                    var len = pattern.length, s = str.substr(pos, len);
+                    if (pattern == s) 
                     {
-                        if (eat) 
+                        if (false !== eat) 
                         {
                             this.pos += len;
-                            if ( this.stream )
-                                this.stream.pos = this.pos;
+                            if ( this._ )  this._.pos = this.pos;
                         }
-                        return str;
+                        return s;
                     }
                 }
                 return false;
             },
             
             // regex match
-            rex : function(pattern, chars, eat, group) {
-                eat = (false !== eat);
-                group = group || 0;
-                var pos = this.pos, ch = this.string.charAt(pos);
-                
-                if ( ( chars.peek && chars.peek[ ch ] ) || ( chars.negativepeek && !chars.negativepeek[ ch ] ) )
+            rex : function(pattern, startsWith, notStartsWith, group, eat) {
+                var pos = this.pos, str = this.string, ch = str.charAt(pos) || null;
+                if ( ch && ( startsWith && startsWith[ ch ] ) || ( notStartsWith && !notStartsWith[ ch ] ) )
                 {
-                    var match = this.string.slice(pos).match(pattern);
+                    var match = str.slice(pos).match(pattern);
                     if (!match || match.index > 0) return false;
-                    if (eat)
+                    if (false !== eat) 
                     {
-                        this.pos += match[group].length;
-                        if ( this.stream )
-                            this.stream.pos = this.pos;
+                        this.pos += match[group||0].length;
+                        if ( this._ ) this._.pos = this.pos;
                     }
                     return match;
                 }
                 return false;
             },
-            
+            /*
             // general pattern match
-            mch: function(pattern, eat, caseInsensitive, group) {
+            match: function(pattern, eat, caseInsensitive, group) {
                 if (typeof pattern == "string") 
                 {
                     var cased = function(str) {return caseInsensitive ? str.toLowerCase() : str;};
@@ -120,27 +121,25 @@
                     return match;
                 }
             },
-            
+            */
             // skip to end
             end: function() {
                 this.pos = this.string.length;
-                if ( this.stream )
-                    this.stream.pos = this.pos;
+                if ( this._ ) this._.pos = this.pos;
                 return this;
             },
-            
+            /*
             // peek next char
-            pk: function( ) { 
-                return this.string.charAt(this.pos); 
+            peek: function( ) { 
+                return this.string.charAt(this.pos) || null; 
             },
-            
+            */
             // get next char
             nxt: function( ) {
                 if (this.pos < this.string.length)
                 {
-                    var ch = this.string.charAt(this.pos++);
-                    if ( this.stream )
-                        this.stream.pos = this.pos;
+                    var ch = this.string.charAt(this.pos++) || null;
+                    if ( this._ ) this._.pos = this.pos;
                     return ch;
                 }
             },
@@ -148,26 +147,25 @@
             // back-up n steps
             bck: function( n ) {
                 this.pos -= n;
-                if ( this.stream )
-                    this.stream.pos = this.pos;
+                if ( 0 > this.pos ) this.pos = 0;
+                if ( this._ )  this._.pos = this.pos;
                 return this;
             },
             
             // back-track to pos
             bck2: function( pos ) {
                 this.pos = pos;
-                if ( this.stream )
-                    this.stream.pos = this.pos;
+                if ( 0 > this.pos ) this.pos = 0;
+                if ( this._ ) this._.pos = this.pos;
                 return this;
             },
             
             // eat space
             spc: function( ) {
-                var start = this.pos, pos = this.pos;
-                while (/[\s\u00a0]/.test(this.string.charAt(pos))) ++pos;
+                var start = this.pos, pos = this.pos, s = this.string;
+                while (/[\s\u00a0]/.test(s.charAt(pos))) ++pos;
                 this.pos = pos;
-                if ( this.stream )
-                    this.stream.pos = this.pos;
+                if ( this._ ) this._.pos = this.pos;
                 return this.pos > start;
             },
             

@@ -1,34 +1,56 @@
     
+    // codemirror supposed to be available
+    var _CodeMirror = CodeMirror || {
+        Pass : { toString: function(){return "CodeMirror.Pass";} }
+    };
+    
     //
     // parser factories
     var
         CodemirrorParser = Class({
             
-            constructor: function(grammar, LOCALS) {
-                this.LOC = LOCALS;
-                this.Grammar = grammar;
-                this.Comments = grammar.Comments || {};
-                this.Tokens = grammar.Parser || [];
-                this.DEF = this.LOC.DEFAULT;
-                this.ERR = (grammar.Style && grammar.Style.error) ? grammar.Style.error : this.LOC.ERROR;
+            constructor: function(grammar, LOC) {
+                //this.LOC = LOC;
+                //this.Grammar = grammar;
+                //this.Comments = grammar.Comments || {};
                 this.electricChars = (grammar.electricChars) ? grammar.electricChars : false;
+                
+                // support comments toggle functionality
+                this.LC = (grammar.Comments && grammar.Comments.line) ? grammar.Comments.line[0] : null,
+                this.BCS = (grammar.Comments && grammar.Comments.block) ? grammar.Comments.block[0][0] : null,
+                this.BCE = (grammar.Comments && grammar.Comments.block) ? grammar.Comments.block[0][1] : null,
+                this.BCC = this.BCL = (grammar.Comments && grammar.Comments.block) ? grammar.Comments.block[0][2] : null,
+                this.DEF = LOC.DEFAULT;
+                this.ERR = (grammar.Style && grammar.Style.error) ? grammar.Style.error : LOC.ERROR;
+                
+                // support keyword autocompletion
+                this.Keywords = (grammar.Keywords && grammar.Keywords.autocomplete) ? grammar.Keywords.autocomplete : null;
+                
+                this.Tokens = grammar.Parser || [];
             },
             
-            LOC: null,
+            //LOC: null,
+            //Grammar: null,
+            //Comments: null,
+            conf: null,
+            parserConf: null,
+            electricChars: false,
+            LC: null,
+            BCS: null,
+            BCE: null,
+            BCL: null,
+            BCC: null,
             ERR: null,
             DEF: null,
-            Grammar: null,
-            Comments: null,
+            Keywords: null,
             Tokens: null,
-            electricChars: false,
             
             // Codemirror Tokenizer compatible
             getToken: function(stream_, state) {
                 
                 var i,
-                    t, type, tokens = this.Tokens, numTokens = tokens.length, 
+                    tokenizer, type, tokens = this.Tokens, numTokens = tokens.length, 
                     stream, stack,
-                    LOC = this.LOC,
                     DEFAULT = this.DEF,
                     ERROR = this.ERR
                 ;
@@ -44,14 +66,14 @@
                 
                 while ( stack.length )
                 {
-                    t = stack.pop();
-                    type = t.get(stream, state, LOC);
+                    tokenizer = stack.pop();
+                    type = tokenizer.get(stream, state);
                     
                     // match failed
                     if ( false === type )
                     {
                         // error
-                        if ( t.ERROR || t.isRequired )
+                        if ( tokenizer.ERR || tokenizer.required )
                         {
                             // empty the stack
                             stack.length = 0;
@@ -76,14 +98,14 @@
                 
                 for (i=0; i<numTokens; i++)
                 {
-                    t = tokens[i];
-                    type = t.get(stream, state, LOC);
+                    tokenizer = tokens[i];
+                    type = tokenizer.get(stream, state);
                     
                     // match failed
                     if ( false === type )
                     {
                         // error
-                        if ( t.ERROR || t.isRequired )
+                        if ( tokenizer.ERR || tokenizer.required )
                         {
                             // empty the stack
                             stack.length = 0;
@@ -113,8 +135,8 @@
             },
             
             indent : function(state, textAfter, fullLine) {
-                // TODO
-                return CodeMirror.Pass;
+                // Default for now, TODO
+                return _CodeMirror.Pass;
             }
         }),
         
@@ -124,41 +146,58 @@
         
         getCodemirrorMode = function(parser) {
                 
-            //var startState = new ParserState();
-            
             // Codemirror-compatible Mode
             return function(conf, parserConf) {
                 
-                parser.LOC.conf = conf;
-                parser.LOC.parserConf = parserConf;
+                parser.conf = conf;
+                parser.parserConf = parserConf;
                 
                 // return the (codemirror) parser mode for the grammar
                 return  {
+                    /*
+                    // maybe needed in later versions..
+                    
+                    blankLine: function( state ) { },
+                    
+                    innerMode: function( state ) { },
+                    */
+                    
                     startState: function( ) { return new ParserState(); },
                     
                     electricChars: parser.electricChars,
                     
-                    lineComment: (parser.Comments.line) ? parser.Comments.line[0] : null,
-                    blockCommentStart: (parser.Comments.block) ? parser.Comments.block[0][0] : null,
-                    blockCommentEnd: (parser.Comments.block) ? parser.Comments.block[0][1] : null,
-                    blockCommentLead: (parser.Comments.block) ? parser.Comments.block[0][2] : null,
+                    // support comments toggle functionality
+                    lineComment: parser.LC,
+                    blockCommentStart: parser.BCS,
+                    blockCommentEnd: parser.BCE,
+                    blockCommentContinue: parser.BCC,
+                    blockCommentLead: parser.BCL,
                     
                     copyState: function( state ) { return state.clone(); },
                     
                     token: function(stream, state) { return parser.getToken(stream, state); },
                     
                     indent: function(state, textAfter, fullLine) { return parser.indent(state, textAfter, fullLine); }
-                    
-                    /*
-                    // maybe needed in later versions..
-                    
-                    blankLine: function( state ) { },
-                    
-                    innerMode: function( state ) { }
-                    */
                 };
                 
             };
+        },
+        
+        getMode = function(grammar, DEFAULT) {
+            
+            var LOCALS = { 
+                    // default return code for skipped or not-styled tokens
+                    // 'null' should be used in most cases
+                    DEFAULT: DEFAULT || DEFAULTSTYLE,
+                    ERROR: DEFAULTERROR
+                }
+            ;
+            
+            // build the grammar
+            grammar = parseGrammar( grammar );
+            //console.log(grammar);
+            
+            return getCodemirrorMode( getParser( grammar, LOCALS ) );
         }
     ;
   

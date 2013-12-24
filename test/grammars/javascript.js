@@ -4,21 +4,10 @@ var js_grammar = {
     // prefix ID for regular expressions used in the grammar
     "RegExpID" : "RegExp::",
     
-    // lists of (simple/string) tokens to be grouped into one regular expression,
-    // else matched one by one, 
-    // this is usefull for speed fine-tuning the parser
-    "RegExpGroups" : {
-        "atom" : "\\b",
-        "keyword" : "\\b",
-        "builtin" : true,
-        "operator" : true
-    },
-        
     //
     // Style model
     "Style" : {
         // lang token type  -> CodeMirror (style) tag
-        "error":      "error",
         "comment":    "comment",
         "atom":       "atom",
         "keyword":    "keyword",
@@ -51,52 +40,34 @@ var js_grammar = {
         },
         
         // general identifiers
-        "identifier" : {
-            "type" : "simple",
-            "tokens" : "RegExp::[_A-Za-z$][_A-Za-z0-9$]*"
-        },
+        "identifier" : "RegExp::[_A-Za-z$][_A-Za-z0-9$]*",
         
-        "dot" : {
-            "type" : "simple",
-            "tokens" : "."
-        },
+        "dot" : ".",
         
-        "rightBracket" : {
-            "type" : "simple",
-            "tokens" : ["]", ")"]
-        },
+        "rightBracket" : ["]", ")"],
         
-        "this" : {
-            "type" : "simple",
-            "tokens" : "this"
-        },
+        "this" : "this",
         
-        "property" : {
-            "type" : "simple",
-            "tokens" : "RegExp::[_A-Za-z$][_A-Za-z0-9$]*"
-        },
+        "property" : "RegExp::[_A-Za-z$][_A-Za-z0-9$]*",
         
         // numbers, in order of matching
-        "number" : {
-            "type" : "simple",
-            "tokens" : [
-                // floats
-                "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?",
-                "RegExp::\\d+\\.\\d*",
-                "RegExp::\\.\\d+",
-                // integers
-                // hex
-                "RegExp::0x[0-9a-fA-F]+L?",
-                // binary
-                "RegExp::0b[01]+L?",
-                // octal
-                "RegExp::0o[0-7]+L?",
-                // decimal
-                "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?L?",
-                // just zero
-                "RegExp::0(?![\\dx])"
-            ]
-        },
+        "number" : [
+            // floats
+            "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?",
+            "RegExp::\\d+\\.\\d*",
+            "RegExp::\\.\\d+",
+            // integers
+            // hex
+            "RegExp::0x[0-9a-fA-F]+L?",
+            // binary
+            "RegExp::0b[01]+L?",
+            // octal
+            "RegExp::0o[0-7]+L?",
+            // decimal
+            "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?L?",
+            // just zero
+            "RegExp::0(?![\\dx])"
+        ],
 
         // usual strings
         "string" : {
@@ -116,17 +87,42 @@ var js_grammar = {
         
         // operators
         "operator" : {
-            "type" : "simple",
+            // "simple" token type is default, if no token type
+            //"type" : "simple",
+            // combine tokens into one regular expression (using optional delimiter),
+            // by default tokens will be combined using "\\b" word-boundary, 
+            // this is usefull for speed fine-tuning the parser
+            "combine" : true,
             "tokens" : [
                 "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!",
-                "==", "!=", "<=", ">=", "<>", ">>", "<<",
+                "||", "&&", "==", "!=", "<=", ">=", "<>", ">>", "<<",
                 "===", "!==", "<<<", ">>>" 
             ]
         },
         
+        // delimiters
+        "delimiter" : {
+            // "simple" token type is default, if no token type
+            //"type" : "simple",
+            // combine tokens into one regular expression (using optional delimiter),
+            // by default tokens will be combined using "\\b" word-boundary, 
+            // this is usefull for speed fine-tuning the parser
+            "combine" : true,
+            "tokens" : [
+                "(", ")", "[", "]", "{", "}", ",", "=", ";", "?", ":",
+                "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "++", "--",
+                ">>=", "<<="
+            ]
+        },
+            
         // atoms
         "atom" : {
-            "type" : "simple",
+            // enable autocompletion for these tokens, with their associated token ID
+            "autocomplete" : true,
+            // combine tokens into one regular expression (using optional delimiter),
+            // by default tokens will be combined using "\\b" word-boundary, 
+            // this is usefull for speed fine-tuning the parser
+            //"combine" : "\\b",
             "tokens" : [
                 "true", "false", 
                 "null", "undefined", 
@@ -136,7 +132,12 @@ var js_grammar = {
 
         // keywords
         "keyword" : {
-            "type" : "simple",
+            // enable autocompletion for these tokens, with their associated token ID
+            "autocomplete" : true,
+            // combine tokens into one regular expression (using optional delimiter),
+            // by default tokens will be combined using "\\b" word-boundary, 
+            // this is usefull for speed fine-tuning the parser
+            //"combine" : "\\b",
             "tokens" : [ 
                 "if", "while", "with", "else", "do", "try", "finally",
                 "return", "break", "continue", "new", "delete", "throw",
@@ -148,7 +149,12 @@ var js_grammar = {
         
         // builtins
         "builtin" : {
-            "type" : "simple",
+            // enable autocompletion for these tokens, with their associated token ID
+            "autocomplete" : true,
+            // combine tokens into one regular expression (using optional delimiter),
+            // by default tokens will be combined using "\\b" word-boundary, 
+            // this is usefull for speed fine-tuning the parser
+            //"combine" : "\\b",
             "tokens" : [ 
                 "Object", "Array", "String", "Number", "RegExp", "Exception",
                 "setTimeout", "setInterval", "alert", "console"
@@ -157,7 +163,7 @@ var js_grammar = {
     },
     
     //
-    // Syntax model
+    // Syntax model (optional)
     "Syntax" : {
         
         "dotProperty" : {
@@ -195,6 +201,7 @@ var js_grammar = {
         "keyword",
         "operator",
         "atom",
-        "builtinOrIdentifierWithProperties"
+        "builtinOrIdentifierWithProperties",
+        "delimiter"
     ]
 };

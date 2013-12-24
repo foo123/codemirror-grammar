@@ -61,5 +61,4 @@
     // module factory
     function( Classy, RegexAnalyzer, undef ) {
     
-    var VERSION = "@@VERSION@@";
     var Class = Classy.Class;

@@ -1,11 +1,17 @@
     
     var slice = Array.prototype.slice, splice = Array.prototype.splice, concat = Array.prototype.concat, 
-        hasKey = Object.prototype.hasOwnProperty, Str = Object.prototype.toString,
+        hasKey = Object.prototype.hasOwnProperty, toStr = Object.prototype.toString, isEnum = Object.prototype.propertyIsEnumerable,
+        
+        Keys = Object.keys,
         
         get_type = function(v) {
-            var type_of = typeof(v), to_string = Str.call(v);
+            var type_of = typeof(v), to_string = toStr.call(v);
             
-            if ('number' == type_of || v instanceof Number)  return T_NUM;
+            if ('undefined' == type_of)  return T_UNDEF;
+            
+            else if ('number' == type_of || v instanceof Number)  return T_NUM;
+            
+            else if (null === v)  return T_NULL;
             
             else if (true === v || false === v)  return T_BOOL;
             
@@ -16,10 +22,6 @@
             else if (v && ("[object Array]" == to_string || v instanceof Array))  return T_ARRAY;
             
             else if (v && "[object Object]" == to_string)  return T_OBJ;
-            
-            else if (null === v)  return T_NULL;
-            
-            else if (undef === v)  return T_UNDEF;
             
             // unkown type
             return T_UNKNOWN;
@@ -38,18 +40,18 @@
         clone = function(o) {
             var T = get_type( o ), T2;
             
-            if (T_OBJ != T && T_ARRAY != T) return o;
+            if ( !((T_OBJ | T_ARRAY) & T) ) return o;
             
             var co = {}, k;
             for (k in o) 
             {
-                if ( hasKey.call(o, k) ) 
+                if ( hasKey.call(o, k) && isEnum.call(o, k) ) 
                 { 
                     T2 = get_type( o[k] );
                     
-                    if (T_OBJ == T2)  co[k] = clone(o[k]);
+                    if (T_OBJ & T2)  co[k] = clone(o[k]);
                     
-                    else if (T_ARRAY == T2)  co[k] = o[k].slice();
+                    else if (T_ARRAY & T2)  co[k] = o[k].slice();
                     
                     else  co[k] = o[k]; 
                 }
@@ -73,9 +75,9 @@
                 
                 for (k in o2) 
                 { 
-                    if ( hasKey.call(o2, k) )
+                    if ( hasKey.call(o2, k) && isEnum.call(o2, k) )
                     {
-                        if ( hasKey.call(o1, k) ) 
+                        if ( hasKey.call(o1, k) && isEnum.call(o1, k) ) 
                         { 
                             T = get_type( o1[k] );
                             
@@ -95,8 +97,10 @@
             return o;
         },
         
-        ESC = /([\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\])/g,
-        
+        escRegexp = function(str) {
+            return str.replace(/([.*+?^${}()|[\]\/\\])/g, '\\$1');
+        },
+
         byLength = function(a, b) { return b.length - a.length },
         
         hasPrefix = function(s, id) {
@@ -106,28 +110,28 @@
             );
         },
         
-        getRegexp = function(r, rid, parsedRegexes)  {
+        getRegexp = function(r, rid, cachedRegexes)  {
             if ( !r || (T_NUM == get_type(r)) ) return r;
             
             var l = (rid) ? (rid.length||0) : 0;
             
             if ( l && rid == r.substr(0, l) ) 
             {
-                var regexID = "^(" + r.substr(l) + ")", regex, peek, analyzer;
+                var regexID = "^(" + r.substr(l) + ")", regex, chars, analyzer;
                 
-                if ( !parsedRegexes[ regexID ] )
+                if ( !cachedRegexes[ regexID ] )
                 {
                     regex = new RegExp( regexID );
                     analyzer = new RegexAnalyzer( regex ).analyze();
-                    peek = analyzer.getPeekChars();
-                    if ( !Object.keys(peek.peek).length )  peek.peek = null;
-                    if ( !Object.keys(peek.negativepeek).length )  peek.negativepeek = null;
+                    chars = analyzer.getPeekChars();
+                    if ( !Keys(chars.peek).length )  chars.peek = null;
+                    if ( !Keys(chars.negativepeek).length )  chars.negativepeek = null;
                     
                     // shared, light-weight
-                    parsedRegexes[ regexID ] = [ regex, peek ];
+                    cachedRegexes[ regexID ] = [ regex, chars ];
                 }
                 
-                return parsedRegexes[ regexID ];
+                return cachedRegexes[ regexID ];
             }
             else
             {
@@ -136,13 +140,16 @@
         },
         
         getCombinedRegexp = function(tokens, boundary)  {
-            var peek = { }, i, l, b = "";
-            if ( T_STR == get_type(boundary)) b = boundary;
-            for (i=0, l=tokens.length; i<l; i++) 
-            {
-                peek[ tokens[i].charAt(0) ] = 1;
-                tokens[i] = tokens[i].replace(ESC, '\\$1');
-            }
-            return [ new RegExp("^(" + tokens.sort( byLength ).join( "|" ) + ")"+b), { peek: peek, negativepeek: null }, 1 ];
+            var peek = { }, i, l, b = "", bT = get_type(boundary);
+            if ( T_STR == bT || T_CHAR == bT ) b = boundary;
+            var combined = tokens
+                        .sort( byLength )
+                        .map( function(t) {
+                            peek[ t.charAt(0) ] = 1;
+                            return escRegexp( t );
+                        })
+                        .join( "|" )
+                    ;
+            return [ new RegExp("^(" + combined + ")"+b), { peek: peek, negativepeek: null }, 1 ];
         }
     ;

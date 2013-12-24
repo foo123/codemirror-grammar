@@ -2,14 +2,16 @@
     //
     // parser types
     var    
-        DEFAULTTYPE,
+        DEFAULTSTYLE,
+        DEFAULTERROR,
         
         //
         // javascript variable types
         T_NUM = 2,
         T_BOOL = 4,
         T_STR = 8,
-        T_CHAR= 9,
+        T_CHAR = 9,
+        T_CHARLIST = 10,
         T_REGEX = 16,
         T_ARRAY = 32,
         T_OBJ = 64,
@@ -19,40 +21,55 @@
         
         //
         // matcher types
-        T_SIMPLEMATCHER = 32,
-        T_CHARMATCHER = 33,
-        T_STRMATCHER = 34,
-        T_REGEXMATCHER = 36,
-        T_EOLMATCHER = 40,
-        T_DUMMYMATCHER = 48,
-        T_COMPOSITEMATCHER = 64,
-        T_BLOCKMATCHER = 128,
+        T_SIMPLEMATCHER = 2,
+        T_COMPOSITEMATCHER = 4,
+        T_BLOCKMATCHER = 8,
         
         //
         // token types
-        T_OPTIONAL = 1,
-        T_REQUIRED = 2,
         T_ERROR = 4,
         T_DEFAULT = 8,
         T_SIMPLE = 16,
-        T_ESCBLOCK = 32,
-        T_BLOCK = 64,
-        T_COMMENT = 65,
-        T_EITHER = 128,
-        T_ALL = 256,
-        T_ZEROORONE = 512,
-        T_ZEROORMORE = 1024,
-        T_ONEORMORE = 2048,
-        T_GROUP = 4096,
-        T_NGRAM = 8192,
+        T_BLOCK = 32,
+        T_ESCBLOCK = 33,
+        T_COMMENT = 34,
+        T_EITHER = 64,
+        T_ALL = 128,
+        T_ZEROORONE = 256,
+        T_ZEROORMORE = 512,
+        T_ONEORMORE = 1024,
+        T_GROUP = 2048,
+        T_NGRAM = 4096,
         
         //
         // tokenizer types
         groupTypes = {
-            "ONEOF" : T_EITHER, "EITHER" : T_EITHER, "ALL" : T_ALL, "ALLOF" : T_ALL, "ZEROORONE" : T_ZEROORONE, "ZEROORMORE" : T_ZEROORMORE, "ONEORMORE" : T_ONEORMORE
+            ONEOF : T_EITHER, EITHER : T_EITHER, ALL : T_ALL, ZEROORONE : T_ZEROORONE, ZEROORMORE : T_ZEROORMORE, ONEORMORE : T_ONEORMORE
         },
         
         tokenTypes = {
-            "BLOCK" : T_BLOCK, "COMMENT" : T_COMMENT, "ESCAPED-BLOCK" : T_ESCBLOCK, "SIMPLE" : T_SIMPLE, "GROUP" : T_GROUP, "NGRAM" : T_NGRAM, "N-GRAM" : T_NGRAM
+            BLOCK : T_BLOCK, COMMENT : T_COMMENT, ESCAPEDBLOCK : T_ESCBLOCK, SIMPLE : T_SIMPLE, GROUP : T_GROUP, NGRAM : T_NGRAM
+        },
+        
+        //
+        // default grammar settings
+        defaultGrammar = {
+            // prefix ID for regular expressions used in the grammar
+            "RegExpID" : null,
+            
+            //
+            // Style model
+            "Style" : null,
+
+            //
+            // Lexical model
+            "Lex" : null,
+            
+            //
+            // Syntax model and context-specific rules (optional)
+            "Syntax" : null,
+            
+            // what to parse and in what order
+            "Parser" : null
         }
     ;

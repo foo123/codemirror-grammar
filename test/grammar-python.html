@@ -21,10 +21,12 @@
         </style>
         
         <script src="codemirror/codemirror.js"></script>
+        <script src="codemirror/addon/comment/comment.js"></script>
         <script src="../build/classy.js"></script>
         <script src="../build/regexanalyzer.js"></script>
         <script src="../build/codemirror_grammar.js"></script>
         <script src="grammars/python.js"></script>
+        <script src="demo.js"></script>
         
         <title>CodeMirror: Dynamic Python Grammar Demo</title>
     </head>
@@ -127,21 +129,11 @@ class ExampleClass(ParentClass):
         // <![CDATA[
         
         // 2. parse the grammar into a Codemirror syntax-highlight mode
-        var python_mode = CodeMirrorGrammar.getMode(python_grammar);
-        
         // 3. register the mode with Codemirror
-        CodeMirror.defineMode("python", python_mode);
-        //CodeMirror.defineMIME("application/x-httpd-python", "python");
+        CodeMirror.defineMode("python", CodeMirrorGrammar.getMode(python_grammar));
         
         // use it!
-        var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
-            mode: "python",
-            lineNumbers: true,
-            matchBrackets: false,
-            indentUnit: 4,
-            indentWithTabs: false
-        });
-        editor.setSize(null, 500);
+        codemirror_grammar_demo(document.getElementById("code"), "python");
         
         // ]]>
         </script>
