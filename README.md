@@ -36,6 +36,7 @@ Code Indentation is Codemirror default, looking for ways to add more elaborate i
 * Grammar includes: **Style Model** , **Lex Model** and **Syntax Model** (optional), plus a couple of *settings* (see examples)
 * Grammar **specification can be minimal** (defaults will be used) (see example grammars)
 * Grammar Syntax Model can enable highlight in a more context-specific way, plus detect possible *syntax errors*
+* Grammar Syntax Model can contain *recursive references* (see /test/grammar-js-recursion.html)
 * Generated highlight modes can support **toggle comments** and **keyword autocompletion** functionality if defined in the grammar
 * Generated parsers are **optimized for speed and size**
 * Can generate a syntax-highlight parser from a grammar **interactively and on-the-fly** ( see example, http://foo123.github.io/examples/codemirror-grammar )
@@ -236,6 +237,9 @@ Result:
 
 
 ![js-grammar](/test/grammar-js.png)
+
+
+![js-recursive-grammar](/test/grammar-js-recursion.png)
 
 
 ![css-grammar](/test/grammar-css.png)

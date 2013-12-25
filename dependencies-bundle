@@ -20,61 +20,10 @@
     ## bundle-in external dependencies ##
     ./build/classy.js
     ./build/regexanalyzer.js
-
-@ # end block
-
-@SRC =[]
+    ./build/codemirror_grammar.min.js
     
-    ./src/umd-header.js
-    ./src/lib/types.js
-    ./src/lib/utils.js
-    ./src/lib/stream.js
-    ./src/lib/state.js
-    ./src/factories/matchers.js
-    ./src/factories/tokenizers.js
-    ./src/factories/parsers.js
-    ./src/main.js
-    ./src/umd-footer.js
-
 @ # end block
 
-# TODO, allow some pre-process to take place
-#@PREPROCESS
-
-@REPLACE ={}
-    "@@VERSION@@" = "0.6"
-@ # end block
-
-# extract documentation from the source (map)
-@DOC ={}
-    "STARTDOC" = "/**[DOC_MARKDOWN]"
-    "ENDDOC" = "[/DOC_MARKDOWN]**/"
-    "TRIMX" = "\\s*\\*[ ]?"
-    "OUTPUT" = "./api-reference.md"
-@ # end block
-
-# Minify the Package (map of lists)
-@MINIFY ={}
-
-    # Options for Node UglifyJS Compiler (if used, default), (mangle and compress)
-    "UGLIFY" =[]
-        -m -c
-    @ # end block
-
-    # Options for Java Closure Compiler (if used)
-    "CLOSURE" =[]
-        --language_in=ECMASCRIPT5_STRICT
-    @ # end block
-
-    # Options for Java YUI Compressor Compiler (if used)
-    "YUI" =[]
-        --preserve-semi
-    @ # end block
-
-@ # end block
-
-# TODO, allow some post-process to take place
-#@POSTPROCESS
 
 @OUT =
 ./build/codemirror_grammar.bundle.js

@@ -13,18 +13,18 @@
                 //this.LOC = LOC;
                 //this.Grammar = grammar;
                 //this.Comments = grammar.Comments || {};
-                this.electricChars = (grammar.electricChars) ? grammar.electricChars : false;
+                this.electricChars = grammar.electricChars || false;
                 
                 // support comments toggle functionality
-                this.LC = (grammar.Comments && grammar.Comments.line) ? grammar.Comments.line[0] : null,
-                this.BCS = (grammar.Comments && grammar.Comments.block) ? grammar.Comments.block[0][0] : null,
-                this.BCE = (grammar.Comments && grammar.Comments.block) ? grammar.Comments.block[0][1] : null,
-                this.BCC = this.BCL = (grammar.Comments && grammar.Comments.block) ? grammar.Comments.block[0][2] : null,
+                this.LC = (grammar.Comments.line) ? grammar.Comments.line[0] : null,
+                this.BCS = (grammar.Comments.block) ? grammar.Comments.block[0][0] : null,
+                this.BCE = (grammar.Comments.block) ? grammar.Comments.block[0][1] : null,
+                this.BCC = this.BCL = (grammar.Comments.block) ? grammar.Comments.block[0][2] : null,
                 this.DEF = LOC.DEFAULT;
-                this.ERR = (grammar.Style && grammar.Style.error) ? grammar.Style.error : LOC.ERROR;
+                this.ERR = grammar.Style.error || LOC.ERROR;
                 
                 // support keyword autocompletion
-                this.Keywords = (grammar.Keywords && grammar.Keywords.autocomplete) ? grammar.Keywords.autocomplete : null;
+                this.Keywords = grammar.Keywords.autocomplete || null;
                 
                 this.Tokens = grammar.Parser || [];
             },

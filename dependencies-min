@@ -17,25 +17,19 @@
 
 @SRC =[]
     
-    ./src/umd-header.js
-    ./src/lib/types.js
-    ./src/lib/utils.js
-    ./src/lib/stream.js
-    ./src/lib/state.js
-    ./src/factories/matchers.js
-    ./src/factories/tokenizers.js
-    ./src/factories/parsers.js
-    ./src/main.js
-    ./src/umd-footer.js
-
+    ./build/codemirror_grammar.js
+    
 @ # end block
 
-# TODO, allow some pre-process to take place
-#@PREPROCESS
 
-@REPLACE ={}
-    "@@VERSION@@" = "0.6"
+# extract documentation from the source (map)
+@DOC ={}
+    "STARTDOC" = "/**[DOC_MARKDOWN]"
+    "ENDDOC" = "[/DOC_MARKDOWN]**/"
+    "TRIMX" = "\\s*\\*[ ]?"
+    "OUTPUT" = "./api-reference.md"
 @ # end block
+
 
 # Minify the Package (map of lists)
 @MINIFY ={}
@@ -56,9 +50,6 @@
     @ # end block
 
 @ # end block
-
-# TODO, allow some post-process to take place
-#@POSTPROCESS
 
 @OUT =
 ./build/codemirror_grammar.min.js

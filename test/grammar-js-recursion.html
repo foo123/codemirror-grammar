@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+    <head>
+        
+        <meta charset="utf-8">
+        
+        <link rel="stylesheet" href="codemirror/codemirror.css">
+        <style type="text/css">
+            body {
+                position: relative;
+            }
+
+            .CodeMirror {
+                margin: 0;
+                position: relative;
+                width: 100%;
+                height: 100%;
+                min-width:500px;
+                min-height:500px;
+            }
+        </style>
+        
+        <script src="codemirror/codemirror.js"></script>
+        <script src="codemirror/addon/comment/comment.js"></script>
+        <script src="../build/classy.js"></script>
+        <script src="../build/regexanalyzer.js"></script>
+        <script src="../build/codemirror_grammar.js"></script>
+        <script src="grammars/javascript-recursion.js"></script>
+        <script src="demo.js"></script>
+        
+        <title>CodeMirror: Dynamic JavaScript Recursive Grammar Demo</title>
+    </head>
+    <body>
+        
+        <h3>CodeMirror: Dynamic JavaScript Recursive Grammar</h3>
+
+<textarea id="code" name="code">
+/* highlight nested code correctly with recursive grammar  */
+var obj = { 
+    foo: [
+        1, 2, 3, 
+        {
+            "foo3": { 
+                foo4: { 
+                    "foo5": {}, 
+                    foo6: {}
+                }
+            } 
+        } 
+    ]
+};
+</textarea>
+        <p></p>
+
+        <script>
+        // <![CDATA[
+        
+        // 2. parse the grammar into a Codemirror syntax-highlight mode
+        // 3. register the mode with Codemirror
+        CodeMirror.defineMode("js", CodeMirrorGrammar.getMode(js_grammar));
+        
+        // use it!
+        codemirror_grammar_demo(document.getElementById("code"), "js");
+        
+        // ]]>
+        </script>
+    </body>
+</html>

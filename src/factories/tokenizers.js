@@ -24,8 +24,6 @@
             r : null,
             required : 0,
             ERR : 0,
-            streamPos : null,
-            stackPos : null,
             toClone: null,
             actionBefore : null,
             actionAfter : null,
@@ -40,8 +38,8 @@
                 return this;
             },
             
-            push : function(stack, token, i) {
-                if ( this.stackPos ) stack.splice( this.stackPos+(i||0), 0, token );
+            push : function(stack, pos, token) {
+                if ( pos ) stack.splice( pos, 0, token );
                 else stack.push( token );
                 return this;
             },
@@ -52,8 +50,6 @@
                 t = new this.$class();
                 t.tt = this.tt;
                 t.tn = this.tn;
-                t.streamPos = this.streamPos;
-                t.stackPos = this.stackPos;
                 t.actionBefore = this.actionBefore;
                 t.actionAfter = this.actionAfter;
                 //t.required = this.required;
@@ -79,7 +75,7 @@
                 this.$super('constructor', name, token, style);
                 this.tt = type;
                 // a block is multiline by default
-                this.mline = ( T_UNDEF & get_type(allowMultiline) ) ? 1 : allowMultiline;
+                this.mline = ( 'undefined' == typeof(allowMultiline) ) ? 1 : allowMultiline;
                 this.esc = escChar || "\\";
                 this.toClone = ['t', 'r', 'mline', 'esc'];
             },    
@@ -89,7 +85,7 @@
             
             get : function( stream, state ) {
             
-                var ended = 0, found = 0, endBlock, next = "", continueToNextLine,
+                var ended = 0, found = 0, endBlock, next = "", continueToNextLine, stackPos, 
                     allowMultiline = this.mline, startBlock = this.t, thisBlock = this.tn,
                     charIsEscaped = 0, isEscapedBlock = (T_ESCBLOCK == this.tt), escChar = this.esc
                 ;
@@ -108,7 +104,7 @@
                 
                 if ( found )
                 {
-                    this.stackPos = state.stack.length;
+                    stackPos = state.stack.length;
                     ended = endBlock.get(stream);
                     continueToNextLine = allowMultiline;
                     
@@ -135,7 +131,7 @@
                     }
                     else
                     {
-                        this.push( state.stack, this );
+                        this.push( state.stack, stackPos, this );
                     }
                     
                     state.t = this.tt;
@@ -148,170 +144,91 @@
             }
         }),
                 
-        ZeroOrOneTokens = Class(SimpleToken, {
+        RepeatedTokens = Class(SimpleToken, {
                 
-            constructor : function( name, tokens ) {
-                this.tt = T_ZEROORONE;
+            constructor : function( name, tokens, min, max ) {
+                this.tt = T_REPEATED;
                 this.tn = name || null;
                 this.t = null;
                 this.ts = null;
-                this.foundOne = 0;
-                this.toClone = ['ts', 'foundOne'];
-                if (tokens) this.makeToks( tokens );
+                this.min = min || 0;
+                this.max = max || INF;
+                this.found = 0;
+                this.toClone = ['ts', 'min', 'max', 'found'];
+                if (tokens) this.set( tokens );
             },
             
-            ts : null,
-            foundOne : 0,
+            ts: null,
+            min: 0,
+            max: 1,
+            found : 0,
             
-            makeToks : function( tokens ) {
+            set : function( tokens ) {
                 if ( tokens ) this.ts = make_array( tokens );
                 return this;
             },
             
             get : function( stream, state ) {
             
-                var i, token, style, tokens = this.ts, n = tokens.length, tokensErr = 0, ret = false;
+                var i, token, style, tokens = this.ts, n = tokens.length, 
+                    found = this.found, min = this.min, max = this.max,
+                    tokensRequired = 0, streamPos, stackPos;
                 
-                this.ERR = this.foundOne;
-                // already found one, no more
-                if ( this.ERR ) return false;
-                
-                // this is optional
-                this.required = 0;
-                this.streamPos = stream.pos;
-                this.stackPos = state.stack.length;
-                
-                
-                for (i=0; i<n; i++)
-                {
-                    token = tokens[i];
-                    style = token.get(stream, state);
-                    
-                    if ( false !== style )
-                    {
-                        // push it to the stack for more
-                        this.foundOne = 1;
-                        this.push( state.stack, this.clone() );
-                        this.foundOne = 0;
-                        return style;
-                    }
-                    else if ( token.ERR )
-                    {
-                        tokensErr++;
-                        stream.bck2( this.streamPos );
-                    }
-                }
-                
-                //this.ERR = (n == tokensErr) ? true : false;
-                return false;
-            }
-        }),
-        
-        ZeroOrMoreTokens = Class(ZeroOrOneTokens, {
-                
-            constructor : function( name, tokens ) {
-                this.$super('constructor', name, tokens);
-                this.tt = T_ZEROORMORE;
-            },
-            
-            get : function( stream, state ) {
-            
-                var i, token, style, tokens = this.ts, n = tokens.length, tokensErr = 0, ret = false;
-                
-                // this is optional
-                this.required = 0;
                 this.ERR = 0;
-                this.streamPos = stream.pos;
-                this.stackPos = state.stack.length;
+                this.required = 0;
+                streamPos = stream.pos;
+                stackPos = state.stack.length;
                 
                 for (i=0; i<n; i++)
                 {
-                    token = tokens[i];
+                    token = tokens[i].clone().require(1);
                     style = token.get(stream, state);
                     
                     if ( false !== style )
                     {
-                        // push it to the stack for more
-                        this.push( state.stack, this );
-                        return style;
+                        ++found;
+                        if ( found <= max )
+                        {
+                            // push it to the stack for more
+                            this.found = found;
+                            this.push( state.stack, stackPos, this.clone() );
+                            this.found = 0;
+                            return style;
+                        }
+                        break;
                     }
-                    else if ( token.ERR )
+                    else if ( token.required )
                     {
-                        tokensErr++;
-                        stream.bck2( this.streamPos );
+                        tokensRequired++;
                     }
+                    if ( token.ERR ) stream.bck2( streamPos );
                 }
                 
-                //this.ERR = (n == tokensErr) ? true : false;
+                this.required = found < min;
+                this.ERR = found > max || (found < min && 0 < tokensRequired);
                 return false;
             }
         }),
         
-        OneOrMoreTokens = Class(ZeroOrOneTokens, {
+        EitherTokens = Class(RepeatedTokens, {
                 
             constructor : function( name, tokens ) {
-                this.$super('constructor', name, tokens);
-                this.tt = T_ONEORMORE;
-                this.foundOne = 0;
-            },
-            
-            get : function( stream, state ) {
-        
-                var style, token, i, tokens = this.ts, n = tokens.length, tokensRequired = 0, tokensErr = 0;
-                
-                this.required = !this.foundOne;
-                this.ERR = 0;
-                this.streamPos = stream.pos;
-                this.stackPos = state.stack.length;
-                
-                for (i=0; i<n; i++)
-                {
-                    token = tokens[i];
-                    style = token.get(stream, state);
-                    
-                    tokensRequired += (token.required) ? 1 : 0;
-                    
-                    if ( false !== style )
-                    {
-                        this.foundOne = 1;
-                        this.required = 0;
-                        this.ERR = 0;
-                        // push it to the stack for more
-                        this.push( state.stack, this.clone() );
-                        this.foundOne = 0;
-                        
-                        return style;
-                    }
-                    else if ( token.ERR )
-                    {
-                        tokensErr++;
-                        stream.bck2( this.streamPos );
-                    }
-                }
-                
-                this.ERR = (!this.foundOne /*|| n == tokensErr*/) ? 1 : 0;
-                return false;
-            }
-        }),
-        
-        EitherTokens = Class(ZeroOrOneTokens, {
-                
-            constructor : function( name, tokens ) {
-                this.$super('constructor', name, tokens);
+                this.$super('constructor', name, tokens, 1, 1);
                 this.tt = T_EITHER;
             },
             
             get : function( stream, state ) {
             
-                var style, token, i, tokens = this.ts, n = tokens.length, tokensRequired = 0, tokensErr = 0;
+                var style, token, i, tokens = this.ts, n = tokens.length, 
+                    tokensRequired = 0, tokensErr = 0, streamPos;
                 
                 this.required = 1;
                 this.ERR = 0;
-                this.streamPos = stream.pos;
+                streamPos = stream.pos;
                 
                 for (i=0; i<n; i++)
                 {
-                    token = tokens[i];
+                    token = tokens[i].clone();
                     style = token.get(stream, state);
                     
                     tokensRequired += (token.required) ? 1 : 0;
@@ -323,104 +240,102 @@
                     else if ( token.ERR )
                     {
                         tokensErr++;
-                        stream.bck2( this.streamPos );
+                        stream.bck2( streamPos );
                     }
                 }
                 
-                this.required = (tokensRequired > 0) ? 1 : 0;
-                this.ERR = (n == tokensErr && tokensRequired > 0) ? 1 : 0;
+                this.required = (tokensRequired > 0);
+                this.ERR = (n == tokensErr && tokensRequired > 0);
                 return false;
             }
         }),
                 
-        AllTokens = Class(ZeroOrOneTokens, {
+        AllTokens = Class(RepeatedTokens, {
                 
             constructor : function( name, tokens ) {
-                this.$super('constructor', name, tokens);
+                this.$super('constructor', name, tokens, 1, 1);
                 this.tt = T_ALL;
             },
             
             get : function( stream, state ) {
                 
-                var token, style, tokens = this.ts, n = tokens.length, ret = false;
+                var token, style, tokens = this.ts, n = tokens.length,
+                    streamPos, stackPos;
                 
                 this.required = 1;
                 this.ERR = 0;
-                this.streamPos = stream.pos;
-                this.stackPos = state.stack.length;
-                
-                
-                token = tokens[ 0 ];
-                style = token.require(0).get(stream, state);
+                streamPos = stream.pos;
+                token = tokens[ 0 ].clone().require( 1 );
+                style = token.get(stream, state);
                 
                 if ( false !== style )
                 {
-                    this.stackPos = state.stack.length;
+                    stackPos = state.stack.length;
                     for (var i=n-1; i>0; i--)
-                        this.push( state.stack, tokens[i].require(1), n-i );
+                        this.push( state.stack, stackPos+n-i, tokens[ i ].clone().require( 1 ) );
                     
-                    ret = style;
+                    return style;
                     
                 }
                 else if ( token.ERR )
                 {
                     this.ERR = 1;
-                    stream.bck2( this.streamPos );
+                    stream.bck2( streamPos );
                 }
                 else if ( token.required )
                 {
                     this.ERR = 1;
                 }
                 
-                return ret;
+                return false;
             }
         }),
                 
-        NGramToken = Class(ZeroOrOneTokens, {
+        NGramToken = Class(RepeatedTokens, {
                 
             constructor : function( name, tokens ) {
-                this.$super('constructor', name, tokens);
+                this.$super('constructor', name, tokens, 1, 1);
                 this.tt = T_NGRAM;
             },
             
             get : function( stream, state ) {
                 
-                var token, style, tokens = this.ts, n = tokens.length, ret = false;
+                var token, style, tokens = this.ts, n = tokens.length, 
+                    streamPos, stackPos;
                 
                 this.required = 0;
                 this.ERR = 0;
-                this.streamPos = stream.pos;
-                this.stackPos = state.stack.length;
-                
-                
-                token = tokens[ 0 ];
-                style = token.require(0).get(stream, state);
+                streamPos = stream.pos;
+                token = tokens[ 0 ].clone().require( 0 );
+                style = token.get(stream, state);
                 
                 if ( false !== style )
                 {
-                    this.stackPos = state.stack.length;
+                    stackPos = state.stack.length;
                     for (var i=n-1; i>0; i--)
-                        this.push( state.stack, tokens[i].require(1), n-i );
+                        this.push( state.stack, stackPos+n-i, tokens[ i ].clone().require( 1 ) );
                     
-                    ret = style;
+                    return style;
                 }
                 else if ( token.ERR )
                 {
                     //this.ERR = 1;
-                    stream.bck2( this.streamPos );
+                    stream.bck2( streamPos );
                 }
                 
-                return ret;
+                return false;
             }
         }),
                 
         getTokenizer = function(tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords) {
             
+            tokenID = '' + tokenID;
             if ( !cachedTokens[ tokenID ] )
             {
                 var tok, token = null, type, combine, action, matchType, tokens, T;
             
-                tok = Lex[ tokenID ] || Syntax[ tokenID ] || null;
+                // allow token to be literal and wrap to simple token with default style
+                tok = Lex[ tokenID ] || Syntax[ tokenID ] || { type: "simple", tokens: tokenID };
                 
                 if ( tok )
                 {
@@ -442,12 +357,15 @@
                         if ( tok.autocomplete ) getAutoComplete(tok, tokenID, keywords);
                         
                         // combine by default if possible using word-boundary delimiter
-                        combine = ( 'undefined' ===  typeof(tok.combine) ) ? "\\b" : tok.combine;
+                        combine = ( 'undefined' ==  typeof(tok.combine) ) ? "\\b" : tok.combine;
                         token = new SimpleToken( 
                                     tokenID,
                                     getCompositeMatcher( tokenID, tok.tokens.slice(), RegExpID, combine, cachedRegexes, cachedMatchers ), 
                                     Style[ tokenID ] || DEFAULTSTYLE
                                 );
+                        
+                        // pre-cache tokenizer to handle recursive calls to same tokenizer
+                        cachedTokens[ tokenID ] = token;
                     }
                     
                     else if ( T_BLOCK & type )
@@ -462,51 +380,77 @@
                                     tok.multiline,
                                     tok.escape
                                 );
+                        
+                        // pre-cache tokenizer to handle recursive calls to same tokenizer
+                        cachedTokens[ tokenID ] = token;
                     }
                     
                     else if ( T_GROUP & type )
                     {
-                        matchType = groupTypes[ tok.match.toUpperCase() ]; 
                         tokens = tok.tokens.slice();
+                        if ( T_ARRAY & get_type( tok.match ) )
+                        {
+                            token = new RepeatedTokens(tokenID, null, tok.match[0], tok.match[1]);
+                        }
+                        else
+                        {
+                            matchType = groupTypes[ tok.match.toUpperCase() ]; 
+                            
+                            if (T_ZEROORONE == matchType) 
+                                token = new RepeatedTokens(tokenID, null, 0, 1);
+                            
+                            else if (T_ZEROORMORE == matchType) 
+                                token = new RepeatedTokens(tokenID, null, 0, INF);
+                            
+                            else if (T_ONEORMORE == matchType) 
+                                token = new RepeatedTokens(tokenID, null, 1, INF);
+                            
+                            else if (T_EITHER & matchType) 
+                                token = new EitherTokens(tokenID, null);
+                            
+                            else //if (T_ALL == matchType)
+                                token = new AllTokens(tokenID, null);
+                        }
+                        
+                        // pre-cache tokenizer to handle recursive calls to same tokenizer
+                        cachedTokens[ tokenID ] = token;
                         
                         for (var i=0, l=tokens.length; i<l; i++)
                             tokens[i] = getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords );
                         
-                        if (T_ZEROORONE & matchType) 
-                            token = new ZeroOrOneTokens(tokenID, tokens);
+                        token.set(tokens);
                         
-                        else if (T_ZEROORMORE & matchType) 
-                            token = new ZeroOrMoreTokens(tokenID, tokens);
-                        
-                        else if (T_ONEORMORE & matchType) 
-                            token = new OneOrMoreTokens(tokenID, tokens);
-                        
-                        else if (T_EITHER & matchType) 
-                            token = new EitherTokens(tokenID, tokens);
-                        
-                        else //if (T_ALL == matchType)
-                            token = new AllTokens(tokenID, tokens);
                     }
                     
                     else if ( T_NGRAM & type )
                     {
                         // get n-gram tokenizer
                         token = make_array_2( tok.tokens.slice() ).slice(); // array of arrays
+                        var ngrams = [], ngram;
                         
                         for (var i=0, l=token.length; i<l; i++)
                         {
                             // get tokenizers for each ngram part
-                            var ngram = token[i];
+                            ngrams[i] = token[i].slice();
+                            // get tokenizer for whole ngram
+                            token[i] = new NGramToken( tokenID + '_NGRAM_' + i, null );
+                        }
+                        
+                        // pre-cache tokenizer to handle recursive calls to same tokenizer
+                        cachedTokens[ tokenID ] = token;
+                        
+                        for (var i=0, l=token.length; i<l; i++)
+                        {
+                            ngram = ngrams[i];
                             
                             for (var j=0, l2=ngram.length; j<l2; j++)
                                 ngram[j] = getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords );
                             
-                            // get a tokenizer for whole ngram
-                            token[i] = new NGramToken( tokenID + '_NGRAM_' + i, ngram );
+                            // get tokenizer for whole ngram
+                            token[i].set( ngram );
                         }
                     }
                 }
-                cachedTokens[ tokenID ] = token;
             }
             
             return cachedTokens[ tokenID ];

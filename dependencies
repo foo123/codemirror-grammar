@@ -30,16 +30,10 @@
 
 @ # end block
 
-# TODO, allow some pre-process to take place
-#@PREPROCESS
-
 # do any replacements to the source (map)
 @REPLACE ={}
-    "@@VERSION@@" = "0.6"
+    "@@VERSION@@" = "0.6.1"
 @ # end block
-
-# TODO, allow some post-process to take place
-#@POSTPROCESS
 
 @OUT =
 ./build/codemirror_grammar.js
