@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.6.1
+*   @version: 0.6.2
 *   Transform a grammar specification in JSON format,
 *   into a CodeMirror syntax-highlight parser mode
 *
@@ -483,33 +483,49 @@
     var
         ParserState = Class({
             
-            constructor: function( id ) {
-                this.id = id || 0;
+            constructor: function( line ) {
+                //this.id = 0; //new Date().getTime();
+                this.l = line || 0;
                 this.stack = [];
                 this.t = T_DEFAULT;
+                this.r = '0';
                 this.inBlock = null;
                 this.endBlock = null;
             },
             
-            id: 0,
+            // state id
+            //id: 0,
+            // state current line
+            l: 0,
+            // state token stack
             stack: null,
+            // state current token id
             t: null,
+            // state current token type
+            r: null,
+            // state current block name
             inBlock: null,
+            // state endBlock for current block
             endBlock: null,
             
             clone: function() {
-                var copy = new this.$class( this.id );
-                copy.t = this.t;
+                var copy = new this.$class( this.l );
+                copy.t = 0+this.t;
+                copy.r = ''+this.r;
                 copy.stack = this.stack.slice();
                 copy.inBlock = this.inBlock;
                 copy.endBlock = this.endBlock;
                 return copy;
             },
             
-            // used mostly for ACE which treats states as strings
+            // used mostly for ACE which treats states as strings, 
+            // make sure to generate a string which will cover most cases where state needs to be updated by the editor
             toString: function() {
                 //return ['', this.id, this.inBlock||'0'].join('_');
-                return ['', this.id, this.t, this.inBlock||'0'].join('_');
+                //return ['', this.id, this.t, this.r||'0', this.stack.length, this.inBlock||'0'].join('_');
+                //return ['', this.id, this.t, this.stack.length, this.inBlock||'0'].join('_');
+                //return ['', this.id, this.t, this.r||'0', this.inBlock||'0'].join('_');
+                return ['', this.l, this.t, this.r, this.inBlock||'0'].join('_');
             }
         })
     ;
@@ -828,7 +844,12 @@
             actionAfter : null,
             
             get : function( stream, state ) {
-                if ( this.t.get(stream) ) { state.t = this.tt; return this.r; }
+                if ( this.t.get(stream) ) 
+                { 
+                    state.t = this.tt; 
+                    //state.r = this.r; 
+                    return this.r; 
+                }
                 return false;
             },
             
@@ -889,6 +910,9 @@
                     charIsEscaped = 0, isEscapedBlock = (T_ESCBLOCK == this.tt), escChar = this.esc
                 ;
                 
+                // comments in general are not required tokens
+                if ( T_COMMENT == this.tt ) this.required = 0;
+                
                 if ( state.inBlock == thisBlock )
                 {
                     found = 1;
@@ -934,11 +958,12 @@
                     }
                     
                     state.t = this.tt;
+                    //state.r = this.r; 
                     return this.r;
                 }
                 
-                state.inBlock = null;
-                state.endBlock = null;
+                //state.inBlock = null;
+                //state.endBlock = null;
                 return false;
             }
         }),
@@ -1126,21 +1151,20 @@
             }
         }),
                 
-        getTokenizer = function(tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords) {
+        getTokenizer = function(tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords) {
             
             tokenID = '' + tokenID;
             if ( !cachedTokens[ tokenID ] )
             {
-                var tok, token = null, type, combine, action, matchType, tokens, T;
+                var tok, token = null, type, combine, action, matchType, tokens;
             
                 // allow token to be literal and wrap to simple token with default style
                 tok = Lex[ tokenID ] || Syntax[ tokenID ] || { type: "simple", tokens: tokenID };
                 
                 if ( tok )
                 {
-                    T = get_type( tok );
                     // tokens given directly, no token configuration object, wrap it
-                    if ( (T_STR | T_ARRAY) & T )
+                    if ( (T_STR | T_ARRAY) & get_type( tok ) )
                     {
                         tok = { type: "simple", tokens: tok };
                     }
@@ -1182,6 +1206,7 @@
                         
                         // pre-cache tokenizer to handle recursive calls to same tokenizer
                         cachedTokens[ tokenID ] = token;
+                        if ( tok.interleave ) commentTokens.push( token.clone() );
                     }
                     
                     else if ( T_GROUP & type )
@@ -1215,7 +1240,7 @@
                         cachedTokens[ tokenID ] = token;
                         
                         for (var i=0, l=tokens.length; i<l; i++)
-                            tokens[i] = getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords );
+                            tokens[i] = getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords );
                         
                         token.set(tokens);
                         
@@ -1243,7 +1268,7 @@
                             ngram = ngrams[i];
                             
                             for (var j=0, l2=ngram.length; j<l2; j++)
-                                ngram[j] = getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords );
+                                ngram[j] = getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens,  comments, keywords );
                             
                             // get tokenizer for whole ngram
                             token[i].set( ngram );
@@ -1288,13 +1313,14 @@
         parseGrammar = function(grammar) {
             var RegExpID, tokens, numTokens, _tokens, 
                 Style, Lex, Syntax, t, tokenID, token, tok,
-                cachedRegexes, cachedMatchers, cachedTokens, comments, keywords;
+                cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords;
             
             // grammar is parsed, return it
             // avoid reparsing already parsed grammars
             if ( grammar.__parsed ) return grammar;
             
             cachedRegexes = {}; cachedMatchers = {}; cachedTokens = {}; comments = {}; keywords = {};
+            commentTokens = [];
             grammar = extend(grammar, defaultGrammar);
             
             RegExpID = grammar.RegExpID || null;
@@ -1321,7 +1347,7 @@
             {
                 tokenID = _tokens[ t ];
                 
-                token = getTokenizer( tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords ) || null;
+                token = getTokenizer( tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords ) || null;
                 
                 if ( token )
                 {
@@ -1332,6 +1358,7 @@
             }
             
             grammar.Parser = tokens;
+            grammar.cTokens = commentTokens;
             grammar.Style = Style;
             grammar.Comments = comments;
             grammar.Keywords = keywords;
@@ -1344,9 +1371,7 @@
     ;
       
     // codemirror supposed to be available
-    var _CodeMirror = CodeMirror || {
-        Pass : { toString: function(){return "CodeMirror.Pass";} }
-    };
+    var _CodeMirror = CodeMirror || { Pass : { toString: function(){return "CodeMirror.Pass";} } };
     
     //
     // parser factories
@@ -1371,6 +1396,10 @@
                 this.Keywords = grammar.Keywords.autocomplete || null;
                 
                 this.Tokens = grammar.Parser || [];
+                this.cTokens = (grammar.cTokens.length) ? grammar.cTokens : null;
+                
+                /*if (this.cTokens)
+                    this.Tokens = this.cTokens.concat(this.Tokens);*/
             },
             
             //LOC: null,
@@ -1387,16 +1416,15 @@
             ERR: null,
             DEF: null,
             Keywords: null,
+            cTokens: null,
             Tokens: null,
             
             // Codemirror Tokenizer compatible
             getToken: function(stream_, state) {
                 
-                var i,
-                    tokenizer, type, tokens = this.Tokens, numTokens = tokens.length, 
-                    stream, stack,
-                    DEFAULT = this.DEF,
-                    ERROR = this.ERR
+                var i, ci,
+                    tokenizer, type, interleavedCommentTokens = this.cTokens, tokens = this.Tokens, numTokens = tokens.length, 
+                    stream, stack, DEFAULT = this.DEF, ERROR = this.ERR
                 ;
                 
                 stack = state.stack;
@@ -1405,11 +1433,25 @@
                 if ( stream.spc() ) 
                 {
                     state.t = T_DEFAULT;
-                    return DEFAULT;
+                    return state.r = DEFAULT;
                 }
                 
                 while ( stack.length )
                 {
+                    if (interleavedCommentTokens)
+                    {
+                        ci = 0;
+                        while ( ci < interleavedCommentTokens.length )
+                        {
+                            tokenizer = interleavedCommentTokens[ci++];
+                            type = tokenizer.get(stream, state);
+                            if ( false !== type )
+                            {
+                                return state.r = type;
+                            }
+                        }
+                    }
+                    
                     tokenizer = stack.pop();
                     type = tokenizer.get(stream, state);
                     
@@ -1425,7 +1467,7 @@
                             stream.nxt();
                             // generate error
                             state.t = T_ERROR;
-                            return ERROR;
+                            return state.r = ERROR;
                         }
                         // optional
                         else
@@ -1436,7 +1478,7 @@
                     // found token
                     else
                     {
-                        return type;
+                        return state.r = type;
                     }
                 }
                 
@@ -1457,7 +1499,7 @@
                             stream.nxt();
                             // generate error
                             state.t = T_ERROR;
-                            return ERROR;
+                            return state.r = ERROR;
                         }
                         // optional
                         else
@@ -1468,14 +1510,14 @@
                     // found token
                     else
                     {
-                        return type;
+                        return state.r = type;
                     }
                 }
                 
                 // unknown, bypass
                 stream.nxt();
                 state.t = T_DEFAULT;
-                return DEFAULT;
+                return state.r = DEFAULT;
             },
             
             indent : function(state, textAfter, fullLine) {
@@ -1575,7 +1617,7 @@
     DEFAULTERROR = "error";
     var self = {
         
-        VERSION : "0.6.1",
+        VERSION : "0.6.2",
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]

@@ -35,11 +35,12 @@
         <h3>CodeMirror: Dynamic JavaScript Recursive Grammar</h3>
 
 <textarea id="code" name="code">
-/* highlight nested code correctly with recursive grammar  */
+/* highlight nested code correctly with recursive grammar */
 var obj = { 
     foo: [
         1, 2, 3, 
         {
+            /* while comments can be validly interleaved anywhere */
             "foo3": { 
                 foo4: { 
                     "foo5": {}, 

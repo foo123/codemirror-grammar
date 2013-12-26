@@ -29,6 +29,8 @@ var js_grammar = {
         // comments
         "comment" : {
             "type" : "comment",
+            // whether the comment token can be validly interleaved anywhere within the code
+            "interleave": true,
             "tokens" : [
                 // line comment
                 // start, end delims  (null matches end-of-line)
@@ -165,13 +167,13 @@ var js_grammar = {
         "literalValue" : {
             "type" : "group",
             "match" : "either",
-            "tokens" : [ "atom", "string", "number", "identifier", "literalArray", "literalObject" ]
+            "tokens" : [ "atom", "number", "identifier", "string", "literalArray", "literalObject" ]
         },
         
         "literalProperty" : {
             "type" : "group",
             "match" : "either",
-            "tokens" : [ "string", "property" ]
+            "tokens" : [ "property", "string" ]
         },
         
         // grammar recursion here

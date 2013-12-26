@@ -29,7 +29,12 @@
             actionAfter : null,
             
             get : function( stream, state ) {
-                if ( this.t.get(stream) ) { state.t = this.tt; return this.r; }
+                if ( this.t.get(stream) ) 
+                { 
+                    state.t = this.tt; 
+                    //state.r = this.r; 
+                    return this.r; 
+                }
                 return false;
             },
             
@@ -90,6 +95,9 @@
                     charIsEscaped = 0, isEscapedBlock = (T_ESCBLOCK == this.tt), escChar = this.esc
                 ;
                 
+                // comments in general are not required tokens
+                if ( T_COMMENT == this.tt ) this.required = 0;
+                
                 if ( state.inBlock == thisBlock )
                 {
                     found = 1;
@@ -135,11 +143,12 @@
                     }
                     
                     state.t = this.tt;
+                    //state.r = this.r; 
                     return this.r;
                 }
                 
-                state.inBlock = null;
-                state.endBlock = null;
+                //state.inBlock = null;
+                //state.endBlock = null;
                 return false;
             }
         }),
@@ -327,21 +336,20 @@
             }
         }),
                 
-        getTokenizer = function(tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords) {
+        getTokenizer = function(tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords) {
             
             tokenID = '' + tokenID;
             if ( !cachedTokens[ tokenID ] )
             {
-                var tok, token = null, type, combine, action, matchType, tokens, T;
+                var tok, token = null, type, combine, action, matchType, tokens;
             
                 // allow token to be literal and wrap to simple token with default style
                 tok = Lex[ tokenID ] || Syntax[ tokenID ] || { type: "simple", tokens: tokenID };
                 
                 if ( tok )
                 {
-                    T = get_type( tok );
                     // tokens given directly, no token configuration object, wrap it
-                    if ( (T_STR | T_ARRAY) & T )
+                    if ( (T_STR | T_ARRAY) & get_type( tok ) )
                     {
                         tok = { type: "simple", tokens: tok };
                     }
@@ -383,6 +391,7 @@
                         
                         // pre-cache tokenizer to handle recursive calls to same tokenizer
                         cachedTokens[ tokenID ] = token;
+                        if ( tok.interleave ) commentTokens.push( token.clone() );
                     }
                     
                     else if ( T_GROUP & type )
@@ -416,7 +425,7 @@
                         cachedTokens[ tokenID ] = token;
                         
                         for (var i=0, l=tokens.length; i<l; i++)
-                            tokens[i] = getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords );
+                            tokens[i] = getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords );
                         
                         token.set(tokens);
                         
@@ -444,7 +453,7 @@
                             ngram = ngrams[i];
                             
                             for (var j=0, l2=ngram.length; j<l2; j++)
-                                ngram[j] = getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords );
+                                ngram[j] = getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens,  comments, keywords );
                             
                             // get tokenizer for whole ngram
                             token[i].set( ngram );
@@ -489,13 +498,14 @@
         parseGrammar = function(grammar) {
             var RegExpID, tokens, numTokens, _tokens, 
                 Style, Lex, Syntax, t, tokenID, token, tok,
-                cachedRegexes, cachedMatchers, cachedTokens, comments, keywords;
+                cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords;
             
             // grammar is parsed, return it
             // avoid reparsing already parsed grammars
             if ( grammar.__parsed ) return grammar;
             
             cachedRegexes = {}; cachedMatchers = {}; cachedTokens = {}; comments = {}; keywords = {};
+            commentTokens = [];
             grammar = extend(grammar, defaultGrammar);
             
             RegExpID = grammar.RegExpID || null;
@@ -522,7 +532,7 @@
             {
                 tokenID = _tokens[ t ];
                 
-                token = getTokenizer( tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, comments, keywords ) || null;
+                token = getTokenizer( tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords ) || null;
                 
                 if ( token )
                 {
@@ -533,6 +543,7 @@
             }
             
             grammar.Parser = tokens;
+            grammar.cTokens = commentTokens;
             grammar.Style = Style;
             grammar.Comments = comments;
             grammar.Keywords = keywords;

@@ -1,8 +1,6 @@
     
     // codemirror supposed to be available
-    var _CodeMirror = CodeMirror || {
-        Pass : { toString: function(){return "CodeMirror.Pass";} }
-    };
+    var _CodeMirror = CodeMirror || { Pass : { toString: function(){return "CodeMirror.Pass";} } };
     
     //
     // parser factories
@@ -27,6 +25,10 @@
                 this.Keywords = grammar.Keywords.autocomplete || null;
                 
                 this.Tokens = grammar.Parser || [];
+                this.cTokens = (grammar.cTokens.length) ? grammar.cTokens : null;
+                
+                /*if (this.cTokens)
+                    this.Tokens = this.cTokens.concat(this.Tokens);*/
             },
             
             //LOC: null,
@@ -43,16 +45,15 @@
             ERR: null,
             DEF: null,
             Keywords: null,
+            cTokens: null,
             Tokens: null,
             
             // Codemirror Tokenizer compatible
             getToken: function(stream_, state) {
                 
-                var i,
-                    tokenizer, type, tokens = this.Tokens, numTokens = tokens.length, 
-                    stream, stack,
-                    DEFAULT = this.DEF,
-                    ERROR = this.ERR
+                var i, ci,
+                    tokenizer, type, interleavedCommentTokens = this.cTokens, tokens = this.Tokens, numTokens = tokens.length, 
+                    stream, stack, DEFAULT = this.DEF, ERROR = this.ERR
                 ;
                 
                 stack = state.stack;
@@ -61,11 +62,25 @@
                 if ( stream.spc() ) 
                 {
                     state.t = T_DEFAULT;
-                    return DEFAULT;
+                    return state.r = DEFAULT;
                 }
                 
                 while ( stack.length )
                 {
+                    if (interleavedCommentTokens)
+                    {
+                        ci = 0;
+                        while ( ci < interleavedCommentTokens.length )
+                        {
+                            tokenizer = interleavedCommentTokens[ci++];
+                            type = tokenizer.get(stream, state);
+                            if ( false !== type )
+                            {
+                                return state.r = type;
+                            }
+                        }
+                    }
+                    
                     tokenizer = stack.pop();
                     type = tokenizer.get(stream, state);
                     
@@ -81,7 +96,7 @@
                             stream.nxt();
                             // generate error
                             state.t = T_ERROR;
-                            return ERROR;
+                            return state.r = ERROR;
                         }
                         // optional
                         else
@@ -92,7 +107,7 @@
                     // found token
                     else
                     {
-                        return type;
+                        return state.r = type;
                     }
                 }
                 
@@ -113,7 +128,7 @@
                             stream.nxt();
                             // generate error
                             state.t = T_ERROR;
-                            return ERROR;
+                            return state.r = ERROR;
                         }
                         // optional
                         else
@@ -124,14 +139,14 @@
                     // found token
                     else
                     {
-                        return type;
+                        return state.r = type;
                     }
                 }
                 
                 // unknown, bypass
                 stream.nxt();
                 state.t = T_DEFAULT;
-                return DEFAULT;
+                return state.r = DEFAULT;
             },
             
             indent : function(state, textAfter, fullLine) {
