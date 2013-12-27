@@ -7,7 +7,7 @@ var js_grammar = {
     //
     // Style model
     "Style" : {
-        // lang token type  -> CodeMirror (style) tag
+        // lang token type  -> Editor (style) tag
         "comment":    "comment",
         "atom":       "atom",
         "keyword":    "keyword",
@@ -29,7 +29,6 @@ var js_grammar = {
         // comments
         "comment" : {
             "type" : "comment",
-            // whether the comment token can be validly interleaved anywhere within the code
             "interleave": true,
             "tokens" : [
                 // line comment
@@ -85,13 +84,6 @@ var js_grammar = {
         
         // operators
         "operator" : {
-            // "simple" token type is default, if no token type
-            //"type" : "simple",
-            // enable autocompletion for these tokens, with their associated token ID
-            "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
             "combine" : true,
             "tokens" : [
                 "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!",
@@ -100,14 +92,20 @@ var js_grammar = {
             ]
         },
         
+        // delimiters
+        "delimiter" : {
+            "combine" : true,
+            "tokens" : [
+                "(", ")", "[", "]", "{", "}", ",", "=", ";", "?", ":",
+                "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "++", "--",
+                ">>=", "<<="
+            ]
+        },
+            
         // atoms
         "atom" : {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
-            //"combine" : "\\b",
             "tokens" : [
                 "true", "false", 
                 "null", "undefined", 
@@ -119,10 +117,6 @@ var js_grammar = {
         "keyword" : {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
-            //"combine" : "\\b",
             "tokens" : [ 
                 "if", "while", "with", "else", "do", "try", "finally",
                 "return", "break", "continue", "new", "delete", "throw",
@@ -136,10 +130,6 @@ var js_grammar = {
         "builtin" : {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
-            //"combine" : "\\b",
             "tokens" : [ 
                 "Object", "Array", "String", "Number", "RegExp", "Exception",
                 "setTimeout", "setInterval", "alert", "console"

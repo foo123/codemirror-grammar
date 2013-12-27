@@ -7,7 +7,7 @@ var xml_grammar = {
     //
     // Style model
     "Style" : {
-        // lang token type  -> CodeMirror (style) tag
+        // lang token type  -> Editor (style) tag
         "commentBlock":         "comment",
         "metaBlock":            "meta",
         "atom":                 "atom",
@@ -19,7 +19,7 @@ var xml_grammar = {
         "attribute":            "attribute",
         "assignment":           "operator",
         "number":               "number",
-        "number2":              "number",
+        "hexnumber":              "number",
         "string":               "string"
     },
 
@@ -56,9 +56,6 @@ var xml_grammar = {
             ]
         },
         
-        // attribute assignment
-        "assignment" : "=",
-        
         // tag attributes
         "attribute" : "RegExp::[_a-zA-Z][_a-zA-Z0-9\\-]*",
         
@@ -75,7 +72,7 @@ var xml_grammar = {
         ],
         
         // hex colors
-        "number2" : "RegExp::#[0-9a-fA-F]+",
+        "hexnumber" : "RegExp::#[0-9a-fA-F]+",
 
         // strings
         "string" : {
@@ -117,13 +114,13 @@ var xml_grammar = {
         "stringOrNumber" : {
             "type" : "group",
             "match" : "either",
-            "tokens" : [ "string", "number", "number2" ] 
+            "tokens" : [ "string", "number", "hexnumber" ] 
         },
         
         "tagAttribute" : { 
             "type" : "group",
             "match" : "all",
-            "tokens" : [ "attribute", "assignment", "stringOrNumber" ]
+            "tokens" : [ "attribute", "=", "stringOrNumber" ]
         },
         
         "tagAttributes" : { 

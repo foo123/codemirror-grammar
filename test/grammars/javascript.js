@@ -7,7 +7,7 @@ var js_grammar = {
     //
     // Style model
     "Style" : {
-        // lang token type  -> CodeMirror (style) tag
+        // lang token type  -> Editor (style) tag
         "comment":    "comment",
         "atom":       "atom",
         "keyword":    "keyword",
@@ -41,10 +41,6 @@ var js_grammar = {
         
         // general identifiers
         "identifier" : "RegExp::[_A-Za-z$][_A-Za-z0-9$]*",
-        
-        "dot" : ".",
-        
-        "rightBracket" : ["]", ")"],
         
         "this" : "this",
         
@@ -87,11 +83,6 @@ var js_grammar = {
         
         // operators
         "operator" : {
-            // "simple" token type is default, if no token type
-            //"type" : "simple",
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
             "combine" : true,
             "tokens" : [
                 "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!",
@@ -102,11 +93,6 @@ var js_grammar = {
         
         // delimiters
         "delimiter" : {
-            // "simple" token type is default, if no token type
-            //"type" : "simple",
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
             "combine" : true,
             "tokens" : [
                 "(", ")", "[", "]", "{", "}", ",", "=", ";", "?", ":",
@@ -119,10 +105,6 @@ var js_grammar = {
         "atom" : {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
-            //"combine" : "\\b",
             "tokens" : [
                 "true", "false", 
                 "null", "undefined", 
@@ -134,10 +116,6 @@ var js_grammar = {
         "keyword" : {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
-            //"combine" : "\\b",
             "tokens" : [ 
                 "if", "while", "with", "else", "do", "try", "finally",
                 "return", "break", "continue", "new", "delete", "throw",
@@ -151,10 +129,6 @@ var js_grammar = {
         "builtin" : {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
-            //"combine" : "\\b",
             "tokens" : [ 
                 "Object", "Array", "String", "Number", "RegExp", "Exception",
                 "setTimeout", "setInterval", "alert", "console"
@@ -169,13 +143,13 @@ var js_grammar = {
         "dotProperty" : {
             "type" : "group",
             "match" : "all",
-            "tokens" : [ "dot", "property" ]
+            "tokens" : [ ".", "property" ]
         },
         
         "builtinOrIdentifier" : {
             "type" : "group",
             "match" : "either",
-            "tokens" : [ "rightBracket", "this", "builtin", "identifier", "dotProperty" ]
+            "tokens" : [ "}", ")", "this", "builtin", "identifier", "dotProperty" ]
         },
         
         "dotProperties" : {
@@ -201,7 +175,6 @@ var js_grammar = {
         "keyword",
         "operator",
         "atom",
-        "builtinOrIdentifierWithProperties",
-        "delimiter"
+        "builtinOrIdentifierWithProperties"
     ]
 };

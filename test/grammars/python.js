@@ -7,7 +7,7 @@ var python_grammar = {
     //
     // Style model
     "Style" : {
-        // lang token type  -> CodeMirror (style) tag
+        // lang token type  -> Editor (style) tag
         "decorator":    "meta",
         "comment":      "comment",
         "keyword":      "keyword",
@@ -80,11 +80,6 @@ var python_grammar = {
         
         // operators
         "operator" : {
-            // "simple" token type is default, if no token type
-            //"type" : "simple",
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
             "combine" : true,
             "tokens" : [
                 "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!",
@@ -95,11 +90,6 @@ var python_grammar = {
         
         // delimiters
         "delimiter" : {
-            // "simple" token type is default, if no token type
-            //"type" : "simple",
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
             "combine" : true,
             "tokens" : [ 
                 "(", ")", "[", "]", "{", "}", ",", ":", "`", "=", ";", ".",
@@ -115,10 +105,6 @@ var python_grammar = {
         "keyword" : {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
-            //"combine" : "\\b",
             "tokens" : [
                 "assert", "break", "class", "continue",
                 "def", "del", "elif", "else", "except", "finally",
@@ -132,10 +118,6 @@ var python_grammar = {
         "builtin" : {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
-            //"combine" : "\\b",
             "tokens" : [
                 "abs", "all", "any", "bin", "bool", "bytearray", "callable", "chr",
                 "classmethod", "compile", "complex", "delattr", "dict", "dir", "divmod",

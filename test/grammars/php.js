@@ -7,7 +7,7 @@ var php_grammar = {
     //
     // Style model
     "Style" : {
-        // lang token type  -> CodeMirror (style) tag
+        // lang token type  -> Editor (style) tag
         "meta":        "meta",
         "comment":     "comment",
         "atom":        "atom",
@@ -81,11 +81,6 @@ var php_grammar = {
         
         // operators
         "operator" : {
-            // "simple" token type is default, if no token type
-            //"type" : "simple",
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
             "combine" : true,
             "tokens" : [
                 "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!",
@@ -96,11 +91,6 @@ var php_grammar = {
         
         // delimiters
         "delimiter" : {
-            // "simple" token type is default, if no token type
-            //"type" : "simple",
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
             "combine" : true,
             "tokens" : [
                 "(", ")", "[", "]", "{", "}", ",", "=", ";", "?", ":",
@@ -113,10 +103,6 @@ var php_grammar = {
         "atom" : {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
-            //"combine" : "\\b",
             "tokens" : [
                 "true", "false", "null", "TRUE", "FALSE", 
                 "NULL", "__CLASS__", "__DIR__", "__FILE__", "__LINE__", 
@@ -128,10 +114,6 @@ var php_grammar = {
         "keyword" : {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
-            //"combine" : "\\b",
             "tokens" : [ 
                 "abstract", "and", "array", "as", "break", "case", "catch", "class", "clone", 
                 "const", "continue", "declare", "default", "do", "else", "elseif", "enddeclare", 
@@ -148,10 +130,6 @@ var php_grammar = {
         "builtin" : {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
-            // combine tokens into one regular expression (using optional delimiter),
-            // by default tokens will be combined using "\\b" word-boundary, 
-            // this is usefull for speed fine-tuning the parser
-            //"combine" : "\\b",
             "tokens" : [ 
                 "func_num_args", "func_get_arg", "func_get_args", "strlen", "strcmp", "strncmp", "strcasecmp", 
                 "strncasecmp", "each", "error_reporting", "define", "defined", "trigger_error", "user_error", 
