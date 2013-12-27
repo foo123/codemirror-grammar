@@ -116,19 +116,22 @@
                     ended = endBlock.get(stream);
                     continueToNextLine = allowMultiline;
                     
-                    while ( !ended && !stream.eol() ) 
+                    if ( !ended )
                     {
-                        //next = stream.nxt();
-                        if ( !(isEscapedBlock && charIsEscaped) && endBlock.get(stream) ) 
+                        while ( !stream.eol() ) 
                         {
-                            ended = 1; 
-                            break;
+                            //next = stream.nxt();
+                            if ( !(isEscapedBlock && charIsEscaped) && endBlock.get(stream) ) 
+                            {
+                                ended = 1; 
+                                break;
+                            }
+                            else
+                            {
+                                next = stream.nxt();
+                            }
+                            charIsEscaped = !charIsEscaped && next == escChar;
                         }
-                        else
-                        {
-                            next = stream.nxt();
-                        }
-                        charIsEscaped = !charIsEscaped && next == escChar;
                     }
                     continueToNextLine = allowMultiline && (!isEscapedBlock || charIsEscaped);
                     
