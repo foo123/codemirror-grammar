@@ -43,7 +43,7 @@ var js_grammar = {
         // general identifiers
         "identifier" : "RegExp::[_A-Za-z$][_A-Za-z0-9$]*",
         
-        "this" : "this",
+        "this" : "RegExp::this\\b",
         
         "property" : "RegExp::[_A-Za-z$][_A-Za-z0-9$]*",
         
