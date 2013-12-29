@@ -52,9 +52,10 @@
     }
 
 
-}( this, /* module name */ "CodeMirrorGrammar",
-    /* module dependencies */ [ ['Classy', './classy'],  ['RegExAnalyzer', './regexanalyzer'] ], 
-    /* module factory */  function( Classy, RegexAnalyzer, undef ) {
+}(  /* current root */          this, 
+    /* module name */           "CodeMirrorGrammar",
+    /* module dependencies */   [ ['Classy', './classy'],  ['RegExAnalyzer', './regexanalyzer'] ], 
+    /* module factory */        function( Classy, RegexAnalyzer, undef ) {
         
     //
     // parser types
@@ -1661,6 +1662,6 @@
         getMode : getMode
     };
     
-    // export it
+    /* export the module "CodeMirrorGrammar" */
     return CodeMirrorGrammar;
 });

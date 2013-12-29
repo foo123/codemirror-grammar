@@ -18,7 +18,7 @@
 
 @SRC =[]
     
-    ./src/umd-header.js
+    !tpl:umd-header.tpl.js  # include a umd-header template
     ./src/lib/types.js
     ./src/lib/utils.js
     ./src/lib/stream.js
@@ -27,7 +27,7 @@
     ./src/factories/tokenizers.js
     ./src/factories/parsers.js
     ./src/main.js
-    ./src/umd-footer.js
+    !tpl:umd-footer.tpl.js  # include a umd-footer template
 
 @ # end block
 
