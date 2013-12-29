@@ -1,4 +1,4 @@
     
     // export it
-    return self;
+    return @@MODULE_NAME@@;
 });

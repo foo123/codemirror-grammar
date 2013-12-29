@@ -1,4 +1,6 @@
     
+    var Class = Classy.Class;
+    
     var slice = Array.prototype.slice, splice = Array.prototype.splice, concat = Array.prototype.concat, 
         hasKey = Object.prototype.hasOwnProperty, toStr = Object.prototype.toString, isEnum = Object.prototype.propertyIsEnumerable,
         

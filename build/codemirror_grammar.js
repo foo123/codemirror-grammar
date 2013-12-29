@@ -1,10 +1,9 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.6.2
-*   Transform a grammar specification in JSON format,
-*   into a CodeMirror syntax-highlight parser mode
+*   @version: 0.6.3.1
 *
+*   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
 *
 **/
@@ -53,15 +52,9 @@
     }
 
 
-}( this, "CodeMirrorGrammar",
-    // dependencies
-    [
-        ["Classy", "./classy"],  ["RegExAnalyzer", "./regexanalyzer"]
-    ], 
-    // module factory
-    function( Classy, RegexAnalyzer, undef ) {
-    
-    var Class = Classy.Class;
+}( this, /* module name */ "CodeMirrorGrammar",
+    /* module dependencies */ [ ['Classy', './classy'],  ['RegExAnalyzer', './regexanalyzer'] ], 
+    /* module factory */  function( Classy, RegexAnalyzer, undef ) {
         
     //
     // parser types
@@ -139,6 +132,8 @@
             "Parser" : null
         }
     ;
+    
+    var Class = Classy.Class;
     
     var slice = Array.prototype.slice, splice = Array.prototype.splice, concat = Array.prototype.concat, 
         hasKey = Object.prototype.hasOwnProperty, toStr = Object.prototype.toString, isEnum = Object.prototype.propertyIsEnumerable,
@@ -1618,9 +1613,9 @@
     [/DOC_MARKDOWN]**/
     DEFAULTSTYLE = null;
     DEFAULTERROR = "error";
-    var self = {
+    var self = CodeMirrorGrammar = {
         
-        VERSION : "0.6.2",
+        VERSION : "0.6.3.1",
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]
@@ -1667,5 +1662,5 @@
     };
     
     // export it
-    return self;
+    return CodeMirrorGrammar;
 });

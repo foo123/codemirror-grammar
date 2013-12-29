@@ -11,6 +11,7 @@
 # One line for each setting, no multiple settings on same line, line indentation does not matter
 # Blocks with =[] define LISTS (arrays)
 # Blocks with ={} define MAPS (hashmaps)
+# Blocks with =[{}] define ORDEREDMAPS (array of hashmaps)
 # Blocks with = or nothing define VALUES (single value)
 # A key and/or value can be quoted (with ", ' or `, quotes) or unquoted
 # Lines with one or multiple '@'s define the end of that many previous blocks
@@ -31,8 +32,20 @@
 @ # end block
 
 # do any replacements to the source (map)
-@REPLACE ={}
-    "@@VERSION@@" = "0.6.2"
+@REPLACE =[{}]
+
+    "@@VERSION@@" = "0.6.3.1"
+    
+    "@@MODULE_NAME@@" = "CodeMirrorGrammar"
+    
+    "@@MODULE_DESC@@" = "Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror"
+    
+    "@@REPO_URL@@" = "https://github.com/foo123/codemirror-grammar"
+    
+    "@@MODULE_DEPENDENCIES@@" = "[ ['Classy', './classy'],  ['RegExAnalyzer', './regexanalyzer'] ]"
+    
+    "@@MODULE_ARGUMENTS@@"  = "Classy, RegexAnalyzer, undef"
+    
 @ # end block
 
 @OUT =

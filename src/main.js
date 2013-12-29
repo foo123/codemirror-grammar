@@ -27,7 +27,7 @@
     [/DOC_MARKDOWN]**/
     DEFAULTSTYLE = null;
     DEFAULTERROR = "error";
-    var self = {
+    var self = @@MODULE_NAME@@ = {
         
         VERSION : "@@VERSION@@",
         
