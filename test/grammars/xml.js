@@ -17,9 +17,8 @@ var xml_grammar = {
         "autocloseTag":         "tag",
         "closeTag":             "tag",
         "attribute":            "attribute",
-        "assignment":           "operator",
         "number":               "number",
-        "hexnumber":              "number",
+        "hexnumber":            "number",
         "string":               "string"
     },
 
