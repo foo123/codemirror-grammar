@@ -31,8 +31,8 @@
             
             clone: function() {
                 var copy = new this.$class( this.l );
-                copy.t = 0+this.t;
-                copy.r = ''+this.r;
+                copy.t = this.t;
+                copy.r = this.r;
                 copy.stack = this.stack.slice();
                 copy.inBlock = this.inBlock;
                 copy.endBlock = this.endBlock;

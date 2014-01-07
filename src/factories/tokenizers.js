@@ -5,7 +5,7 @@
         SimpleToken = Class({
             
             constructor : function(name, token, style) {
-                this.tt = T_SIMPLE;
+                this.tt = (null===token) ? T_EOL : T_SIMPLE;
                 this.tn = name;
                 this.t = token;
                 this.r = style;
@@ -25,11 +25,24 @@
             required : 0,
             ERR : 0,
             toClone: null,
-            actionBefore : null,
-            actionAfter : null,
+            //actionBefore : null,
+            //actionAfter : null,
             
             get : function( stream, state ) {
-                if ( this.t.get(stream) ) 
+                var token = this.t;
+                // match EOL ( with possible leading spaces )
+                if ( null === token ) 
+                { 
+                    stream.spc();
+                    if ( stream.eol() )
+                    {
+                        state.t = T_DEFAULT; 
+                        //state.r = this.r; 
+                        return this.r; 
+                    }
+                }
+                // else match a simple token
+                else if ( token.get(stream) ) 
                 { 
                     state.t = this.tt; 
                     //state.r = this.r; 
@@ -55,8 +68,8 @@
                 t = new this.$class();
                 t.tt = this.tt;
                 t.tn = this.tn;
-                t.actionBefore = this.actionBefore;
-                t.actionAfter = this.actionAfter;
+                //t.actionBefore = this.actionBefore;
+                //t.actionAfter = this.actionAfter;
                 //t.required = this.required;
                 //t.ERR = this.ERR;
                 
@@ -133,7 +146,7 @@
                             charIsEscaped = !charIsEscaped && next == escChar;
                         }
                     }
-                    continueToNextLine = allowMultiline && (!isEscapedBlock || charIsEscaped);
+                    continueToNextLine = allowMultiline || (isEscapedBlock && charIsEscaped);
                     
                     if ( ended || !continueToNextLine )
                     {
@@ -261,7 +274,42 @@
                 return false;
             }
         }),
+        /*        
+        NoneTokens = Class(RepeatedTokens, {
                 
+            constructor : function( name, tokens ) {
+                this.$super('constructor', name, tokens, 1, 1);
+                this.tt = T_NONE;
+            },
+            
+            get : function( stream, state ) {
+            
+                var style, token, i, tokens = this.ts, n = tokens.length, streamPos;
+                
+                this.required = 0;
+                this.ERR = 0;
+                streamPos = stream.pos;
+                
+                for (i=0; i<n; i++)
+                {
+                    token = tokens[i].clone();
+                    style = token.get(stream, state);
+                    
+                    // if one of the tokens matched, return an error
+                    if ( false !== style )
+                    {
+                        this.ERR = 1;
+                        stream.bck2( streamPos );
+                        return false;
+                    }
+                }
+                
+                this.required = 0;
+                this.ERR = 0;
+                return false;
+            }
+        }),
+        */        
         AllTokens = Class(RepeatedTokens, {
                 
             constructor : function( name, tokens ) {
@@ -341,130 +389,147 @@
                 
         getTokenizer = function(tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords) {
             
-            tokenID = '' + tokenID;
-            if ( !cachedTokens[ tokenID ] )
+            if ( null === tokenID )
             {
-                var tok, token = null, type, combine, action, matchType, tokens;
-            
-                // allow token to be literal and wrap to simple token with default style
-                tok = Lex[ tokenID ] || Syntax[ tokenID ] || { type: "simple", tokens: tokenID };
+                // EOL Tokenizer
+                var token = new SimpleToken( 
+                            tokenID,
+                            tokenID,
+                            DEFAULTSTYLE
+                        );
                 
-                if ( tok )
+                // pre-cache tokenizer to handle recursive calls to same tokenizer
+                cachedTokens[ tokenID ] = token;
+            }
+            else
+            {
+                tokenID = '' + tokenID;
+                if ( !cachedTokens[ tokenID ] )
                 {
-                    // tokens given directly, no token configuration object, wrap it
-                    if ( (T_STR | T_ARRAY) & get_type( tok ) )
-                    {
-                        tok = { type: "simple", tokens: tok };
-                    }
+                    var tok, token = null, type, combine, action, matchType, tokens;
+                
+                    // allow token to be literal and wrap to simple token with default style
+                    tok = Lex[ tokenID ] || Syntax[ tokenID ] || { type: "simple", tokens: tokenID };
                     
-                    // provide some defaults
-                    //type = tok.type || "simple";
-                    type = (tok.type) ? tokenTypes[ tok.type.toUpperCase().replace('-', '').replace('_', '') ] : T_SIMPLE;
-                    tok.tokens = make_array( tok.tokens );
-                    action = tok.action || null;
-                    
-                    if ( T_SIMPLE & type )
+                    if ( tok )
                     {
-                        if ( tok.autocomplete ) getAutoComplete(tok, tokenID, keywords);
+                        // tokens given directly, no token configuration object, wrap it
+                        if ( (T_STR | T_ARRAY) & get_type( tok ) )
+                        {
+                            tok = { type: "simple", tokens: tok };
+                        }
                         
-                        // combine by default if possible using word-boundary delimiter
-                        combine = ( 'undefined' ==  typeof(tok.combine) ) ? "\\b" : tok.combine;
-                        token = new SimpleToken( 
-                                    tokenID,
-                                    getCompositeMatcher( tokenID, tok.tokens.slice(), RegExpID, combine, cachedRegexes, cachedMatchers ), 
-                                    Style[ tokenID ] || DEFAULTSTYLE
-                                );
+                        // provide some defaults
+                        //type = tok.type || "simple";
+                        type = (tok.type) ? tokenTypes[ tok.type.toUpperCase().replace('-', '').replace('_', '') ] : T_SIMPLE;
+                        tok.tokens = make_array( tok.tokens );
+                        action = tok.action || null;
                         
-                        // pre-cache tokenizer to handle recursive calls to same tokenizer
-                        cachedTokens[ tokenID ] = token;
-                    }
-                    
-                    else if ( T_BLOCK & type )
-                    {
-                        if ( T_COMMENT & type ) getComments(tok, comments);
+                        if ( T_SIMPLE & type )
+                        {
+                            if ( tok.autocomplete ) getAutoComplete(tok, tokenID, keywords);
+                            
+                            // combine by default if possible using word-boundary delimiter
+                            combine = ( 'undefined' ==  typeof(tok.combine) ) ? "\\b" : tok.combine;
+                            token = new SimpleToken( 
+                                        tokenID,
+                                        getCompositeMatcher( tokenID, tok.tokens.slice(), RegExpID, combine, cachedRegexes, cachedMatchers ), 
+                                        Style[ tokenID ] || DEFAULTSTYLE
+                                    );
+                            
+                            // pre-cache tokenizer to handle recursive calls to same tokenizer
+                            cachedTokens[ tokenID ] = token;
+                        }
+                        
+                        else if ( T_BLOCK & type )
+                        {
+                            if ( T_COMMENT & type ) getComments(tok, comments);
 
-                        token = new BlockToken( 
-                                    type,
-                                    tokenID,
-                                    getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, cachedRegexes, cachedMatchers ), 
-                                    Style[ tokenID ] || DEFAULTSTYLE,
-                                    tok.multiline,
-                                    tok.escape
-                                );
-                        
-                        // pre-cache tokenizer to handle recursive calls to same tokenizer
-                        cachedTokens[ tokenID ] = token;
-                        if ( tok.interleave ) commentTokens.push( token.clone() );
-                    }
-                    
-                    else if ( T_GROUP & type )
-                    {
-                        tokens = tok.tokens.slice();
-                        if ( T_ARRAY & get_type( tok.match ) )
-                        {
-                            token = new RepeatedTokens(tokenID, null, tok.match[0], tok.match[1]);
-                        }
-                        else
-                        {
-                            matchType = groupTypes[ tok.match.toUpperCase() ]; 
+                            token = new BlockToken( 
+                                        type,
+                                        tokenID,
+                                        getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, cachedRegexes, cachedMatchers ), 
+                                        Style[ tokenID ] || DEFAULTSTYLE,
+                                        tok.multiline,
+                                        tok.escape
+                                    );
                             
-                            if (T_ZEROORONE == matchType) 
-                                token = new RepeatedTokens(tokenID, null, 0, 1);
-                            
-                            else if (T_ZEROORMORE == matchType) 
-                                token = new RepeatedTokens(tokenID, null, 0, INF);
-                            
-                            else if (T_ONEORMORE == matchType) 
-                                token = new RepeatedTokens(tokenID, null, 1, INF);
-                            
-                            else if (T_EITHER & matchType) 
-                                token = new EitherTokens(tokenID, null);
-                            
-                            else //if (T_ALL == matchType)
-                                token = new AllTokens(tokenID, null);
+                            // pre-cache tokenizer to handle recursive calls to same tokenizer
+                            cachedTokens[ tokenID ] = token;
+                            if ( tok.interleave ) commentTokens.push( token.clone() );
                         }
                         
-                        // pre-cache tokenizer to handle recursive calls to same tokenizer
-                        cachedTokens[ tokenID ] = token;
-                        
-                        for (var i=0, l=tokens.length; i<l; i++)
-                            tokens[i] = getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords );
-                        
-                        token.set(tokens);
-                        
-                    }
-                    
-                    else if ( T_NGRAM & type )
-                    {
-                        // get n-gram tokenizer
-                        token = make_array_2( tok.tokens.slice() ).slice(); // array of arrays
-                        var ngrams = [], ngram;
-                        
-                        for (var i=0, l=token.length; i<l; i++)
+                        else if ( T_GROUP & type )
                         {
-                            // get tokenizers for each ngram part
-                            ngrams[i] = token[i].slice();
-                            // get tokenizer for whole ngram
-                            token[i] = new NGramToken( tokenID + '_NGRAM_' + i, null );
+                            tokens = tok.tokens.slice();
+                            if ( T_ARRAY & get_type( tok.match ) )
+                            {
+                                token = new RepeatedTokens(tokenID, null, tok.match[0], tok.match[1]);
+                            }
+                            else
+                            {
+                                matchType = groupTypes[ tok.match.toUpperCase() ]; 
+                                
+                                if (T_ZEROORONE == matchType) 
+                                    token = new RepeatedTokens(tokenID, null, 0, 1);
+                                
+                                else if (T_ZEROORMORE == matchType) 
+                                    token = new RepeatedTokens(tokenID, null, 0, INF);
+                                
+                                else if (T_ONEORMORE == matchType) 
+                                    token = new RepeatedTokens(tokenID, null, 1, INF);
+                                
+                                else if (T_EITHER & matchType) 
+                                    token = new EitherTokens(tokenID, null);
+                                
+                                else if (T_NONE & matchType) 
+                                    token = new NoneTokens(tokenID, null);
+                                
+                                else //if (T_ALL == matchType)
+                                    token = new AllTokens(tokenID, null);
+                            }
+                            
+                            // pre-cache tokenizer to handle recursive calls to same tokenizer
+                            cachedTokens[ tokenID ] = token;
+                            
+                            for (var i=0, l=tokens.length; i<l; i++)
+                                tokens[i] = getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords );
+                            
+                            token.set(tokens);
+                            
                         }
                         
-                        // pre-cache tokenizer to handle recursive calls to same tokenizer
-                        cachedTokens[ tokenID ] = token;
-                        
-                        for (var i=0, l=token.length; i<l; i++)
+                        else if ( T_NGRAM & type )
                         {
-                            ngram = ngrams[i];
+                            // get n-gram tokenizer
+                            token = make_array_2( tok.tokens.slice() ).slice(); // array of arrays
+                            var ngrams = [], ngram;
                             
-                            for (var j=0, l2=ngram.length; j<l2; j++)
-                                ngram[j] = getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens,  comments, keywords );
+                            for (var i=0, l=token.length; i<l; i++)
+                            {
+                                // get tokenizers for each ngram part
+                                ngrams[i] = token[i].slice();
+                                // get tokenizer for whole ngram
+                                token[i] = new NGramToken( tokenID + '_NGRAM_' + i, null );
+                            }
                             
-                            // get tokenizer for whole ngram
-                            token[i].set( ngram );
+                            // pre-cache tokenizer to handle recursive calls to same tokenizer
+                            cachedTokens[ tokenID ] = token;
+                            
+                            for (var i=0, l=token.length; i<l; i++)
+                            {
+                                ngram = ngrams[i];
+                                
+                                for (var j=0, l2=ngram.length; j<l2; j++)
+                                    ngram[j] = getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens,  comments, keywords );
+                                
+                                // get tokenizer for whole ngram
+                                token[i].set( ngram );
+                            }
                         }
                     }
                 }
             }
-            
             return cachedTokens[ tokenID ];
         },
         

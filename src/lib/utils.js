@@ -103,7 +103,20 @@
         escRegexp = function(str) {
             return str.replace(/([.*+?^${}()|[\]\/\\])/g, '\\$1');
         },
-
+        
+        groupReplace = function(pattern, token) {
+            var parts, i, l, replacer;
+            replacer = function(m, d){
+                // the regex is wrapped in an additional group, 
+                // add 1 to the requested regex group transparently
+                return token[ 1 + parseInt(d, 10) ];
+            };
+            parts = pattern.split('$$');
+            l = parts.length;
+            for (i=0; i<l; i++) parts[i] = parts[i].replace(/\$(\d{1,2})/g, replacer);
+            return parts.join('$');
+        },
+        
         byLength = function(a, b) { return b.length - a.length },
         
         hasPrefix = function(s, id) {

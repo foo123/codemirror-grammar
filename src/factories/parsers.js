@@ -59,6 +59,9 @@
                 stack = state.stack;
                 stream = new ParserStream().fromStream( stream_ );
                 
+                // if EOL tokenizer is left on stack, pop it now
+                if ( stream.sol() && stack.length && T_EOL == stack[stack.length-1].tt ) stack.pop();
+                
                 if ( stream.spc() ) 
                 {
                     state.t = T_DEFAULT;

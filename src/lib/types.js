@@ -31,10 +31,12 @@
         T_ERROR = 4,
         T_DEFAULT = 8,
         T_SIMPLE = 16,
+        T_EOL = 17,
         T_BLOCK = 32,
         T_ESCBLOCK = 33,
         T_COMMENT = 34,
         T_EITHER = 64,
+        T_NONE = 2048,
         T_ALL = 128,
         T_REPEATED = 256,
         T_ZEROORONE = 257,
@@ -46,7 +48,7 @@
         //
         // tokenizer types
         groupTypes = {
-            ONEOF: T_EITHER, EITHER: T_EITHER, ALL: T_ALL, ZEROORONE: T_ZEROORONE, ZEROORMORE: T_ZEROORMORE, ONEORMORE: T_ONEORMORE, REPEATED: T_REPEATED
+            ONEOF: T_EITHER, EITHER: T_EITHER, NONEOF: T_NONE, ALL: T_ALL, ZEROORONE: T_ZEROORONE, ZEROORMORE: T_ZEROORMORE, ONEORMORE: T_ONEORMORE, REPEATED: T_REPEATED
         },
         
         tokenTypes = {

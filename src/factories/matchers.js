@@ -137,14 +137,21 @@
                 if ( token = startMatcher.get(stream, eat) )
                 {
                     // use the token key to get the associated endMatcher
-                    var endMatcher = endMatchers[ token[0] ];
+                    var endMatcher = endMatchers[ token[0] ], T = get_type( endMatcher );
                     
-                    // regex group given, get the matched group for the ending of this block
-                    if ( T_NUM == get_type( endMatcher ) )
+                    // regex group number given, get the matched group pattern for the ending of this block
+                    if ( T_NUM == T )
                     {
                         // the regex is wrapped in an additional group, 
                         // add 1 to the requested regex group transparently
                         endMatcher = new SimpleMatcher( T_STR, this.tn + '_End', token[1][ endMatcher+1 ] );
+                    }
+                    // string replacement pattern given, get the proper pattern for the ending of this block
+                    else if ( T_STR == T )
+                    {
+                        // the regex is wrapped in an additional group, 
+                        // add 1 to the requested regex group transparently
+                        endMatcher = new SimpleMatcher( T_STR, this.tn + '_End', groupReplace(endMatcher, token[1]) );
                     }
                     
                     return endMatcher;
@@ -272,7 +279,17 @@
                 for (i=0, l=tmp.length; i<l; i++)
                 {
                     t1 = getSimpleMatcher( name + '_0_' + i, getRegexp( tmp[i][0], RegExpID, cachedRegexes ), i, cachedMatchers );
-                    t2 = (tmp[i].length>1) ? getSimpleMatcher( name + '_1_' + i, getRegexp( tmp[i][1], RegExpID, cachedRegexes ), i, cachedMatchers ) : t1;
+                    if (tmp[i].length>1)
+                    {
+                        if ( hasPrefix( tmp[i][1], RegExpID ) )
+                            t2 = getSimpleMatcher( name + '_1_' + i, getRegexp( tmp[i][1], RegExpID, cachedRegexes ), i, cachedMatchers );
+                        else
+                            t2 = tmp[i][1];
+                    }
+                    else
+                    {
+                        t2 = t1;
+                    }
                     start.push( t1 );  end.push( t2 );
                 }
                 
