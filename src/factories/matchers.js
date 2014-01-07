@@ -281,10 +281,10 @@
                     t1 = getSimpleMatcher( name + '_0_' + i, getRegexp( tmp[i][0], RegExpID, cachedRegexes ), i, cachedMatchers );
                     if (tmp[i].length>1)
                     {
-                        if ( hasPrefix( tmp[i][1], RegExpID ) )
-                            t2 = getSimpleMatcher( name + '_1_' + i, getRegexp( tmp[i][1], RegExpID, cachedRegexes ), i, cachedMatchers );
-                        else
+                        if ( T_STR == get_type( tmp[i][1] ) && !hasPrefix( tmp[i][1], RegExpID ) )
                             t2 = tmp[i][1];
+                        else
+                            t2 = getSimpleMatcher( name + '_1_' + i, getRegexp( tmp[i][1], RegExpID, cachedRegexes ), i, cachedMatchers );
                     }
                     else
                     {
