@@ -137,23 +137,25 @@
                 if ( token = startMatcher.get(stream, eat) )
                 {
                     // use the token key to get the associated endMatcher
-                    var endMatcher = endMatchers[ token[0] ], T = get_type( endMatcher );
+                    var endMatcher = endMatchers[ token[0] ], T = get_type( endMatcher ), T0 = startMatcher.ms[ token[0] ].tt;
                     
-                    // regex group number given, get the matched group pattern for the ending of this block
-                    if ( T_NUM == T )
+                    if ( T_REGEX == T0 )
                     {
-                        // the regex is wrapped in an additional group, 
-                        // add 1 to the requested regex group transparently
-                        endMatcher = new SimpleMatcher( T_STR, this.tn + '_End', token[1][ endMatcher+1 ] );
+                        // regex group number given, get the matched group pattern for the ending of this block
+                        if ( T_NUM == T )
+                        {
+                            // the regex is wrapped in an additional group, 
+                            // add 1 to the requested regex group transparently
+                            endMatcher = new SimpleMatcher( T_STR, this.tn + '_End', token[1][ endMatcher+1 ] );
+                        }
+                        // string replacement pattern given, get the proper pattern for the ending of this block
+                        else if ( T_STR == T )
+                        {
+                            // the regex is wrapped in an additional group, 
+                            // add 1 to the requested regex group transparently
+                            endMatcher = new SimpleMatcher( T_STR, this.tn + '_End', groupReplace(endMatcher, token[1]) );
+                        }
                     }
-                    // string replacement pattern given, get the proper pattern for the ending of this block
-                    else if ( T_STR == T )
-                    {
-                        // the regex is wrapped in an additional group, 
-                        // add 1 to the requested regex group transparently
-                        endMatcher = new SimpleMatcher( T_STR, this.tn + '_End', groupReplace(endMatcher, token[1]) );
-                    }
-                    
                     return endMatcher;
                 }
                 
@@ -281,7 +283,7 @@
                     t1 = getSimpleMatcher( name + '_0_' + i, getRegexp( tmp[i][0], RegExpID, cachedRegexes ), i, cachedMatchers );
                     if (tmp[i].length>1)
                     {
-                        if ( T_STR == get_type( tmp[i][1] ) && !hasPrefix( tmp[i][1], RegExpID ) )
+                        if ( T_REGEX == t1.tt && T_STR == get_type( tmp[i][1] ) && !hasPrefix( tmp[i][1], RegExpID ) )
                             t2 = tmp[i][1];
                         else
                             t2 = getSimpleMatcher( name + '_1_' + i, getRegexp( tmp[i][1], RegExpID, cachedRegexes ), i, cachedMatchers );
