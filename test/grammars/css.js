@@ -183,19 +183,13 @@ var css_grammar = {
         // highlight url(...) as string regardless of quotes or not
         "urlDeclaration" : {
             "type" : "n-gram",
-            "tokens" : [ "url", "(", "stringOrUnquotedText", ")" ]
-        },
-        
-        "urlDeclarationGroup" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ "url", "(", "stringOrUnquotedText", ")" ]
+            "tokens" : [ "url", "" /* match non-space */, "(", "stringOrUnquotedText", ")" ]
         },
         
         "RHSAssignment" : {
             "type" : "group",
             "match" : "oneOrMore",
-            "tokens" : [ "urlDeclarationGroup", "atom", "font", "standard", "string", "number", "hexcolor", "identifier", ",", "(", ")" ]
+            "tokens" : [ "urlDeclaration", "atom", "font", "standard", "string", "number", "hexcolor", "identifier", ",", "(", ")" ]
         },
         
         "cssAssignment" : {

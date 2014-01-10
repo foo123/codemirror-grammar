@@ -1,3 +1,12 @@
+/**
+*
+*   CodeMirrorGrammar
+*   @version: @@VERSION@@
+*
+*   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
+*   https://github.com/foo123/codemirror-grammar
+*
+**/
     
     //
     //  CodeMirror Grammar main class

@@ -46,7 +46,7 @@
                 //return ['', this.id, this.t, this.r||'0', this.stack.length, this.inBlock||'0'].join('_');
                 //return ['', this.id, this.t, this.stack.length, this.inBlock||'0'].join('_');
                 //return ['', this.id, this.t, this.r||'0', this.inBlock||'0'].join('_');
-                return ['', this.l, this.t, this.r, this.inBlock||'0'].join('_');
+                return ['', this.l, this.t, this.r, this.inBlock||'0', this.stack.length].join('_');
             }
         })
     ;

@@ -99,41 +99,14 @@
                 }
                 return false;
             },
-            /*
-            // general pattern match
-            match: function(pattern, eat, caseInsensitive, group) {
-                if (typeof pattern == "string") 
-                {
-                    var cased = function(str) {return caseInsensitive ? str.toLowerCase() : str;};
-                    var substr = this.string.substr(this.pos, pattern.length);
-                    if (cased(substr) == cased(pattern)) 
-                    {
-                        if (eat !== false) this.pos += pattern.length;
-                        return true;
-                    }
-                } 
-                else 
-                {
-                    group = group || 0;
-                    var match = this.string.slice(this.pos).match(pattern);
-                    if (match && match.index > 0) return null;
-                    if (match && eat !== false) this.pos += match[group].length;
-                    return match;
-                }
-            },
-            */
+
             // skip to end
             end: function() {
                 this.pos = this.string.length;
                 if ( this._ ) this._.pos = this.pos;
                 return this;
             },
-            /*
-            // peek next char
-            peek: function( ) { 
-                return this.string.charAt(this.pos) || null; 
-            },
-            */
+
             // get next char
             nxt: function( ) {
                 if (this.pos < this.string.length)

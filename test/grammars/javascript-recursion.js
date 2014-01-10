@@ -153,36 +153,61 @@ var js_grammar = {
             "tokens" : [ "[", "literalValues", "]" ]
         },
         
+        "literalProperty" : {
+            "type" : "group",
+            "match" : "either",
+            "tokens" : [ "string", "property" ]
+        },
+        
         // grammar recursion here
         "literalValue" : {
             "type" : "group",
             "match" : "either",
-            "tokens" : [ "atom", "number", "identifier", "string", "literalArray", "literalObject" ]
+            "tokens" : [ "atom", "string", "regex", "number", "identifier", "literalArray", "literalObject" ]
         },
         
-        "literalProperty" : {
+        "literalValuesRest" : {
             "type" : "group",
-            "match" : "either",
-            "tokens" : [ "property", "string" ]
+            "match" : "all",
+            "tokens" : [ ",", "literalValue" ]
         },
         
-        // grammar recursion here
         "literalPropertyValue" : {
             "type" : "group",
             "match" : "all",
             "tokens" : [ "literalProperty", ":", "literalValue" ]
         },
         
-        "literalValues" : {
+        "literalPropertyValuesRest" : {
+            "type" : "group",
+            "match" : "all",
+            "tokens" : [ ",", "literalPropertyValue" ]
+        },
+        
+        "literalValuesRestOptional" : {
             "type" : "group",
             "match" : "zeroOrMore",
-            "tokens" : [ "literalValue", "," ]
+            "tokens" : [ "literalValuesRest" ]
+        },
+        
+        "literalPropertyValuesRestOptional" : {
+            "type" : "group",
+            "match" : "zeroOrMore",
+            "tokens" : [ "literalPropertyValuesRest" ]
+        },
+        
+        "literalValues" : {
+            "type" : "ngram",
+            "tokens" : [
+                [ "literalValue", "literalValuesRestOptional" ]
+            ]
         },
         
         "literalPropertyValues" : {
-            "type" : "group",
-            "match" : "zeroOrMore",
-            "tokens" : [ "literalPropertyValue", "," ]
+            "type" : "ngram",
+            "tokens" : [
+                [ "literalPropertyValue", "literalPropertyValuesRestOptional" ]
+            ]
         },
         
         "literalNGram" : {

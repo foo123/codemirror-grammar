@@ -31,6 +31,7 @@ __token configuration__ can be:
     
 * a token type can be "simple" (default), "comment", "block", "escaped-block"
 * a literal **null** valued token matches end-of-line (EOL), can be useful in token (syntax) sequences when **EOL** is used as separator
+* a literal empty token (**""**) token matches **non-space** , can be useful when multiple tokens should be consecutive with no space between
 * a literal string becomes a token (eg inside Syntax model sequence) with a tokenID same as its literal value
 * a token can be defined using just the tokenID and the token pattern(s), token type is assumed "simple" 
 * "simple" tokens are grouped into one regular expression by default using "\\b" (word-boundary) delimiter, this is usefull for speed fine-tuning the parser adding the "combine" property in the token configuration, can alter this option, or use a different delimiter
@@ -45,6 +46,7 @@ __token configuration__ can be:
     7. "escaped-block" by default uses the "\\" escape character, setting the "escape": escChar option, can alter this
     8. "comment" type is a "block" type with the additional semantic information that token is about comments, so comment toggle functionality can be enabled
     9. "comment" type can be interleaved inside other syntax sequences automatically by the parser ("interleave": true, token option) (the comment token should still be added in grammar.Parser part ), else comment interleaving could be handled manually in the grammar.Syntax part
+    10. all block-type tokens can have different styles for block delimiters and block interior (see examples), for example having a block token with ID **"heredoc"** , the interior different style can be represented in **Style** part of grammar as **"heredoc.inside"** (make sure your token IDs do not accidentally match this option)
 
 ###Syntax model (optional)
 

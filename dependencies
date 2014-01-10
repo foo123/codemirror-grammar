@@ -31,16 +31,16 @@
 
 @ # end block
 
+# extract header from this file
+@HEADER =
+./src/main.js
+
 # do any replacements to the source (map)
 @REPLACE =[{}]
 
-    "@@VERSION@@" = "0.6.5"
+    "@@VERSION@@" = "0.7"
     
     "@@MODULE_NAME@@" = "CodeMirrorGrammar"
-    
-    "@@MODULE_DESC@@" = "Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror"
-    
-    "@@REPO_URL@@" = "https://github.com/foo123/codemirror-grammar"
     
     "@@MODULE_DEPENDENCIES@@" = "[ ['Classy', './classy'],  ['RegExAnalyzer', './regexanalyzer'] ]"
     

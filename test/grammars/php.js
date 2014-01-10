@@ -18,7 +18,9 @@ var php_grammar = {
         "variable":    "variable-2",
         "number":      "number",
         "string":      "string",
-        "heredoc":     "string"
+        "heredoc":     "keyword",
+        // allow block delims / interior to have different styles
+        "heredoc.inside":     "string"
     },
 
     

@@ -5,7 +5,7 @@
         SimpleToken = Class({
             
             constructor : function(name, token, style) {
-                this.tt = (null===token) ? T_EOL : T_SIMPLE;
+                this.tt = T_SIMPLE;
                 this.tn = name;
                 this.t = token;
                 this.r = style;
@@ -25,13 +25,11 @@
             required : 0,
             ERR : 0,
             toClone: null,
-            //actionBefore : null,
-            //actionAfter : null,
             
             get : function( stream, state ) {
-                var token = this.t;
+                var token = this.t, type = this.tt;
                 // match EOL ( with possible leading spaces )
-                if ( null === token ) 
+                if ( T_EOL == type ) 
                 { 
                     stream.spc();
                     if ( stream.eol() )
@@ -40,6 +38,13 @@
                         //state.r = this.r; 
                         return this.r; 
                     }
+                }
+                // match non-space
+                else if ( T_NONSPACE == type ) 
+                { 
+                    this.ERR = ( this.required && stream.spc() && !stream.eol() ) ? 1 : 0;
+                    this.required = 0;
+                    return false;
                 }
                 // else match a simple token
                 else if ( token.get(stream) ) 
@@ -63,20 +68,16 @@
             },
             
             clone : function() {
-                var t, toClone = this.toClone, toClonelen;
+                var t, i, toClone = this.toClone, toClonelen;
                 
                 t = new this.$class();
                 t.tt = this.tt;
                 t.tn = this.tn;
-                //t.actionBefore = this.actionBefore;
-                //t.actionAfter = this.actionAfter;
-                //t.required = this.required;
-                //t.ERR = this.ERR;
                 
                 if (toClone && toClone.length)
                 {
                     toClonelen = toClone.length;
-                    for (var i=0; i<toClonelen; i++)   
+                    for (i=0; i<toClonelen; i++)   
                         t[ toClone[i] ] = this[ toClone[i] ];
                 }
                 return t;
@@ -89,54 +90,112 @@
         
         BlockToken = Class(SimpleToken, {
             
-            constructor : function(type, name, token, style, allowMultiline, escChar) {
+            constructor : function(type, name, token, style, styleInterior, allowMultiline, escChar) {
                 this.$super('constructor', name, token, style);
+                this.ri = ( 'undefined' == typeof(styleInterior) ) ? this.r : styleInterior;
                 this.tt = type;
                 // a block is multiline by default
                 this.mline = ( 'undefined' == typeof(allowMultiline) ) ? 1 : allowMultiline;
                 this.esc = escChar || "\\";
-                this.toClone = ['t', 'r', 'mline', 'esc'];
+                this.toClone = ['t', 'r', 'ri', 'mline', 'esc'];
             },    
             
+            // return val for interior
+            ri : null,
             mline : 0,
             esc : null,
             
             get : function( stream, state ) {
             
                 var ended = 0, found = 0, endBlock, next = "", continueToNextLine, stackPos, 
-                    allowMultiline = this.mline, startBlock = this.t, thisBlock = this.tn,
-                    charIsEscaped = 0, isEscapedBlock = (T_ESCBLOCK == this.tt), escChar = this.esc
+                    allowMultiline = this.mline, startBlock = this.t, thisBlock = this.tn, type = this.tt,
+                    style = this.r, styleInterior = this.ri, differentInterior = (style != styleInterior),
+                    charIsEscaped = 0, isEscapedBlock = (T_ESCBLOCK == type), escChar = this.esc,
+                    isEOLBlock, alreadyIn, ret, streamPos, streamPos0, continueBlock
                 ;
                 
-                // comments in general are not required tokens
-                if ( T_COMMENT == this.tt ) this.required = 0;
+                /*
+                    This tokenizer class handles many different block types ( BLOCK, COMMENT, ESC_BLOCK, SINGLE_LINE_BLOCK ),
+                    having different styles ( DIFFERENT BLOCK DELIMS/INTERIOR ) etc..
+                    So logic can become somewhat complex,
+                    descriptive names and logic used here for transparency as far as possible
+                */
                 
+                // comments in general are not required tokens
+                if ( T_COMMENT == type ) this.required = 0;
+                
+                alreadyIn = 0;
                 if ( state.inBlock == thisBlock )
                 {
                     found = 1;
                     endBlock = state.endBlock;
+                    alreadyIn = 1;
+                    ret = styleInterior;
                 }    
                 else if ( !state.inBlock && (endBlock = startBlock.get(stream)) )
                 {
                     found = 1;
                     state.inBlock = thisBlock;
                     state.endBlock = endBlock;
+                    ret = style;
                 }    
                 
                 if ( found )
                 {
                     stackPos = state.stack.length;
+                    
+                    isEOLBlock = (T_NULL == endBlock.tt);
+                    
+                    if ( differentInterior )
+                    {
+                        if ( alreadyIn && isEOLBlock && stream.sol() )
+                        {
+                            this.required = 0;
+                            state.inBlock = null;
+                            state.endBlock = null;
+                            return false;
+                        }
+                        
+                        if ( !alreadyIn )
+                        {
+                            this.push( state.stack, stackPos, this.clone() );
+                            state.t = type;
+                            //state.r = ret; 
+                            return ret;
+                        }
+                    }
+                    
                     ended = endBlock.get(stream);
                     continueToNextLine = allowMultiline;
+                    continueBlock = 0;
                     
                     if ( !ended )
                     {
+                        streamPos0 = stream.pos;
                         while ( !stream.eol() ) 
                         {
-                            //next = stream.nxt();
+                            streamPos = stream.pos;
                             if ( !(isEscapedBlock && charIsEscaped) && endBlock.get(stream) ) 
                             {
-                                ended = 1; 
+                                if ( differentInterior )
+                                {
+                                    if ( stream.pos > streamPos && streamPos > streamPos0)
+                                    {
+                                        ret = styleInterior;
+                                        stream.bck2(streamPos);
+                                        continueBlock = 1;
+                                    }
+                                    else
+                                    {
+                                        ret = style;
+                                        ended = 1;
+                                    }
+                                }
+                                else
+                                {
+                                    ret = style;
+                                    ended = 1;
+                                }
                                 break;
                             }
                             else
@@ -146,21 +205,25 @@
                             charIsEscaped = !charIsEscaped && next == escChar;
                         }
                     }
+                    else
+                    {
+                        ret = (isEOLBlock) ? styleInterior : style;
+                    }
                     continueToNextLine = allowMultiline || (isEscapedBlock && charIsEscaped);
                     
-                    if ( ended || !continueToNextLine )
+                    if ( ended || (!continueToNextLine && !continueBlock) )
                     {
                         state.inBlock = null;
                         state.endBlock = null;
                     }
                     else
                     {
-                        this.push( state.stack, stackPos, this );
+                        this.push( state.stack, stackPos, this.clone() );
                     }
                     
-                    state.t = this.tt;
-                    //state.r = this.r; 
-                    return this.r;
+                    state.t = type;
+                    //state.r = ret; 
+                    return ret;
                 }
                 
                 //state.inBlock = null;
@@ -274,42 +337,7 @@
                 return false;
             }
         }),
-        /*        
-        NoneTokens = Class(RepeatedTokens, {
-                
-            constructor : function( name, tokens ) {
-                this.$super('constructor', name, tokens, 1, 1);
-                this.tt = T_NONE;
-            },
-            
-            get : function( stream, state ) {
-            
-                var style, token, i, tokens = this.ts, n = tokens.length, streamPos;
-                
-                this.required = 0;
-                this.ERR = 0;
-                streamPos = stream.pos;
-                
-                for (i=0; i<n; i++)
-                {
-                    token = tokens[i].clone();
-                    style = token.get(stream, state);
-                    
-                    // if one of the tokens matched, return an error
-                    if ( false !== style )
-                    {
-                        this.ERR = 1;
-                        stream.bck2( streamPos );
-                        return false;
-                    }
-                }
-                
-                this.required = 0;
-                this.ERR = 0;
-                return false;
-            }
-        }),
-        */        
+
         AllTokens = Class(RepeatedTokens, {
                 
             constructor : function( name, tokens ) {
@@ -325,19 +353,18 @@
                 this.required = 1;
                 this.ERR = 0;
                 streamPos = stream.pos;
+                stackPos = state.stack.length;
                 token = tokens[ 0 ].clone().require( 1 );
                 style = token.get(stream, state);
                 
                 if ( false !== style )
                 {
-                    stackPos = state.stack.length;
                     for (var i=n-1; i>0; i--)
-                        this.push( state.stack, stackPos+n-i, tokens[ i ].clone().require( 1 ) );
-                    
+                        this.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ) );
+                        
                     return style;
-                    
                 }
-                else if ( token.ERR )
+                else if ( token.ERR /*&& token.required*/ )
                 {
                     this.ERR = 1;
                     stream.bck2( streamPos );
@@ -366,20 +393,19 @@
                 this.required = 0;
                 this.ERR = 0;
                 streamPos = stream.pos;
+                stackPos = state.stack.length;
                 token = tokens[ 0 ].clone().require( 0 );
                 style = token.get(stream, state);
                 
                 if ( false !== style )
                 {
-                    stackPos = state.stack.length;
                     for (var i=n-1; i>0; i--)
-                        this.push( state.stack, stackPos+n-i, tokens[ i ].clone().require( 1 ) );
+                        this.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ) );
                     
                     return style;
                 }
                 else if ( token.ERR )
                 {
-                    //this.ERR = 1;
                     stream.bck2( streamPos );
                 }
                 
@@ -392,21 +418,26 @@
             if ( null === tokenID )
             {
                 // EOL Tokenizer
-                var token = new SimpleToken( 
-                            tokenID,
-                            tokenID,
-                            DEFAULTSTYLE
-                        );
-                
-                // pre-cache tokenizer to handle recursive calls to same tokenizer
-                cachedTokens[ tokenID ] = token;
+                var token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
+                token.tt = T_EOL;
+                return token;
             }
+            
+            else if ( "" === tokenID )
+            {
+                // NONSPACE Tokenizer
+                var token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
+                token.tt = T_NONSPACE;
+                return token;
+            }
+            
             else
             {
                 tokenID = '' + tokenID;
+                
                 if ( !cachedTokens[ tokenID ] )
                 {
-                    var tok, token = null, type, combine, action, matchType, tokens;
+                    var tok, token = null, type, combine, action, matchType, tokens, subTokenizers;
                 
                     // allow token to be literal and wrap to simple token with default style
                     tok = Lex[ tokenID ] || Syntax[ tokenID ] || { type: "simple", tokens: tokenID };
@@ -420,7 +451,6 @@
                         }
                         
                         // provide some defaults
-                        //type = tok.type || "simple";
                         type = (tok.type) ? tokenTypes[ tok.type.toUpperCase().replace('-', '').replace('_', '') ] : T_SIMPLE;
                         tok.tokens = make_array( tok.tokens );
                         action = tok.action || null;
@@ -450,6 +480,8 @@
                                         tokenID,
                                         getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, cachedRegexes, cachedMatchers ), 
                                         Style[ tokenID ] || DEFAULTSTYLE,
+                                        // allow block delims / block interior to have different styles
+                                        Style[ tokenID + '.inside' ],
                                         tok.multiline,
                                         tok.escape
                                     );
@@ -482,9 +514,6 @@
                                 else if (T_EITHER & matchType) 
                                     token = new EitherTokens(tokenID, null);
                                 
-                                else if (T_NONE & matchType) 
-                                    token = new NoneTokens(tokenID, null);
-                                
                                 else //if (T_ALL == matchType)
                                     token = new AllTokens(tokenID, null);
                             }
@@ -492,10 +521,11 @@
                             // pre-cache tokenizer to handle recursive calls to same tokenizer
                             cachedTokens[ tokenID ] = token;
                             
+                            subTokenizers = [];
                             for (var i=0, l=tokens.length; i<l; i++)
-                                tokens[i] = getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords );
+                                subTokenizers = subTokenizers.concat( getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords ) );
                             
-                            token.set(tokens);
+                            token.set( subTokenizers );
                             
                         }
                         
@@ -520,17 +550,18 @@
                             {
                                 ngram = ngrams[i];
                                 
+                                subTokenizers = [];
                                 for (var j=0, l2=ngram.length; j<l2; j++)
-                                    ngram[j] = getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens,  comments, keywords );
+                                    subTokenizers = subTokenizers.concat( getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens,  comments, keywords ) );
                                 
                                 // get tokenizer for whole ngram
-                                token[i].set( ngram );
+                                token[i].set( subTokenizers );
                             }
                         }
                     }
                 }
+                return cachedTokens[ tokenID ];
             }
-            return cachedTokens[ tokenID ];
         },
         
         getComments = function(tok, comments) {
@@ -574,7 +605,7 @@
             
             cachedRegexes = {}; cachedMatchers = {}; cachedTokens = {}; comments = {}; keywords = {};
             commentTokens = [];
-            grammar = extend(grammar, defaultGrammar);
+            grammar = clone( grammar );
             
             RegExpID = grammar.RegExpID || null;
             grammar.RegExpID = null;

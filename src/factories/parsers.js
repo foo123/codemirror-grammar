@@ -62,10 +62,14 @@
                 // if EOL tokenizer is left on stack, pop it now
                 if ( stream.sol() && stack.length && T_EOL == stack[stack.length-1].tt ) stack.pop();
                 
-                if ( stream.spc() ) 
+                // check for non-space tokenizer before parsing space
+                if ( !stack.length || T_NONSPACE != stack[stack.length-1].tt )
                 {
-                    state.t = T_DEFAULT;
-                    return state.r = DEFAULT;
+                    if ( stream.spc() ) 
+                    {
+                        state.t = T_DEFAULT;
+                        return state.r = DEFAULT;
+                    }
                 }
                 
                 while ( stack.length )

@@ -34,8 +34,7 @@
         
         <h3>CodeMirror: Dynamic PHP Grammar</h3>
 
-<textarea id="code" name="code">
-$a = (isset($var) && NULL==$b) ? true : false;
+<textarea id="code" name="code">$a = (isset($var) && NULL==$b) ? true : false;
 // this is a line comment
 #  this is also a line comment
 define("DEF", "123");
@@ -47,12 +46,13 @@ define("DEF", "123");
     comment
 */
 
-$heredoc = <<<EOF
+/* allow block delims / block interior to have different styles eg. in a heredoc, see grammars/php.js */
+$heredoc = <<<HEREDOC
 a 
     heredoc 
 string
 
-EOF;
+HEREDOC;
 
 $s1 = `this is a string`;
 $s2 = "this is also a string with escaped \" ' quotes"; $foo123;
@@ -63,8 +63,7 @@ function a_function( &$v1, $v2 )
     static $num = (.0123 + 345) || 12;
     global $int = 123;
     return $this->is_a_method();
-}
-</textarea>
+}</textarea>
         <p></p>
 
         <script>
