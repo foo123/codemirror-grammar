@@ -66,7 +66,7 @@ Grammar.Syntax model defines the mapping of token context-specific sequences to 
     5. **"match": "either"** :  match any of the tokens (analogous to a regex: **(t1 | t2 | t3..)** , where t1, t2, etc are also composite tokens )
     6. **"match": "all"** :  match all the tokens in sequence (analogous to a regex: **(t1 t2 t3 ..)** , where t1, t2, etc are also composite tokens ) else error
 * a syntax token can contain (direct or indirect) *recursive references* to itself ( **note:** some rule factoring may be needed, to avoid grammar "left-recursion" or ambiguity )
-* a **"ngram"** or **"n-gram"** syntax token type, is similar to a **"group" , "match":"all"" type** , with the difference that it is only matched optionally (suitable to be used in **grammar.Parser** part)
+* a **"ngram"** or **"n-gram"** syntax token type, is similar to a **"group" , "match":"all" type** , with the difference that it is only matched optionally (suitable to be used in **grammar.Parser** part)
 * It is recommended to have only **Lex.tokens** or **Syntax.ngrams** in ther **grammar.Parser** part and not Syntax.group tokens which are mostly *auxilliary*
 * The grammar.Syntax part is quite general and flexible and can define a complete language grammar, however since this is for syntax highlighting and not for code generation, defining only necessary syntax chunks can be lighter
 
