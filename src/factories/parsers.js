@@ -8,9 +8,6 @@
         CodemirrorParser = Class({
             
             constructor: function(grammar, LOC) {
-                //this.LOC = LOC;
-                //this.Grammar = grammar;
-                //this.Comments = grammar.Comments || {};
                 this.electricChars = grammar.electricChars || false;
                 
                 // support comments toggle functionality
@@ -26,14 +23,8 @@
                 
                 this.Tokens = grammar.Parser || [];
                 this.cTokens = (grammar.cTokens.length) ? grammar.cTokens : null;
-                
-                /*if (this.cTokens)
-                    this.Tokens = this.cTokens.concat(this.Tokens);*/
             },
             
-            //LOC: null,
-            //Grammar: null,
-            //Comments: null,
             conf: null,
             parserConf: null,
             electricChars: false,

@@ -1257,6 +1257,17 @@
                         
                         // provide some defaults
                         type = (tok.type) ? tokenTypes[ tok.type.toUpperCase().replace('-', '').replace('_', '') ] : T_SIMPLE;
+                        
+                        if ( (T_SIMPLE & type) && "" === tok.tokens )
+                        {
+                            // NONSPACE Tokenizer
+                            token = new SimpleToken( tokenID, "", DEFAULTSTYLE );
+                            token.tt = T_NONSPACE;
+                            // pre-cache tokenizer to handle recursive calls to same tokenizer
+                            cachedTokens[ tokenID ] = token;
+                            return token;
+                        }
+            
                         tok.tokens = make_array( tok.tokens );
                         action = tok.action || null;
                         
@@ -1468,9 +1479,6 @@
         CodemirrorParser = Class({
             
             constructor: function(grammar, LOC) {
-                //this.LOC = LOC;
-                //this.Grammar = grammar;
-                //this.Comments = grammar.Comments || {};
                 this.electricChars = grammar.electricChars || false;
                 
                 // support comments toggle functionality
@@ -1486,14 +1494,8 @@
                 
                 this.Tokens = grammar.Parser || [];
                 this.cTokens = (grammar.cTokens.length) ? grammar.cTokens : null;
-                
-                /*if (this.cTokens)
-                    this.Tokens = this.cTokens.concat(this.Tokens);*/
             },
             
-            //LOC: null,
-            //Grammar: null,
-            //Comments: null,
             conf: null,
             parserConf: null,
             electricChars: false,
