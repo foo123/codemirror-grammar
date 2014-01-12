@@ -36,7 +36,7 @@
     [/DOC_MARKDOWN]**/
     DEFAULTSTYLE = null;
     DEFAULTERROR = "error";
-    var self = @@MODULE_NAME@@ = {
+    var CodeMirrorGrammar = {
         
         VERSION : "@@VERSION@@",
         

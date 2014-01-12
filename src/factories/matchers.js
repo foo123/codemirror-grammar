@@ -5,34 +5,35 @@
         SimpleMatcher = Class({
             
             constructor : function(type, name, pattern, key) {
-                this.type = T_SIMPLEMATCHER;
-                this.tt = type || T_CHAR;
-                this.tn = name;
-                this.tk = key || 0;
-                this.tg = 0;
-                this.tp = null;
-                this.p = null;
-                this.np = null;
+                var ayto = this;
+                ayto.type = T_SIMPLEMATCHER;
+                ayto.tt = type || T_CHAR;
+                ayto.tn = name;
+                ayto.tk = key || 0;
+                ayto.tg = 0;
+                ayto.tp = null;
+                ayto.p = null;
+                ayto.np = null;
                 
                 // get a fast customized matcher for < pattern >
-                switch ( this.tt )
+                switch ( ayto.tt )
                 {
                     case T_CHAR: case T_CHARLIST:
-                        this.tp = pattern;
+                        ayto.tp = pattern;
                         break;
                     case T_STR:
-                        this.tp = pattern;
-                        this.p = {};
-                        this.p[ '' + pattern.charAt(0) ] = 1;
+                        ayto.tp = pattern;
+                        ayto.p = {};
+                        ayto.p[ '' + pattern.charAt(0) ] = 1;
                         break;
                     case T_REGEX:
-                        this.tp = pattern[ 0 ];
-                        this.p = pattern[ 1 ].peek || null;
-                        this.np = pattern[ 1 ].negativepeek || null;
-                        this.tg = pattern[ 2 ] || 0;
+                        ayto.tp = pattern[ 0 ];
+                        ayto.p = pattern[ 1 ].peek || null;
+                        ayto.np = pattern[ 1 ].negativepeek || null;
+                        ayto.tg = pattern[ 2 ] || 0;
                         break;
                     case T_NULL:
-                        this.tp = null;
+                        ayto.tp = null;
                         break;
                 }
             },
@@ -55,10 +56,10 @@
             np: null,
             
             get : function(stream, eat) {
-                var matchedResult, 
-                    tokenType = this.tt, tokenKey = this.tk, 
-                    tokenPattern = this.tp, tokenPatternGroup = this.tg,
-                    startsWith = this.p, notStartsWith = this.np
+                var matchedResult, ayto = this,
+                    tokenType = ayto.tt, tokenKey = ayto.tk, 
+                    tokenPattern = ayto.tp, tokenPatternGroup = ayto.tg,
+                    startsWith = ayto.p, notStartsWith = ayto.np
                 ;    
                 // get a fast customized matcher for < pattern >
                 switch ( tokenType )
@@ -92,10 +93,11 @@
         CompositeMatcher = Class(SimpleMatcher, {
             
             constructor : function(name, matchers, useOwnKey) {
-                this.type = T_COMPOSITEMATCHER;
-                this.tn = name;
-                this.ms = matchers;
-                this.ownKey = (false!==useOwnKey);
+                var ayto = this;
+                ayto.type = T_COMPOSITEMATCHER;
+                ayto.tn = name;
+                ayto.ms = matchers;
+                ayto.ownKey = (false!==useOwnKey);
             },
             
             // group of matchers
@@ -117,10 +119,11 @@
         BlockMatcher = Class(SimpleMatcher, {
             
             constructor : function(name, start, end) {
-                this.type = T_BLOCKMATCHER;
-                this.tn = name;
-                this.s = new CompositeMatcher(this.tn + '_Start', start, false);
-                this.e = end;
+                var ayto = this;
+                ayto.type = T_BLOCKMATCHER;
+                ayto.tn = name;
+                ayto.s = new CompositeMatcher(ayto.tn + '_Start', start, false);
+                ayto.e = end;
             },
             
             // start block matcher
@@ -130,7 +133,7 @@
             
             get : function(stream, eat) {
                     
-                var startMatcher = this.s, endMatchers = this.e, token;
+                var ayto = this, startMatcher = ayto.s, endMatchers = ayto.e, token;
                 
                 // matches start of block using startMatcher
                 // and returns the associated endBlock matcher
@@ -146,14 +149,14 @@
                         {
                             // the regex is wrapped in an additional group, 
                             // add 1 to the requested regex group transparently
-                            endMatcher = new SimpleMatcher( T_STR, this.tn + '_End', token[1][ endMatcher+1 ] );
+                            endMatcher = new SimpleMatcher( T_STR, ayto.tn + '_End', token[1][ endMatcher+1 ] );
                         }
                         // string replacement pattern given, get the proper pattern for the ending of this block
                         else if ( T_STR == T )
                         {
                             // the regex is wrapped in an additional group, 
                             // add 1 to the requested regex group transparently
-                            endMatcher = new SimpleMatcher( T_STR, this.tn + '_End', groupReplace(endMatcher, token[1]) );
+                            endMatcher = new SimpleMatcher( T_STR, ayto.tn + '_End', groupReplace(endMatcher, token[1]) );
                         }
                     }
                     return endMatcher;

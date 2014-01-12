@@ -167,5 +167,39 @@
                         .join( "|" )
                     ;
             return [ new RegExp("^(" + combined + ")"+b), { peek: peek, negativepeek: null }, 1 ];
-        }
+        },
+        
+        isNode = (typeof global !== "undefined" && {}.toString.call(global) == '[object global]') ? 1 : 0,
+        isBrowser = (!isNode && typeof navigator !== "undefined") ? 1 : 0, 
+        isWorker = (typeof importScripts === "function" && navigator instanceof WorkerNavigator) ? 1 : 0,
+        
+        // Get current filename/path
+        getCurrentPath = function() {
+            var file = null;
+            if ( isNode ) 
+            {
+                // http://nodejs.org/docs/latest/api/globals.html#globals_filename
+                // this should hold the current file in node
+                file = __filename;
+                return { path: __dirname, file: __filename };
+            }
+            else if ( isWorker )
+            {
+                // https://developer.mozilla.org/en-US/docs/Web/API/WorkerLocation
+                // this should hold the current url in a web worker
+                file = self.location.href;
+            }
+            else if ( isBrowser )
+            {
+                // get last script (should be the current one) in browser
+                var scripts;
+                if ((scripts = document.getElementsByTagName('script')) && scripts.length) 
+                    file = scripts[scripts.length - 1].src;
+            }
+            
+            if ( file )
+                return { path: file.split('/').slice(0, -1).join('/'), file: file };
+            return { path: null, file: null };
+        },
+        thisPath = getCurrentPath()
     ;

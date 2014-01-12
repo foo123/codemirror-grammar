@@ -8,21 +8,22 @@
         CodemirrorParser = Class({
             
             constructor: function(grammar, LOC) {
-                this.electricChars = grammar.electricChars || false;
+                var ayto = this;
+                ayto.electricChars = grammar.electricChars || false;
                 
                 // support comments toggle functionality
-                this.LC = (grammar.Comments.line) ? grammar.Comments.line[0] : null,
-                this.BCS = (grammar.Comments.block) ? grammar.Comments.block[0][0] : null,
-                this.BCE = (grammar.Comments.block) ? grammar.Comments.block[0][1] : null,
-                this.BCC = this.BCL = (grammar.Comments.block) ? grammar.Comments.block[0][2] : null,
-                this.DEF = LOC.DEFAULT;
-                this.ERR = grammar.Style.error || LOC.ERROR;
+                ayto.LC = (grammar.Comments.line) ? grammar.Comments.line[0] : null,
+                ayto.BCS = (grammar.Comments.block) ? grammar.Comments.block[0][0] : null,
+                ayto.BCE = (grammar.Comments.block) ? grammar.Comments.block[0][1] : null,
+                ayto.BCC = ayto.BCL = (grammar.Comments.block) ? grammar.Comments.block[0][2] : null,
+                ayto.DEF = LOC.DEFAULT;
+                ayto.ERR = grammar.Style.error || LOC.ERROR;
                 
                 // support keyword autocompletion
-                this.Keywords = grammar.Keywords.autocomplete || null;
+                ayto.Keywords = grammar.Keywords.autocomplete || null;
                 
-                this.Tokens = grammar.Parser || [];
-                this.cTokens = (grammar.cTokens.length) ? grammar.cTokens : null;
+                ayto.Tokens = grammar.Parser || [];
+                ayto.cTokens = (grammar.cTokens.length) ? grammar.cTokens : null;
             },
             
             conf: null,
@@ -38,17 +39,24 @@
             Keywords: null,
             cTokens: null,
             Tokens: null,
+            //innerModes: null,
+            //currentMode: null,
             
             // Codemirror Tokenizer compatible
             getToken: function(stream_, state) {
                 
-                var i, ci,
-                    tokenizer, type, interleavedCommentTokens = this.cTokens, tokens = this.Tokens, numTokens = tokens.length, 
-                    stream, stack, DEFAULT = this.DEF, ERROR = this.ERR
+                var i, ci, ayto = this,
+                    tokenizer, type, interleavedCommentTokens = ayto.cTokens, tokens = ayto.Tokens, numTokens = tokens.length, 
+                    stream, stack, DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
                 ;
                 
                 stack = state.stack;
                 stream = new ParserStream().fromStream( stream_ );
+                
+                /*if ( ayto.currentMode )
+                {
+                    return ayto.handleInnerMode(stream_, state);
+                }*/
                 
                 // if EOL tokenizer is left on stack, pop it now
                 if ( stream.sol() && stack.length && T_EOL == stack[stack.length-1].tt ) stack.pop();
@@ -150,7 +158,32 @@
             indent : function(state, textAfter, fullLine) {
                 // Default for now, TODO
                 return _CodeMirror.Pass;
-            }
+            }/*,
+            
+            handleInnerMode : function(stream, state) {
+            },
+            
+            addInnerMode : function(startToken, endToken, mode) {
+                this.innerModes = this.innerModes || [];
+                this.innerModes.push([startToken, endToken, mode]);
+                return this;
+            },
+            
+            removeInnerMode : function(mode) {
+                if (this.innerModes)
+                {
+                    var modes = this.innerModes;
+                    for (var i=0, l=modes.length; i<l; i++)
+                    {
+                        if ( mode === modes[i][2])
+                        {
+                            modes.splice(i, 1);
+                            break;
+                        }
+                    }
+                }
+                return this;
+            }*/
         }),
         
         getParser = function(grammar, LOCALS) {

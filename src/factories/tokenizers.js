@@ -5,13 +5,14 @@
         SimpleToken = Class({
             
             constructor : function(name, token, style) {
-                this.tt = T_SIMPLE;
-                this.tn = name;
-                this.t = token;
-                this.r = style;
-                this.required = 0;
-                this.ERR = 0;
-                this.toClone = ['t', 'r'];
+                var ayto = this;
+                ayto.tt = T_SIMPLE;
+                ayto.tn = name;
+                ayto.t = token;
+                ayto.r = style;
+                ayto.required = 0;
+                ayto.ERR = 0;
+                ayto.toClone = ['t', 'r'];
             },
             
             // tokenizer/token name
@@ -27,7 +28,7 @@
             toClone: null,
             
             get : function( stream, state ) {
-                var token = this.t, type = this.tt;
+                var ayto = this, token = ayto.t, type = ayto.tt;
                 // match EOL ( with possible leading spaces )
                 if ( T_EOL == type ) 
                 { 
@@ -35,23 +36,22 @@
                     if ( stream.eol() )
                     {
                         state.t = T_DEFAULT; 
-                        //state.r = this.r; 
-                        return this.r; 
+                        //state.r = ayto.r; 
+                        return ayto.r; 
                     }
                 }
                 // match non-space
                 else if ( T_NONSPACE == type ) 
                 { 
-                    this.ERR = ( this.required && stream.spc() && !stream.eol() ) ? 1 : 0;
-                    this.required = 0;
-                    return false;
+                    ayto.ERR = ( ayto.required && stream.spc() && !stream.eol() ) ? 1 : 0;
+                    ayto.required = 0;
                 }
                 // else match a simple token
                 else if ( token.get(stream) ) 
                 { 
-                    state.t = this.tt; 
-                    //state.r = this.r; 
-                    return this.r; 
+                    state.t = ayto.tt; 
+                    //state.r = ayto.r; 
+                    return ayto.r; 
                 }
                 return false;
             },
@@ -68,17 +68,17 @@
             },
             
             clone : function() {
-                var t, i, toClone = this.toClone, toClonelen;
+                var ayto = this, t, i, toClone = ayto.toClone, toClonelen;
                 
-                t = new this.$class();
-                t.tt = this.tt;
-                t.tn = this.tn;
+                t = new ayto.$class();
+                t.tt = ayto.tt;
+                t.tn = ayto.tn;
                 
                 if (toClone && toClone.length)
                 {
                     toClonelen = toClone.length;
                     for (i=0; i<toClonelen; i++)   
-                        t[ toClone[i] ] = this[ toClone[i] ];
+                        t[ toClone[i] ] = ayto[ toClone[i] ];
                 }
                 return t;
             },
@@ -91,13 +91,14 @@
         BlockToken = Class(SimpleToken, {
             
             constructor : function(type, name, token, style, styleInterior, allowMultiline, escChar) {
-                this.$super('constructor', name, token, style);
-                this.ri = ( 'undefined' == typeof(styleInterior) ) ? this.r : styleInterior;
-                this.tt = type;
+                var ayto = this;
+                ayto.$super('constructor', name, token, style);
+                ayto.ri = ( 'undefined' == typeof(styleInterior) ) ? ayto.r : styleInterior;
+                ayto.tt = type;
                 // a block is multiline by default
-                this.mline = ( 'undefined' == typeof(allowMultiline) ) ? 1 : allowMultiline;
-                this.esc = escChar || "\\";
-                this.toClone = ['t', 'r', 'ri', 'mline', 'esc'];
+                ayto.mline = ( 'undefined' == typeof(allowMultiline) ) ? 1 : allowMultiline;
+                ayto.esc = escChar || "\\";
+                ayto.toClone = ['t', 'r', 'ri', 'mline', 'esc'];
             },    
             
             // return val for interior
@@ -107,10 +108,10 @@
             
             get : function( stream, state ) {
             
-                var ended = 0, found = 0, endBlock, next = "", continueToNextLine, stackPos, 
-                    allowMultiline = this.mline, startBlock = this.t, thisBlock = this.tn, type = this.tt,
-                    style = this.r, styleInterior = this.ri, differentInterior = (style != styleInterior),
-                    charIsEscaped = 0, isEscapedBlock = (T_ESCBLOCK == type), escChar = this.esc,
+                var ayto = this, ended = 0, found = 0, endBlock, next = "", continueToNextLine, stackPos, 
+                    allowMultiline = ayto.mline, startBlock = ayto.t, thisBlock = ayto.tn, type = ayto.tt,
+                    style = ayto.r, styleInterior = ayto.ri, differentInterior = (style != styleInterior),
+                    charIsEscaped = 0, isEscapedBlock = (T_ESCBLOCK == type), escChar = ayto.esc,
                     isEOLBlock, alreadyIn, ret, streamPos, streamPos0, continueBlock
                 ;
                 
@@ -118,11 +119,11 @@
                     This tokenizer class handles many different block types ( BLOCK, COMMENT, ESC_BLOCK, SINGLE_LINE_BLOCK ),
                     having different styles ( DIFFERENT BLOCK DELIMS/INTERIOR ) etc..
                     So logic can become somewhat complex,
-                    descriptive names and logic used here for transparency as far as possible
+                    descriptive names and logic used here for clarity as far as possible
                 */
                 
                 // comments in general are not required tokens
-                if ( T_COMMENT == type ) this.required = 0;
+                if ( T_COMMENT == type ) ayto.required = 0;
                 
                 alreadyIn = 0;
                 if ( state.inBlock == thisBlock )
@@ -150,7 +151,7 @@
                     {
                         if ( alreadyIn && isEOLBlock && stream.sol() )
                         {
-                            this.required = 0;
+                            ayto.required = 0;
                             state.inBlock = null;
                             state.endBlock = null;
                             return false;
@@ -158,7 +159,7 @@
                         
                         if ( !alreadyIn )
                         {
-                            this.push( state.stack, stackPos, this.clone() );
+                            ayto.push( state.stack, stackPos, ayto.clone() );
                             state.t = type;
                             //state.r = ret; 
                             return ret;
@@ -218,7 +219,7 @@
                     }
                     else
                     {
-                        this.push( state.stack, stackPos, this.clone() );
+                        ayto.push( state.stack, stackPos, ayto.clone() );
                     }
                     
                     state.t = type;
@@ -235,15 +236,16 @@
         RepeatedTokens = Class(SimpleToken, {
                 
             constructor : function( name, tokens, min, max ) {
-                this.tt = T_REPEATED;
-                this.tn = name || null;
-                this.t = null;
-                this.ts = null;
-                this.min = min || 0;
-                this.max = max || INF;
-                this.found = 0;
-                this.toClone = ['ts', 'min', 'max', 'found'];
-                if (tokens) this.set( tokens );
+                var ayto = this;
+                ayto.tt = T_REPEATED;
+                ayto.tn = name || null;
+                ayto.t = null;
+                ayto.ts = null;
+                ayto.min = min || 0;
+                ayto.max = max || INF;
+                ayto.found = 0;
+                ayto.toClone = ['ts', 'min', 'max', 'found'];
+                if (tokens) ayto.set( tokens );
             },
             
             ts: null,
@@ -258,12 +260,12 @@
             
             get : function( stream, state ) {
             
-                var i, token, style, tokens = this.ts, n = tokens.length, 
-                    found = this.found, min = this.min, max = this.max,
+                var ayto = this, i, token, style, tokens = ayto.ts, n = tokens.length, 
+                    found = ayto.found, min = ayto.min, max = ayto.max,
                     tokensRequired = 0, streamPos, stackPos;
                 
-                this.ERR = 0;
-                this.required = 0;
+                ayto.ERR = 0;
+                ayto.required = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
                 
@@ -278,9 +280,9 @@
                         if ( found <= max )
                         {
                             // push it to the stack for more
-                            this.found = found;
-                            this.push( state.stack, stackPos, this.clone() );
-                            this.found = 0;
+                            ayto.found = found;
+                            ayto.push( state.stack, stackPos, ayto.clone() );
+                            ayto.found = 0;
                             return style;
                         }
                         break;
@@ -292,8 +294,8 @@
                     if ( token.ERR ) stream.bck2( streamPos );
                 }
                 
-                this.required = found < min;
-                this.ERR = found > max || (found < min && 0 < tokensRequired);
+                ayto.required = found < min;
+                ayto.ERR = found > max || (found < min && 0 < tokensRequired);
                 return false;
             }
         }),
@@ -307,11 +309,11 @@
             
             get : function( stream, state ) {
             
-                var style, token, i, tokens = this.ts, n = tokens.length, 
+                var ayto = this, style, token, i, tokens = ayto.ts, n = tokens.length, 
                     tokensRequired = 0, tokensErr = 0, streamPos;
                 
-                this.required = 1;
-                this.ERR = 0;
+                ayto.required = 1;
+                ayto.ERR = 0;
                 streamPos = stream.pos;
                 
                 for (i=0; i<n; i++)
@@ -332,8 +334,8 @@
                     }
                 }
                 
-                this.required = (tokensRequired > 0);
-                this.ERR = (n == tokensErr && tokensRequired > 0);
+                ayto.required = (tokensRequired > 0);
+                ayto.ERR = (n == tokensErr && tokensRequired > 0);
                 return false;
             }
         }),
@@ -347,11 +349,11 @@
             
             get : function( stream, state ) {
                 
-                var token, style, tokens = this.ts, n = tokens.length,
+                var ayto = this, token, style, tokens = ayto.ts, n = tokens.length,
                     streamPos, stackPos;
                 
-                this.required = 1;
-                this.ERR = 0;
+                ayto.required = 1;
+                ayto.ERR = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
                 token = tokens[ 0 ].clone().require( 1 );
@@ -360,18 +362,18 @@
                 if ( false !== style )
                 {
                     for (var i=n-1; i>0; i--)
-                        this.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ) );
+                        ayto.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ) );
                         
                     return style;
                 }
                 else if ( token.ERR /*&& token.required*/ )
                 {
-                    this.ERR = 1;
+                    ayto.ERR = 1;
                     stream.bck2( streamPos );
                 }
                 else if ( token.required )
                 {
-                    this.ERR = 1;
+                    ayto.ERR = 1;
                 }
                 
                 return false;
@@ -387,11 +389,11 @@
             
             get : function( stream, state ) {
                 
-                var token, style, tokens = this.ts, n = tokens.length, 
+                var ayto = this, token, style, tokens = ayto.ts, n = tokens.length, 
                     streamPos, stackPos;
                 
-                this.required = 0;
-                this.ERR = 0;
+                ayto.required = 0;
+                ayto.ERR = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
                 token = tokens[ 0 ].clone().require( 0 );
@@ -400,7 +402,7 @@
                 if ( false !== style )
                 {
                     for (var i=n-1; i>0; i--)
-                        this.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ) );
+                        ayto.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ) );
                     
                     return style;
                 }
