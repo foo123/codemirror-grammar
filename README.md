@@ -238,6 +238,11 @@ Result:
 ###Other Examples:
 
 
+####grammar annotations
+
+![grammar-annotations](/test/grammar-annotations.png)
+
+
 ![js-grammar](/test/grammar-js.png)
 
 
