@@ -5,6 +5,7 @@
         <meta charset="utf-8">
         
         <link rel="stylesheet" href="codemirror/codemirror.css">
+        <link rel="stylesheet" href="codemirror/addon/lint/lint.css">
         <style type="text/css">
             body {
                 position: relative;
@@ -22,6 +23,7 @@
         
         <script src="codemirror/codemirror.js"></script>
         <script src="codemirror/addon/comment/comment.js"></script>
+        <script src="codemirror/addon/lint/lint.js"></script>
         <script src="../build/classy.js"></script>
         <script src="../build/regexanalyzer.js"></script>
         <script src="../build/codemirror_grammar.js"></script>
@@ -57,12 +59,8 @@ getMode = function(grammar, DEFAULT) {
         <script>
         // <![CDATA[
         
-        // 2. parse the grammar into a Codemirror syntax-highlight mode
-        // 3. register the mode with Codemirror
-        CodeMirror.defineMode("js", CodeMirrorGrammar.getMode(js_grammar));
-        
         // use it!
-        codemirror_grammar_demo(document.getElementById("code"), "js");
+        codemirror_grammar_demo(document.getElementById("code"), "js", js_grammar);
         
         // ]]>
         </script>

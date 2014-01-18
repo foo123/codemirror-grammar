@@ -42,12 +42,32 @@
             //innerModes: null,
             //currentMode: null,
             
+            parse: function(code) {
+                code = code || "";
+                var lines = code.split(/\r\n|\r|\n/g), l = lines.length, i;
+                var linetokens = [], tokens, state, stream;
+                state = new ParserState( );;
+                
+                for (i=0; i<l; i++)
+                {
+                    stream = new ParserStream(lines[i]);
+                    tokens = [];
+                    while ( !stream.eol() )
+                    {
+                        tokens.push(this.getToken(stream, state, 1));
+                        stream.sft();
+                    }
+                    linetokens.push(tokens);
+                }
+                return linetokens;
+            },
+            
             // Codemirror Tokenizer compatible
-            getToken: function(stream_, state) {
+            getToken: function(stream_, state, asData) {
                 
                 var i, ci, ayto = this,
                     tokenizer, type, interleavedCommentTokens = ayto.cTokens, tokens = ayto.Tokens, numTokens = tokens.length, 
-                    stream, stack, DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
+                    stream, stack, currentError = null, DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
                 ;
                 
                 stack = state.stack;
@@ -67,7 +87,7 @@
                     if ( stream.spc() ) 
                     {
                         state.t = T_DEFAULT;
-                        return state.r = DEFAULT;
+                        return (asData) ? { value: stream.cur(), type: DEFAULT, error: null} : state.r = DEFAULT;
                     }
                 }
                 
@@ -82,7 +102,7 @@
                             type = tokenizer.get(stream, state);
                             if ( false !== type )
                             {
-                                return state.r = type;
+                                return (asData) ? { value: stream.cur(), type: type, error: null} : state.r = type;
                             }
                         }
                     }
@@ -102,7 +122,8 @@
                             stream.nxt();
                             // generate error
                             state.t = T_ERROR;
-                            return state.r = ERROR;
+                            currentError = tokenizer.tn + ((tokenizer.required) ? " is missing" : " syntax error");
+                            return (asData) ? { value: stream.cur(), type: ERROR, error: currentError} : state.r = ERROR;
                         }
                         // optional
                         else
@@ -113,7 +134,7 @@
                     // found token
                     else
                     {
-                        return state.r = type;
+                        return (asData) ? { value: stream.cur(), type: type, error: null} : state.r = type;
                     }
                 }
                 
@@ -134,7 +155,8 @@
                             stream.nxt();
                             // generate error
                             state.t = T_ERROR;
-                            return state.r = ERROR;
+                            currentError = tokenizer.tn + ((tokenizer.required) ? " is missing" : " syntax error");
+                            return (asData) ? { value: stream.cur(), type: ERROR, error: currentError} : state.r = ERROR;
                         }
                         // optional
                         else
@@ -145,14 +167,14 @@
                     // found token
                     else
                     {
-                        return state.r = type;
+                        return (asData) ? { value: stream.cur(), type: type, error: null} : state.r = type;
                     }
                 }
                 
                 // unknown, bypass
                 stream.nxt();
                 state.t = T_DEFAULT;
-                return state.r = DEFAULT;
+                return (asData) ? { value: stream.cur(), type: DEFAULT, error: null} : state.r = DEFAULT;
             },
             
             indent : function(state, textAfter, fullLine) {
@@ -193,7 +215,7 @@
         getCodemirrorMode = function(parser) {
                 
             // Codemirror-compatible Mode
-            return function(conf, parserConf) {
+            var mode = function(conf, parserConf) {
                 
                 parser.conf = conf;
                 parser.parserConf = parserConf;
@@ -212,6 +234,54 @@
                     
                     electricChars: parser.electricChars,
                     
+                    // syntax, lint-like validator generated from grammar
+                    validator: function (text, options)  {
+                        var errorFound = 0, code, errors, linetokens, tokens, token, t, lines, line, row, column;
+                        code = text;
+                        if ( !code || !code.length ) 
+                        {
+                            return [];
+                        }
+                        
+                        errors = [];
+                        linetokens = parser.parse( code );
+                        lines = linetokens.length;
+                        
+                        for (line=0; line<lines; line++) 
+                        {
+                            tokens = linetokens[ line ];
+                            if ( !tokens || !tokens.length )  continue;
+                            
+                            column = 0;
+                            for (t=0; t<tokens.length; t++)
+                            {
+                                token = tokens[t];
+                                
+                                if ( parser.ERR == token.type )
+                                {
+                                    errors.push({
+                                        message: token.error || 'Syntax Error',
+                                        severity: "error",
+                                        from: CodeMirror.Pos(line, column),
+                                        to: CodeMirror.Pos(line, column+1)
+                                    });
+                                    
+                                    errorFound = 1;
+                                }
+                                column += token.value.length;
+                            }
+                        }
+                        if (errorFound)
+                        {
+                            console.log(errors);
+                            return errors;
+                        }
+                        else
+                        {
+                            return [];
+                        }
+                    },
+                    
                     // support comments toggle functionality
                     lineComment: parser.LC,
                     blockCommentStart: parser.BCS,
@@ -227,6 +297,7 @@
                 };
                 
             };
+            return mode;
         },
         
         getMode = function(grammar, DEFAULT) {

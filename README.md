@@ -39,6 +39,7 @@ Code Indentation is Codemirror default, looking for ways to add more elaborate i
 * [Grammar Syntax Model](/grammar-reference.md) can enable highlight in a more context-specific way, plus detect possible *syntax errors*
 * [Grammar Syntax Model](/grammar-reference.md) can contain *recursive references* (see /test/grammar-js-recursion.html)
 * Generated highlight modes can support **toggle comments** and **keyword autocompletion** functionality if defined in the grammar
+* Generated highlight modes can support **lint-like syntax-annotation** functionality generated from the grammar
 * Generated parsers are **optimized for speed and size**
 * Can generate a syntax-highlight parser from a grammar **interactively and on-the-fly** ( see example, http://foo123.github.io/examples/codemirror-grammar )
 

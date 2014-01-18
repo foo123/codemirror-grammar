@@ -26,6 +26,7 @@
     ./src/factories/matchers.js
     ./src/factories/tokenizers.js
     ./src/factories/parsers.js
+    #./src/factories/workers.js
     ./src/main.js
     !tpl:umd-footer.tpl.js  # include a umd-footer template
 
@@ -38,7 +39,7 @@
 # do any replacements to the source (map)
 @REPLACE =[{}]
 
-    "@@VERSION@@" = "0.7"
+    "@@VERSION@@" = "0.7.1"
     
     "@@MODULE_NAME@@" = "CodeMirrorGrammar"
     
