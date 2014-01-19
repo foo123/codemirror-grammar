@@ -16,7 +16,9 @@ function codemirror_grammar_demo(code, lang, grammar)
         indentWithTabs: false,
         extraKeys: {"Ctrl-L": "toggleComment"},
         gutters: ["CodeMirror-lint-markers"],
-        lint: true
+        // enable syntax validation
+        lint: true,
+        supportGrammarAnnotations: true
     });
     
     editor.setSize(null, 500);

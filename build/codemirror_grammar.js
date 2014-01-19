@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.7.1
+*   @version: 0.7.2
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -436,13 +436,13 @@
         
         // Get current filename/path
         getCurrentPath = function() {
-            var file = null;
+            var file = null, path, base, scripts;
             if ( isNode ) 
             {
                 // http://nodejs.org/docs/latest/api/globals.html#globals_filename
                 // this should hold the current file in node
                 file = __filename;
-                return { path: __dirname, file: __filename };
+                return { path: __dirname, file: __filename, base: __dirname };
             }
             else if ( isWorker )
             {
@@ -453,14 +453,14 @@
             else if ( isBrowser )
             {
                 // get last script (should be the current one) in browser
-                var scripts;
+                base = document.location.href.split('#')[0].split('?')[0].split('/').slice(0, -1).join('/');
                 if ((scripts = document.getElementsByTagName('script')) && scripts.length) 
                     file = scripts[scripts.length - 1].src;
             }
             
             if ( file )
-                return { path: file.split('/').slice(0, -1).join('/'), file: file };
-            return { path: null, file: null };
+                return { path: file.split('/').slice(0, -1).join('/'), file: file, base: base };
+            return { path: null, file: null, base: null };
         },
         thisPath = getCurrentPath()
     ;
@@ -982,6 +982,12 @@
     //
     // tokenizer factories
     var
+        getError = function(tokenizer) {
+            if (T_NONSPACE == tokenizer.tt) return "NONSPACE Required";
+            else if (T_NULL == tokenizer.tt) return "EOL Required";
+            return (tokenizer.required) ? ('Token Missing "'+tokenizer.tn+'"') : ('Syntax Error "'+tokenizer.tn+'"');
+        },
+        
         SimpleToken = Class({
             
             constructor : function(name, token, style) {
@@ -1692,8 +1698,8 @@
             
             parse: function(code) {
                 code = code || "";
-                var lines = code.split(/\r\n|\r|\n/g), l = lines.length, i;
-                var linetokens = [], tokens, state, stream;
+                var lines = code.split(/\r\n|\r|\n/g), l = lines.length, i,
+                    linetokens = [], tokens, state, stream;
                 state = new ParserState( );;
                 
                 for (i=0; i<l; i++)
@@ -1715,7 +1721,7 @@
                 
                 var i, ci, ayto = this,
                     tokenizer, type, interleavedCommentTokens = ayto.cTokens, tokens = ayto.Tokens, numTokens = tokens.length, 
-                    stream, stack, currentError = null, DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
+                    stream, stack, DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
                 ;
                 
                 stack = state.stack;
@@ -1735,7 +1741,7 @@
                     if ( stream.spc() ) 
                     {
                         state.t = T_DEFAULT;
-                        return (asData) ? { value: stream.cur(), type: DEFAULT, error: null} : state.r = DEFAULT;
+                        return (asData) ? { value: stream.cur(), type: DEFAULT, error: null } : state.r = DEFAULT;
                     }
                 }
                 
@@ -1750,7 +1756,7 @@
                             type = tokenizer.get(stream, state);
                             if ( false !== type )
                             {
-                                return (asData) ? { value: stream.cur(), type: type, error: null} : state.r = type;
+                                return (asData) ? { value: stream.cur(), type: type, error: null } : state.r = type;
                             }
                         }
                     }
@@ -1770,8 +1776,7 @@
                             stream.nxt();
                             // generate error
                             state.t = T_ERROR;
-                            currentError = tokenizer.tn + ((tokenizer.required) ? " is missing" : " syntax error");
-                            return (asData) ? { value: stream.cur(), type: ERROR, error: currentError} : state.r = ERROR;
+                            return (asData) ? { value: stream.cur(), type: ERROR, error: getError( tokenizer ) } : state.r = ERROR;
                         }
                         // optional
                         else
@@ -1782,7 +1787,7 @@
                     // found token
                     else
                     {
-                        return (asData) ? { value: stream.cur(), type: type, error: null} : state.r = type;
+                        return (asData) ? { value: stream.cur(), type: type, error: null } : state.r = type;
                     }
                 }
                 
@@ -1803,8 +1808,7 @@
                             stream.nxt();
                             // generate error
                             state.t = T_ERROR;
-                            currentError = tokenizer.tn + ((tokenizer.required) ? " is missing" : " syntax error");
-                            return (asData) ? { value: stream.cur(), type: ERROR, error: currentError} : state.r = ERROR;
+                            return (asData) ? { value: stream.cur(), type: ERROR, error: getError( tokenizer ) } : state.r = ERROR;
                         }
                         // optional
                         else
@@ -1815,14 +1819,14 @@
                     // found token
                     else
                     {
-                        return (asData) ? { value: stream.cur(), type: type, error: null} : state.r = type;
+                        return (asData) ? { value: stream.cur(), type: type, error: null } : state.r = type;
                     }
                 }
                 
                 // unknown, bypass
                 stream.nxt();
                 state.t = T_DEFAULT;
-                return (asData) ? { value: stream.cur(), type: DEFAULT, error: null} : state.r = DEFAULT;
+                return (asData) ? { value: stream.cur(), type: DEFAULT, error: null } : state.r = DEFAULT;
             },
             
             indent : function(state, textAfter, fullLine) {
@@ -1883,7 +1887,11 @@
                     electricChars: parser.electricChars,
                     
                     // syntax, lint-like validator generated from grammar
+                    // maybe use this as a worker (a-la ACE) ??
                     validator: function (text, options)  {
+                        
+                        if ( !parser.conf || !parser.conf.supportGrammarAnnotations ) return [];
+                        
                         var errorFound = 0, code, errors, linetokens, tokens, token, t, lines, line, row, column;
                         code = text;
                         if ( !code || !code.length ) 
@@ -1921,7 +1929,7 @@
                         }
                         if (errorFound)
                         {
-                            console.log(errors);
+                            //console.log(errors);
                             return errors;
                         }
                         else
@@ -1968,7 +1976,7 @@
   /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.7.1
+*   @version: 0.7.2
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2005,7 +2013,7 @@
     DEFAULTERROR = "error";
     var CodeMirrorGrammar = {
         
-        VERSION : "0.7.1",
+        VERSION : "0.7.2",
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]

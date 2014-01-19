@@ -2,6 +2,12 @@
     //
     // tokenizer factories
     var
+        getError = function(tokenizer) {
+            if (T_NONSPACE == tokenizer.tt) return "NONSPACE Required";
+            else if (T_NULL == tokenizer.tt) return "EOL Required";
+            return (tokenizer.required) ? ('Token Missing "'+tokenizer.tn+'"') : ('Syntax Error "'+tokenizer.tn+'"');
+        },
+        
         SimpleToken = Class({
             
             constructor : function(name, token, style) {

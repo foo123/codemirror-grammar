@@ -175,13 +175,13 @@
         
         // Get current filename/path
         getCurrentPath = function() {
-            var file = null;
+            var file = null, path, base, scripts;
             if ( isNode ) 
             {
                 // http://nodejs.org/docs/latest/api/globals.html#globals_filename
                 // this should hold the current file in node
                 file = __filename;
-                return { path: __dirname, file: __filename };
+                return { path: __dirname, file: __filename, base: __dirname };
             }
             else if ( isWorker )
             {
@@ -192,14 +192,14 @@
             else if ( isBrowser )
             {
                 // get last script (should be the current one) in browser
-                var scripts;
+                base = document.location.href.split('#')[0].split('?')[0].split('/').slice(0, -1).join('/');
                 if ((scripts = document.getElementsByTagName('script')) && scripts.length) 
                     file = scripts[scripts.length - 1].src;
             }
             
             if ( file )
-                return { path: file.split('/').slice(0, -1).join('/'), file: file };
-            return { path: null, file: null };
+                return { path: file.split('/').slice(0, -1).join('/'), file: file, base: base };
+            return { path: null, file: null, base: null };
         },
         thisPath = getCurrentPath()
     ;
