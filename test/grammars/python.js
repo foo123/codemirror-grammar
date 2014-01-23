@@ -41,30 +41,30 @@ var python_grammar = {
                 // if no end given, end is same as start of block
                 [ "'''" ], 
                 [ "\"\"\"" ], 
-                [ "RegExp::([rubRUB]|(ur)|(br)|(UR)|(BR))?('{3}|\"{3})", 6 ] 
+                [ "RegExp::/([rubRUB]|(ur)|(br)|(UR)|(BR))?('{3}|\"{3})/", 6 ] 
             ]
         },
         
         // general identifiers
-        "identifier" : "RegExp::[_A-Za-z][_A-Za-z0-9]*",
+        "identifier" : "RegExp::/[_A-Za-z][_A-Za-z0-9]*/",
 
         // numbers, in order of matching
         "number" : [
             // floats
-            "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?[jJ]?",
-            "RegExp::\\d+\\.\\d*[jJ]?",
-            "RegExp::\\.\\d+[jJ]?",
+            "RegExp::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?[jJ]?/",
+            "RegExp::/\\d+\\.\\d*[jJ]?/",
+            "RegExp::/\\.\\d+[jJ]?/",
             // integers
             // hex
-            "RegExp::0x[0-9a-fA-F]+[lL]?",
+            "RegExp::/0x[0-9a-fA-F]+[lL]?/",
             // binary
-            "RegExp::0b[01]+[lL]?",
+            "RegExp::/0b[01]+[lL]?/",
             // octal
-            "RegExp::0o[0-7]+[lL]?",
+            "RegExp::/0o[0-7]+[lL]?/",
             // decimal
-            "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?[lL]?[jJ]?",
+            "RegExp::/[1-9]\\d*(e[\\+\\-]?\\d+)?[lL]?[jJ]?/",
             // just zero
-            "RegExp::0(?![\\dx])"
+            "RegExp::/0(?![\\dx])/"
         ],
 
         // strings
@@ -73,8 +73,8 @@ var python_grammar = {
             "escape" : "\\",
             "tokens" : [ 
                 // start, end of string (can be the matched regex group ie. 1 )
-                [ "RegExp::(['\"])", 1 ], 
-                [ "RegExp::([rubRUB]|(ur)|(br)|(UR)|(BR))?(['\"])", 6 ] 
+                [ "RegExp::/(['\"])/", 1 ], 
+                [ "RegExp::/([rubRUB]|(ur)|(br)|(UR)|(BR))?(['\"])/", 6 ] 
             ]
         },
         
@@ -99,7 +99,7 @@ var python_grammar = {
         },
         
         // decorators
-        "decorator" : "RegExp::@[_A-Za-z][_A-Za-z0-9]*",
+        "decorator" : "RegExp::/@[_A-Za-z][_A-Za-z0-9]*/",
 
         // keywords
         "keyword" : {

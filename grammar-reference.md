@@ -5,6 +5,24 @@
 
 * **Grammar.RegExpID** defines the prefix ID for any regular expressions (represented as strings) used in the grammar
 
+The first character after the RegExpID is considered the regular expression delimiter(similar to php regex usage), 
+in this way regular expression flags can also be added in the regular expression (notably case-insensitive flag **i** )
+
+example:
+```javascript
+
+"RegExpID" : "RegExp::"
+
+// .. various stuff here
+
+"aToken" : "RegExp::/[abc]+/i", // define a regular expression /[abc]+/i or [abc]+, with case-insensitive flag
+// note: the /, / delimiters are NOT part of the regular expression, only the interior
+// regular expression syntax and escaping is same as regexs defined with new RegExp() object in javascript
+
+// .. other stuff here
+
+```
+
 
 ###Style model
 

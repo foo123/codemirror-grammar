@@ -45,32 +45,32 @@ var php_grammar = {
         "heredoc" : {
             "type" : "block",
             // start, end of heredoc (can be the matched regex group ie. 1 )
-            "tokens" : [ "RegExp::<<<([_A-Za-z][_A-Za-z0-9]*)",   1 ]
+            "tokens" : [ "RegExp::/<<<([_A-Za-z][_A-Za-z0-9]*)/",   1 ]
         },
         
         // general identifiers
-        "identifier" : "RegExp::[_A-Za-z][_A-Za-z0-9]*",
+        "identifier" : "RegExp::/[_A-Za-z][_A-Za-z0-9]*/",
         
         // php variables
-        "variable" : "RegExp::\\$[_A-Za-z][_A-Za-z0-9]*",
+        "variable" : "RegExp::/\\$[_A-Za-z][_A-Za-z0-9]*/",
 
         // numbers, in order of matching
         "number" : [
             // floats
-            "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?",
-            "RegExp::\\d+\\.\\d*",
-            "RegExp::\\.\\d+",
+            "RegExp::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?/",
+            "RegExp::/\\d+\\.\\d*/",
+            "RegExp::/\\.\\d+/",
             // integers
             // hex
-            "RegExp::0x[0-9a-fA-F]+L?",
+            "RegExp::/0x[0-9a-fA-F]+L?/",
             // binary
-            "RegExp::0b[01]+L?",
+            "RegExp::/0b[01]+L?/",
             // octal
-            "RegExp::0o[0-7]+L?",
+            "RegExp::/0o[0-7]+L?/",
             // decimal
-            "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?L?",
+            "RegExp::/[1-9]\\d*(e[\\+\\-]?\\d+)?L?/",
             // just zero
-            "RegExp::0(?![\\dx])"
+            "RegExp::/0(?![\\dx])/"
         ],
 
         // strings
@@ -78,7 +78,7 @@ var php_grammar = {
             "type" : "escaped-block",
             "escape" : "\\",
             // start, end of string (can be the matched regex group ie. 1 )
-            "tokens" : [ "RegExp::([`'\"])",   1 ]
+            "tokens" : [ "RegExp::/([`'\"])/",   1 ]
         },
         
         // operators

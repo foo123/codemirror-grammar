@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.7.2
+*   @version: 0.7.3
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -390,15 +390,32 @@
         getRegexp = function(r, rid, cachedRegexes)  {
             if ( !r || (T_NUM == get_type(r)) ) return r;
             
-            var l = (rid) ? (rid.length||0) : 0;
+            var l = (rid) ? (rid.length||0) : 0, i;
             
             if ( l && rid == r.substr(0, l) ) 
             {
-                var regexID = "^(" + r.substr(l) + ")", regex, chars, analyzer;
+                var regexSource = r.substr(l), delim = regexSource[0], flags = '',
+                    regexBody, regexID, regex, chars, analyzer, i, ch
+                ;
+                
+                // allow regex to have delimiters and flags
+                // delimiter is defined as the first character after the regexID
+                i = regexSource.length;
+                while ( i-- )
+                {
+                    ch = regexSource[i];
+                    if (delim == ch) 
+                        break;
+                    else if ('i' == ch.toLowerCase() ) 
+                        flags = 'i';
+                }
+                regexBody = regexSource.substring(1, i);
+                regexID = "^(" + regexBody + ")";
+                //console.log([regexBody, flags]);
                 
                 if ( !cachedRegexes[ regexID ] )
                 {
-                    regex = new RegExp( regexID );
+                    regex = new RegExp( regexID, flags );
                     analyzer = new RegexAnalyzer( regex ).analyze();
                     chars = analyzer.getPeekChars();
                     if ( !Keys(chars.peek).length )  chars.peek = null;
@@ -1976,7 +1993,7 @@
   /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.7.2
+*   @version: 0.7.3
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2013,7 +2030,7 @@
     DEFAULTERROR = "error";
     var CodeMirrorGrammar = {
         
-        VERSION : "0.7.2",
+        VERSION : "0.7.3",
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]

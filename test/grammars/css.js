@@ -62,31 +62,31 @@ var css_grammar = {
         },
         
         // css ids
-        "cssID" : "RegExp::#[_A-Za-z][_A-Za-z0-9]*",
+        "cssID" : "RegExp::/#[_A-Za-z][_A-Za-z0-9]*/",
         
         // css classes
-        "cssClass" : "RegExp::\\.[_A-Za-z][_A-Za-z0-9]*",
+        "cssClass" : "RegExp::/\\.[_A-Za-z][_A-Za-z0-9]*/",
         
-        "cssPseudoElement" : "RegExp::::?[_A-Za-z][_A-Za-z0-9]*",
+        "cssPseudoElement" : "RegExp::/::?[_A-Za-z][_A-Za-z0-9]*/",
         
         // general identifiers
-        "identifier" : "RegExp::[_A-Za-z][_A-Za-z0-9]*",
+        "identifier" : "RegExp::/[_A-Za-z][_A-Za-z0-9]*/",
         
         // numbers, in order of matching
         "number" : [
             // floats
-            "RegExp::\\d*\\.\\d+(e[\\+\\-]?\\d+)?(em|px|%|pt)?",
-            "RegExp::\\d+\\.\\d*(em|px|%|pt)?",
-            "RegExp::\\.\\d+(em|px|%|pt)?",
+            "RegExp::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?(em|px|%|pt)?/",
+            "RegExp::/\\d+\\.\\d*(em|px|%|pt)?/",
+            "RegExp::/\\.\\d+(em|px|%|pt)?/",
             // integers
             // decimal
-            "RegExp::[1-9]\\d*(e[\\+\\-]?\\d+)?(em|px|%|pt)?",
+            "RegExp::/[1-9]\\d*(e[\\+\\-]?\\d+)?(em|px|%|pt)?/",
             // just zero
-            "RegExp::0(?![\\dx])(em|px|%|pt)?"
+            "RegExp::/0(?![\\dx])(em|px|%|pt)?/"
         ],
         
         // hex colors
-        "hexcolor" : "RegExp::#[0-9a-fA-F]+",
+        "hexcolor" : "RegExp::/#[0-9a-fA-F]+/",
 
         // strings
         "string" : {
@@ -94,11 +94,11 @@ var css_grammar = {
             "escape" : "\\",
             "tokens" : [
                 //  start,           end of string (can be the matched regex group ie. 1 )
-                [ "RegExp::([`'\"])", 1 ]
+                [ "RegExp::/([`'\"])/", 1 ]
             ]
         },
         
-        "text" : "RegExp::[^\\(\\)\\[\\]\\{\\}'\"]+",
+        "text" : "RegExp::/[^\\(\\)\\[\\]\\{\\}'\"]+/",
         
         // operators
         "operator" : {
@@ -127,11 +127,7 @@ var css_grammar = {
         },
 
         // defs
-        "meta2" : {
-            // enable autocompletion for these tokens, with their associated token ID
-            "autocomplete" : true,
-            "tokens" : "RegExp::@[_A-Za-z][_A-Za-z0-9]*"
-        },
+        "meta2" : "RegExp::/@[_A-Za-z][_A-Za-z0-9]*/",
 
         // css properties
         "property" : {
@@ -167,7 +163,7 @@ var css_grammar = {
             ]
         },
         
-        "url" : "RegExp::url\\b"
+        "url" : "RegExp::/url\\b/"
     },
 
     //
