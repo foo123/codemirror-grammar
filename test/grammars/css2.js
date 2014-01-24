@@ -1,0 +1,189 @@
+// 1. a partial css grammar in simple JSON format
+var css_grammar = {
+    "RegExpID" : "RegExp::",
+
+    //
+    // Style model
+    "Style" : {
+        "comment":         "comment",
+        "@atrule":         "def",
+        "@import":         "def",
+        "@keyframes":      "def",
+        "@media":          "def",
+        "identifier":      "variable",
+        "!important":      "builtin",
+        "CssAtom":         "atom",
+        "url":             "atom",
+        "CssProperty":     "property",
+        "HtmlElement":     "tag",
+        "CssID":           "builtin",
+        "CssClass":        "qualifier",
+        "PseudoElement":   "string",
+        "number":          "number",
+        "string":          "string",
+        "text":            "string"
+    },
+
+    
+    //
+    // Lexical model
+    "Lex" : {
+        
+        // comments
+        "comment" : {
+            "type" : "comment",
+            "interleave": true,
+            "tokens" : [
+                // block comments
+                // start, end     delims
+                [  "/*",  "*/" ]
+            ]
+        },
+        
+        // numbers, in order of matching
+        "number" : [
+            // integers
+            // decimal
+            "RegExp::/[0-9]\\d*(rem|em|px|%|pt|in|s)?/i",
+            // floats
+            "RegExp::/\\.\\d+(rem|em|px|%|pt|in|s)?/i",
+            "RegExp::/\\d+\\.\\d*(rem|em|px|%|pt|in|s)?/i",
+            "RegExp::/\\d*\\.\\d+(rem|em|px|%|pt|in|s)?/i",
+            // hex color
+            "RegExp::/#[0-9a-f]{3,6}/i"
+        ],
+        
+        // strings
+        "string" : {
+            "type" : "block",
+            "multiline": false,
+            "tokens" : [
+                //  start,           end of string (can be the matched regex group ie. 1 )
+                [ "RegExp::/(['\"])/", 1 ]
+            ]
+        },
+        
+        "text" : "RegExp::/[^\\(\\)\\[\\]\\{\\}'\"]+/",
+        
+        // css identifier
+        "identifier" : "RegExp::/[a-z_\\-][a-z0-9_\\-]*/i",
+        
+        // css ids
+        "CssID" : "RegExp::/#[a-z_\\-][a-z0-9_\\-]*/i",
+        
+        // css classes
+        "CssClass" : "RegExp::/\\.[a-z_\\-][a-z0-9_\\-]*/i",
+        
+        // css pseudo classes / pseudo elements
+        "PseudoElement" : "RegExp::/::?[a-z_\\-][a-z0-9_\\-]*/i",
+        
+        // css properties
+        "CssProperty" : "RegExp::/[a-z_\\-][a-z0-9_\\-]*/i",
+                              
+        // css atoms / values
+        "url" : "RegExp::/url\\b/i",
+        "CssAtom" : "RegExp::/[a-z_\\-][a-z_\\-]*/i",
+        
+        // css @atrules
+        "@import" : "RegExp::/@import\\b/i",
+        "@keyframes" : "RegExp::/@[a-z\\-]*keyframes\\b/i",
+        "@media" : "RegExp::/@media\\b/i",
+        "@atrule" : "RegExp::/@[a-z_\\-][a-z0-9_\\-]*/i",
+        
+        "!important" : "RegExp::/!important\\b/i",
+        
+        // css html element
+        "HtmlElement" : "RegExp::/[a-z_\\-][a-z0-9_\\-]*/i"
+    },
+
+    //
+    // Syntax model (optional)
+    "Syntax" : {
+        
+        "stringOrText" : {
+            "type" : "group",
+            "match" : "either",
+            "tokens" : [ "string", "text" ]
+        },
+        
+        "urlDeclaration" : {
+            "type" : "ngram",
+            "tokens" : [ "url", "(", "stringOrText", ")" ]
+        },
+        
+        "cssSelector" : {
+            "type" : "group",
+            "match" : "oneOrMore",
+            "tokens" : [ "HtmlElement", "CssID", "CssClass", "PseudoElement", "string", ",", "(", ")", "[", "]", "=", "+", "^", ">", "*", "~"]
+        },
+        
+        "RHSAssignment" : {
+            "type" : "group",
+            "match" : "oneOrMore",
+            "tokens" : [ "!important", "urlDeclaration", "string", "number", "CssAtom", ",", "(", ")" ]
+        },
+        
+        "cssAssignment" : {
+            "type" : "group",
+            "match" : "all",
+            "tokens" : [ "CssProperty", ":", "RHSAssignment", ";" ]
+        },
+        
+        "cssAssignments" : {
+            "type" : "group",
+            "match" : "zeroOrMore",
+            "tokens" : [ "cssAssignment" ]
+        },
+        
+        // syntax grammar (n-gram) for a block of css assignments
+        "cssBlock" : {
+            "type" : "n-gram",
+            "tokens" : [
+                [ "number", "{", "cssAssignments", "}" ],
+                [ "cssSelector", "{", "cssAssignments", "}" ]
+            ]
+        },
+        
+        "cssBlocks" : {
+            "type" : "group",
+            "match": "zeroOrMore",
+            "tokens" : [ "cssBlock" ]
+        },
+        
+        "@importDirective" : {
+            "type" : "n-gram",
+            "tokens" : [ "@import", "urlDeclaration", ";" ]
+        },
+        
+        "@keyframesDirective" : {
+            "type" : "n-gram",
+            "tokens" : [ "@keyframes", "identifier", "{", "cssBlocks", "}" ]
+        },
+        
+        "cssIdentifiers" : {
+            "type" : "group",
+            "match": "oneOrMore",
+            "tokens" : [ "identifier", "number", "string", ",", "(", ")"]
+        },
+        
+        "@mediaDirective" : {
+            "type" : "n-gram",
+            "tokens" : [ "@media", "cssIdentifiers", "{", "cssBlocks", "}" ]
+        },
+        
+        "@atruleDirective"  : {
+            "type" : "n-gram",
+            "tokens" : [ "@atrule", "cssIdentifiers", ";" ]
+        }
+    },
+
+    // what to parse and in what order
+    "Parser" : [
+        "comment",
+        "@importDirective",
+        "@keyframesDirective",
+        "@mediaDirective",
+        "@atruleDirective",
+        "cssBlock"
+    ]
+};

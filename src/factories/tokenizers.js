@@ -4,7 +4,7 @@
     var
         getError = function(tokenizer) {
             if (T_NONSPACE == tokenizer.tt) return "NONSPACE Required";
-            else if (T_NULL == tokenizer.tt) return "EOL Required";
+            else if (T_EOL == tokenizer.tt) return "EOL Required";
             return (tokenizer.required) ? ('Token Missing "'+tokenizer.tn+'"') : ('Syntax Error "'+tokenizer.tn+'"');
         },
         
@@ -68,7 +68,7 @@
             },
             
             push : function(stack, pos, token) {
-                if ( pos ) stack.splice( pos, 0, token );
+                if ( /*pos &&*/ stack.length ) stack.splice( pos, 0, token );
                 else stack.push( token );
                 return this;
             },
