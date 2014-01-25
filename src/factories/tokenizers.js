@@ -44,10 +44,8 @@
             toClone: null,
             
             err : function() {
-                var tokenizer = this;
-                if (T_NONSPACE == tokenizer.tt) return "NONSPACE Required";
-                else if (T_EOL == tokenizer.tt) return "EOL Required";
-                return (tokenizer.REQ) ? ('Token Missing "'+tokenizer.tn+'"') : ('Syntax Error "'+tokenizer.tn+'"');
+                var t = this;
+                return t.REQ ? ('Token "'+t.tn+'" Expected') : ('Syntax Error: "'+t.tn+'"');
             },
         
             get : function( stream, state ) {
@@ -449,6 +447,7 @@
                 // EOL Tokenizer
                 var token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
                 token.tt = T_EOL;
+                token.tn = 'EOL';
                 return token;
             }
             
@@ -457,6 +456,7 @@
                 // NONSPACE Tokenizer
                 var token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
                 token.tt = T_NONSPACE;
+                token.tn = 'NONSPACE';
                 return token;
             }
             
@@ -489,6 +489,7 @@
                                 // NONSPACE Tokenizer
                                 token = new SimpleToken( tokenID, "", DEFAULTSTYLE );
                                 token.tt = T_NONSPACE;
+                                token.tn = 'NONSPACE';
                                 // pre-cache tokenizer to handle recursive calls to same tokenizer
                                 cachedTokens[ tokenID ] = token;
                                 return token;
@@ -498,6 +499,7 @@
                                 // EOL Tokenizer
                                 token = new SimpleToken( tokenID, "", DEFAULTSTYLE );
                                 token.tt = T_EOL;
+                                token.tn = 'EOL';
                                 // pre-cache tokenizer to handle recursive calls to same tokenizer
                                 cachedTokens[ tokenID ] = token;
                                 return token;
