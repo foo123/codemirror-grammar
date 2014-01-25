@@ -2,47 +2,50 @@
     //
     // Stream Class
     var
+        Max = Math.max, spaceRegex = /^[\s\u00a0]+/,
         // a wrapper-class to manipulate a string as a stream, based on Codemirror's StringStream
         ParserStream = Class({
             
             constructor: function( line ) {
-                this.string = (line) ? ''+line : '';
-                this.start = this.pos = 0;
-                this._ = null;
+                var ayto = this;
+                ayto._ = null;
+                ayto.s = (line) ? ''+line : '';
+                ayto.start = ayto.pos = 0;
             },
             
             // abbreviations used for optimal minification
             
             _: null,
-            string: '',
+            s: '',
             start: 0,
             pos: 0,
             
             fromStream: function( _ ) {
-                this._ = _;
-                this.string = ''+_.string;
-                this.start = _.start;
-                this.pos = _.pos;
-                return this;
+                var ayto = this;
+                ayto._ = _;
+                ayto.s = ''+_.string;
+                ayto.start = _.start;
+                ayto.pos = _.pos;
+                return ayto;
             },
             
-            toString: function() { return this.string; },
+            toString: function() { return this.s; },
             
             // string start-of-line?
             sol: function( ) { return 0 == this.pos; },
             
             // string end-of-line?
-            eol: function( ) { return this.pos >= this.string.length; },
+            eol: function( ) { return this.pos >= this.s.length; },
             
             // char match
             chr : function(pattern, eat) {
-                var ch = this.string.charAt(this.pos) || null;
+                var ayto = this, ch = ayto.s.charAt(ayto.pos) || null;
                 if (ch && pattern == ch) 
                 {
                     if (false !== eat) 
                     {
-                        this.pos += 1;
-                        if ( this._ ) this._.pos = this.pos;
+                        ayto.pos += 1;
+                        if ( ayto._ ) ayto._.pos = ayto.pos;
                     }
                     return ch;
                 }
@@ -51,13 +54,13 @@
             
             // char list match
             chl : function(pattern, eat) {
-                var ch = this.string.charAt(this.pos) || null;
+                var ayto = this, ch = ayto.s.charAt(ayto.pos) || null;
                 if ( ch && (-1 < pattern.indexOf( ch )) ) 
                 {
                     if (false !== eat) 
                     {
-                        this.pos += 1;
-                        if ( this._ ) this._.pos = this.pos;
+                        ayto.pos += 1;
+                        if ( ayto._ ) ayto._.pos = ayto.pos;
                     }
                     return ch;
                 }
@@ -66,18 +69,18 @@
             
             // string match
             str : function(pattern, startsWith, eat) {
-                var pos = this.pos, str = this.string, ch = str.charAt(pos) || null;
+                var ayto = this, len, pos = ayto.pos, str = ayto.s, ch = str.charAt(pos) || null;
                 if ( ch && startsWith[ ch ] )
                 {
-                    var len = pattern.length, s = str.substr(pos, len);
-                    if (pattern == s) 
+                    len = pattern.length; 
+                    if (pattern == str.substr(pos, len)) 
                     {
                         if (false !== eat) 
                         {
-                            this.pos += len;
-                            if ( this._ )  this._.pos = this.pos;
+                            ayto.pos += len;
+                            if ( ayto._ ) ayto._.pos = ayto.pos;
                         }
-                        return s;
+                        return pattern;
                     }
                 }
                 return false;
@@ -85,15 +88,15 @@
             
             // regex match
             rex : function(pattern, startsWith, notStartsWith, group, eat) {
-                var pos = this.pos, str = this.string, ch = str.charAt(pos) || null;
+                var ayto = this, match, pos = ayto.pos, str = ayto.s, ch = str.charAt(pos) || null;
                 if ( ch && ( startsWith && startsWith[ ch ] ) || ( notStartsWith && !notStartsWith[ ch ] ) )
                 {
-                    var match = str.slice(pos).match(pattern);
+                    match = str.slice(pos).match(pattern);
                     if (!match || match.index > 0) return false;
                     if (false !== eat) 
                     {
-                        this.pos += match[group||0].length;
-                        if ( this._ ) this._.pos = this.pos;
+                        ayto.pos += match[group||0].length;
+                        if ( ayto._ ) ayto._.pos = ayto.pos;
                     }
                     return match;
                 }
@@ -102,49 +105,55 @@
 
             // skip to end
             end: function() {
-                this.pos = this.string.length;
-                if ( this._ ) this._.pos = this.pos;
-                return this;
+                var ayto = this;
+                ayto.pos = ayto.s.length;
+                if ( ayto._ ) ayto._.pos = ayto.pos;
+                return ayto;
             },
 
             // get next char
             nxt: function( ) {
-                if (this.pos < this.string.length)
+                var ayto = this, ch, s = ayto.s;
+                if (ayto.pos < s.length)
                 {
-                    var ch = this.string.charAt(this.pos++) || null;
-                    if ( this._ ) this._.pos = this.pos;
+                    ch = s.charAt(ayto.pos++) || null;
+                    if ( ayto._ ) ayto._.pos = ayto.pos;
                     return ch;
                 }
             },
             
             // back-up n steps
             bck: function( n ) {
-                this.pos -= n;
-                if ( 0 > this.pos ) this.pos = 0;
-                if ( this._ )  this._.pos = this.pos;
-                return this;
+                var ayto = this;
+                ayto.pos = Max(0, ayto.pos - n);
+                if ( ayto._ ) ayto._.pos = ayto.pos;
+                return ayto;
             },
             
             // back-track to pos
             bck2: function( pos ) {
-                this.pos = pos;
-                if ( 0 > this.pos ) this.pos = 0;
-                if ( this._ ) this._.pos = this.pos;
-                return this;
+                var ayto = this;
+                ayto.pos = Max(0, pos);
+                if ( ayto._ ) ayto._.pos = ayto.pos;
+                return ayto;
             },
             
             // eat space
             spc: function( ) {
-                var start = this.pos, pos = this.pos, s = this.string;
-                while (/[\s\u00a0]/.test(s.charAt(pos))) ++pos;
-                this.pos = pos;
-                if ( this._ ) this._.pos = this.pos;
-                return this.pos > start;
+                var ayto = this, m, start = ayto.pos, s = ayto.s.slice(start);
+                if ( m = s.match( spaceRegex ) ) 
+                {
+                    ayto.pos += m[0].length;
+                    if ( ayto._ ) ayto._.pos = ayto.pos;
+                }
+                return ayto.pos > start;
             },
             
             // current stream selection
-            cur: function( ) {
-                return this.string.slice(this.start, this.pos);
+            cur: function( andShiftStream ) {
+                var ayto = this, ret = ayto.s.slice(ayto.start, ayto.pos);
+                if ( andShiftStream ) ayto.start = ayto.pos;
+                return ret;
             },
             
             // move/shift stream

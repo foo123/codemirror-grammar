@@ -39,7 +39,7 @@
 # do any replacements to the source (map)
 @REPLACE =[{}]
 
-    "@@VERSION@@" = "0.7.4"
+    "@@VERSION@@" = "0.7.5"
     
     "@@MODULE_NAME@@" = "CodeMirrorGrammar"
     

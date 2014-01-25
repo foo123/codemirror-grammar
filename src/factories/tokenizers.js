@@ -2,10 +2,18 @@
     //
     // tokenizer factories
     var
-        getError = function(tokenizer) {
-            if (T_NONSPACE == tokenizer.tt) return "NONSPACE Required";
-            else if (T_EOL == tokenizer.tt) return "EOL Required";
-            return (tokenizer.required) ? ('Token Missing "'+tokenizer.tn+'"') : ('Syntax Error "'+tokenizer.tn+'"');
+        _id_ = 0, getId = function() { return ++_id_; },
+        emptyStack = function(stack, id) {
+            if (id)
+            {
+                while (stack.length && id == stack[stack.length-1].sID) 
+                    stack.pop();
+            }
+            else
+            {
+                stack.length = 0;
+            }
+            return stack;
         },
         
         SimpleToken = Class({
@@ -16,11 +24,13 @@
                 ayto.tn = name;
                 ayto.t = token;
                 ayto.r = style;
-                ayto.required = 0;
+                ayto.REQ = 0;
                 ayto.ERR = 0;
                 ayto.toClone = ['t', 'r'];
             },
             
+            // stack id
+            sID: null,
             // tokenizer/token name
             tn : null,
             // tokenizer type
@@ -29,10 +39,17 @@
             t : null,
             // tokenizer return val
             r : null,
-            required : 0,
+            REQ : 0,
             ERR : 0,
             toClone: null,
             
+            err : function() {
+                var tokenizer = this;
+                if (T_NONSPACE == tokenizer.tt) return "NONSPACE Required";
+                else if (T_EOL == tokenizer.tt) return "EOL Required";
+                return (tokenizer.REQ) ? ('Token Missing "'+tokenizer.tn+'"') : ('Syntax Error "'+tokenizer.tn+'"');
+            },
+        
             get : function( stream, state ) {
                 var ayto = this, token = ayto.t, type = ayto.tt;
                 // match EOL ( with possible leading spaces )
@@ -49,8 +66,8 @@
                 // match non-space
                 else if ( T_NONSPACE == type ) 
                 { 
-                    ayto.ERR = ( ayto.required && stream.spc() && !stream.eol() ) ? 1 : 0;
-                    ayto.required = 0;
+                    ayto.ERR = ( ayto.REQ && stream.spc() && !stream.eol() ) ? 1 : 0;
+                    ayto.REQ = 0;
                 }
                 // else match a simple token
                 else if ( token.get(stream) ) 
@@ -63,14 +80,16 @@
             },
             
             require : function(bool) { 
-                this.required = (bool) ? 1 : 0;
+                this.REQ = (bool) ? 1 : 0;
                 return this;
             },
             
-            push : function(stack, pos, token) {
-                if ( /*pos &&*/ stack.length ) stack.splice( pos, 0, token );
+            push : function(stack, pos, token, stackId) {
+                // associate a stack id with this token
+                // as part of a posible syntax sequence
+                if ( stackId ) token.sID = stackId;
+                if ( pos < stack.length ) stack.splice( pos, 0, token );
                 else stack.push( token );
-                return this;
             },
             
             clone : function() {
@@ -82,8 +101,7 @@
                 
                 if (toClone && toClone.length)
                 {
-                    toClonelen = toClone.length;
-                    for (i=0; i<toClonelen; i++)   
+                    for (i=0, toClonelen = toClone.length; i<toClonelen; i++)   
                         t[ toClone[i] ] = ayto[ toClone[i] ];
                 }
                 return t;
@@ -129,7 +147,7 @@
                 */
                 
                 // comments in general are not required tokens
-                if ( T_COMMENT == type ) ayto.required = 0;
+                if ( T_COMMENT == type ) ayto.REQ = 0;
                 
                 alreadyIn = 0;
                 if ( state.inBlock == thisBlock )
@@ -157,7 +175,7 @@
                     {
                         if ( alreadyIn && isEOLBlock && stream.sol() )
                         {
-                            ayto.required = 0;
+                            ayto.REQ = 0;
                             state.inBlock = null;
                             state.endBlock = null;
                             return false;
@@ -165,7 +183,7 @@
                         
                         if ( !alreadyIn )
                         {
-                            ayto.push( state.stack, stackPos, ayto.clone() );
+                            ayto.push( state.stack, stackPos, ayto.clone(), thisBlock );
                             state.t = type;
                             //state.r = ret; 
                             return ret;
@@ -225,7 +243,7 @@
                     }
                     else
                     {
-                        ayto.push( state.stack, stackPos, ayto.clone() );
+                        ayto.push( state.stack, stackPos, ayto.clone(), thisBlock );
                     }
                     
                     state.t = type;
@@ -268,12 +286,13 @@
             
                 var ayto = this, i, token, style, tokens = ayto.ts, n = tokens.length, 
                     found = ayto.found, min = ayto.min, max = ayto.max,
-                    tokensRequired = 0, streamPos, stackPos;
+                    tokensRequired = 0, streamPos, stackPos, stackId;
                 
                 ayto.ERR = 0;
-                ayto.required = 0;
+                ayto.REQ = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
+                stackId = ayto.tn + '_' + getId();
                 
                 for (i=0; i<n; i++)
                 {
@@ -287,20 +306,20 @@
                         {
                             // push it to the stack for more
                             ayto.found = found;
-                            ayto.push( state.stack, stackPos, ayto.clone() );
+                            ayto.push( state.stack, stackPos, ayto.clone(), stackId );
                             ayto.found = 0;
                             return style;
                         }
                         break;
                     }
-                    else if ( token.required )
+                    else if ( token.REQ )
                     {
                         tokensRequired++;
                     }
                     if ( token.ERR ) stream.bck2( streamPos );
                 }
                 
-                ayto.required = found < min;
+                ayto.REQ = found < min;
                 ayto.ERR = found > max || (found < min && 0 < tokensRequired);
                 return false;
             }
@@ -318,7 +337,7 @@
                 var ayto = this, style, token, i, tokens = ayto.ts, n = tokens.length, 
                     tokensRequired = 0, tokensErr = 0, streamPos;
                 
-                ayto.required = 1;
+                ayto.REQ = 1;
                 ayto.ERR = 0;
                 streamPos = stream.pos;
                 
@@ -327,7 +346,7 @@
                     token = tokens[i].clone();
                     style = token.get(stream, state);
                     
-                    tokensRequired += (token.required) ? 1 : 0;
+                    tokensRequired += (token.REQ) ? 1 : 0;
                     
                     if ( false !== style )
                     {
@@ -340,7 +359,7 @@
                     }
                 }
                 
-                ayto.required = (tokensRequired > 0);
+                ayto.REQ = (tokensRequired > 0);
                 ayto.ERR = (n == tokensErr && tokensRequired > 0);
                 return false;
             }
@@ -356,28 +375,29 @@
             get : function( stream, state ) {
                 
                 var ayto = this, token, style, tokens = ayto.ts, n = tokens.length,
-                    streamPos, stackPos;
+                    streamPos, stackPos, stackId;
                 
-                ayto.required = 1;
+                ayto.REQ = 1;
                 ayto.ERR = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
+                stackId = ayto.tn + '_' + getId();
                 token = tokens[ 0 ].clone().require( 1 );
                 style = token.get(stream, state);
                 
                 if ( false !== style )
                 {
                     for (var i=n-1; i>0; i--)
-                        ayto.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ) );
+                        ayto.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ), stackId );
                         
                     return style;
                 }
-                else if ( token.ERR /*&& token.required*/ )
+                else if ( token.ERR /*&& token.REQ*/ )
                 {
                     ayto.ERR = 1;
                     stream.bck2( streamPos );
                 }
-                else if ( token.required )
+                else if ( token.REQ )
                 {
                     ayto.ERR = 1;
                 }
@@ -396,19 +416,20 @@
             get : function( stream, state ) {
                 
                 var ayto = this, token, style, tokens = ayto.ts, n = tokens.length, 
-                    streamPos, stackPos;
+                    streamPos, stackPos, stackId;
                 
-                ayto.required = 0;
+                ayto.REQ = 0;
                 ayto.ERR = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
+                stackId = ayto.tn + '_' + getId();
                 token = tokens[ 0 ].clone().require( 0 );
                 style = token.get(stream, state);
                 
                 if ( false !== style )
                 {
                     for (var i=n-1; i>0; i--)
-                        ayto.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ) );
+                        ayto.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ), stackId );
                     
                     return style;
                 }
@@ -461,14 +482,26 @@
                         // provide some defaults
                         type = (tok.type) ? tokenTypes[ tok.type.toUpperCase().replace('-', '').replace('_', '') ] : T_SIMPLE;
                         
-                        if ( (T_SIMPLE & type) && "" === tok.tokens )
+                        if ( T_SIMPLE & type )
                         {
-                            // NONSPACE Tokenizer
-                            token = new SimpleToken( tokenID, "", DEFAULTSTYLE );
-                            token.tt = T_NONSPACE;
-                            // pre-cache tokenizer to handle recursive calls to same tokenizer
-                            cachedTokens[ tokenID ] = token;
-                            return token;
+                            if ( "" === tok.tokens )
+                            {
+                                // NONSPACE Tokenizer
+                                token = new SimpleToken( tokenID, "", DEFAULTSTYLE );
+                                token.tt = T_NONSPACE;
+                                // pre-cache tokenizer to handle recursive calls to same tokenizer
+                                cachedTokens[ tokenID ] = token;
+                                return token;
+                            }
+                            else if ( null === tok.tokens )
+                            {
+                                // EOL Tokenizer
+                                token = new SimpleToken( tokenID, "", DEFAULTSTYLE );
+                                token.tt = T_EOL;
+                                // pre-cache tokenizer to handle recursive calls to same tokenizer
+                                cachedTokens[ tokenID ] = token;
+                                return token;
+                            }
                         }
             
                         tok.tokens = make_array( tok.tokens );

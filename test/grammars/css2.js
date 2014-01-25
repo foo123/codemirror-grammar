@@ -123,10 +123,16 @@ var css_grammar = {
             "tokens" : [ "!important", "urlDeclaration", "string", "number", "CssAtom", ",", "(", ")" ]
         },
         
+        "semicolon" : {
+            "type" : "group",
+            "match" : "zeroOrMore",
+            "tokens" : [ ";" ]
+        },
+        
         "cssAssignment" : {
             "type" : "group",
             "match" : "all",
-            "tokens" : [ "CssProperty", ":", "RHSAssignment", ";" ]
+            "tokens" : [ "CssProperty", ":", "RHSAssignment", "semicolon" ]
         },
         
         "cssAssignments" : {

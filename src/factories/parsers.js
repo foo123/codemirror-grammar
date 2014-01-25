@@ -46,16 +46,16 @@
                 code = code || "";
                 var lines = code.split(/\r\n|\r|\n/g), l = lines.length, i,
                     linetokens = [], tokens, state, stream;
-                state = new ParserState( );;
-                
+                state = new ParserState( );
+                state.parseAll = 1;
                 for (i=0; i<l; i++)
                 {
                     stream = new ParserStream(lines[i]);
                     tokens = [];
                     while ( !stream.eol() )
                     {
-                        tokens.push(this.getToken(stream, state, 1));
-                        stream.sft();
+                        tokens.push(this.getToken(stream, state));
+                        //stream.sft();
                     }
                     linetokens.push(tokens);
                 }
@@ -63,15 +63,15 @@
             },
             
             // Codemirror Tokenizer compatible
-            getToken: function(stream_, state, asData) {
+            getToken: function(stream_, state) {
                 
                 var i, ci, ayto = this,
-                    tokenizer, type, interleavedCommentTokens = ayto.cTokens, tokens = ayto.Tokens, numTokens = tokens.length, 
+                    tokenizer, type, interleavedCommentTokens = ayto.cTokens, tokens = ayto.Tokens, numTokens = tokens.length, parseAll = state.parseAll,
                     stream, stack, DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
                 ;
                 
                 stack = state.stack;
-                stream = new ParserStream().fromStream( stream_ );
+                stream = (parseAll) ? stream_ : new ParserStream().fromStream( stream_ );
                 
                 /*if ( ayto.currentMode )
                 {
@@ -87,7 +87,7 @@
                     if ( stream.spc() ) 
                     {
                         state.t = T_DEFAULT;
-                        return (asData) ? { value: stream.cur(), type: DEFAULT, error: null } : state.r = DEFAULT;
+                        return (parseAll) ? { value: stream.cur(1), type: DEFAULT, error: null } : state.r = DEFAULT;
                     }
                 }
                 
@@ -102,7 +102,7 @@
                             type = tokenizer.get(stream, state);
                             if ( false !== type )
                             {
-                                return (asData) ? { value: stream.cur(), type: type, error: null } : state.r = type;
+                                return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.r = type;
                             }
                         }
                     }
@@ -114,15 +114,16 @@
                     if ( false === type )
                     {
                         // error
-                        if ( tokenizer.ERR || tokenizer.required )
+                        if ( tokenizer.ERR || tokenizer.REQ )
                         {
                             // empty the stack
-                            stack.length = 0;
+                            //stack.length = 0;
+                            emptyStack(stack, tokenizer.sID);
                             // skip this character
                             stream.nxt();
                             // generate error
                             state.t = T_ERROR;
-                            return (asData) ? { value: stream.cur(), type: ERROR, error: getError( tokenizer ) } : state.r = ERROR;
+                            return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.r = ERROR;
                         }
                         // optional
                         else
@@ -133,7 +134,7 @@
                     // found token
                     else
                     {
-                        return (asData) ? { value: stream.cur(), type: type, error: null } : state.r = type;
+                        return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.r = type;
                     }
                 }
                 
@@ -146,15 +147,16 @@
                     if ( false === type )
                     {
                         // error
-                        if ( tokenizer.ERR || tokenizer.required )
+                        if ( tokenizer.ERR || tokenizer.REQ )
                         {
                             // empty the stack
-                            stack.length = 0;
+                            //stack.length = 0;
+                            emptyStack(stack, tokenizer.sID);
                             // skip this character
                             stream.nxt();
                             // generate error
                             state.t = T_ERROR;
-                            return (asData) ? { value: stream.cur(), type: ERROR, error: getError( tokenizer ) } : state.r = ERROR;
+                            return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.r = ERROR;
                         }
                         // optional
                         else
@@ -165,14 +167,14 @@
                     // found token
                     else
                     {
-                        return (asData) ? { value: stream.cur(), type: type, error: null } : state.r = type;
+                        return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.r = type;
                     }
                 }
                 
                 // unknown, bypass
                 stream.nxt();
                 state.t = T_DEFAULT;
-                return (asData) ? { value: stream.cur(), type: DEFAULT, error: null } : state.r = DEFAULT;
+                return (parseAll) ? { value: stream.cur(1), type: DEFAULT, error: null } : state.r = DEFAULT;
             },
             
             indent : function(state, textAfter, fullLine) {
@@ -229,6 +231,8 @@
                     */
                     
                     startState: function( ) { return new ParserState(); },
+                    
+                    copyState: function( state ) { return state.clone(); },
                     
                     electricChars: parser.electricChars,
                     
@@ -290,8 +294,6 @@
                     blockCommentEnd: parser.BCE,
                     blockCommentContinue: parser.BCC,
                     blockCommentLead: parser.BCL,
-                    
-                    copyState: function( state ) { return state.clone(); },
                     
                     token: function(stream, state) { return parser.getToken(stream, state); },
                     

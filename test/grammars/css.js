@@ -37,6 +37,7 @@ var css_grammar = {
         // comments
         "comment" : {
             "type" : "comment",
+            "interleave": true,
             "tokens" : [
                 // block comments
                 // start, end     delims
