@@ -9,7 +9,9 @@
             
             constructor: function(grammar, LOC) {
                 var ayto = this;
-                ayto.electricChars = grammar.electricChars || false;
+                
+                // support extra functionality
+                ayto.Extra = grammar.Extra || {};
                 
                 // support comments toggle functionality
                 ayto.LC = (grammar.Comments.line) ? grammar.Comments.line[0] : null,
@@ -26,9 +28,7 @@
                 ayto.cTokens = (grammar.cTokens.length) ? grammar.cTokens : null;
             },
             
-            conf: null,
-            parserConf: null,
-            electricChars: false,
+            Extra: null,
             LC: null,
             BCS: null,
             BCE: null,
@@ -39,8 +39,6 @@
             Keywords: null,
             cTokens: null,
             Tokens: null,
-            //innerModes: null,
-            //currentMode: null,
             
             parse: function(code) {
                 code = code || "";
@@ -50,14 +48,14 @@
                 state.parseAll = 1;
                 for (i=0; i<l; i++)
                 {
-                    stream = new ParserStream(lines[i]);
+                    stream = new ParserStream( lines[i] );
                     tokens = [];
                     while ( !stream.eol() )
                     {
-                        tokens.push(this.getToken(stream, state));
+                        tokens.push( this.getToken(stream, state) );
                         //stream.sft();
                     }
-                    linetokens.push(tokens);
+                    linetokens.push( tokens );
                 }
                 return linetokens;
             },
@@ -65,24 +63,25 @@
             // Codemirror Tokenizer compatible
             getToken: function(stream_, state) {
                 
-                var i, ci, ayto = this,
-                    tokenizer, type, interleavedCommentTokens = ayto.cTokens, tokens = ayto.Tokens, numTokens = tokens.length, parseAll = state.parseAll,
-                    stream, stack, DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
+                var i, ci, ayto = this, tokenizer, type, 
+                    interleavedCommentTokens = ayto.cTokens, tokens = ayto.Tokens, numTokens = tokens.length, 
+                    parseAll = state.parseAll, stream, stack, top,
+                    DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
                 ;
                 
-                stack = state.stack;
                 stream = (parseAll) ? stream_ : new ParserStream().fromStream( stream_ );
-                
-                /*if ( ayto.currentMode )
-                {
-                    return ayto.handleInnerMode(stream_, state);
-                }*/
+                stack = state.stack;
+                top = (stack.length) ? stack[stack.length-1] : null;
                 
                 // if EOL tokenizer is left on stack, pop it now
-                if ( stream.sol() && stack.length && T_EOL == stack[stack.length-1].tt ) stack.pop();
+                if ( top && T_EOL == top.tt && stream.sol() ) 
+                {
+                    stack.pop();
+                    top = (stack.length) ? stack[stack.length-1] : null;
+                }
                 
                 // check for non-space tokenizer before parsing space
-                if ( !stack.length || T_NONSPACE != stack[stack.length-1].tt )
+                if ( !top || T_NONSPACE != top.tt )
                 {
                     if ( stream.spc() ) 
                     {
@@ -134,7 +133,20 @@
                     // found token
                     else
                     {
-                        return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.r = type;
+                        // match action error
+                        if ( tokenizer.MTCH )
+                        {
+                            // empty the stack
+                            //stack.length = 0;
+                            emptyStack(stack, tokenizer.sID);
+                            // generate error
+                            state.t = T_ERROR;
+                            return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.r = ERROR;
+                        }
+                        else
+                        {
+                            return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.r = type;
+                        }
                     }
                 }
                 
@@ -167,7 +179,20 @@
                     // found token
                     else
                     {
-                        return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.r = type;
+                        // match action error
+                        if ( tokenizer.MTCH )
+                        {
+                            // empty the stack
+                            //stack.length = 0;
+                            emptyStack(stack, tokenizer.sID);
+                            // generate error
+                            state.t = T_ERROR;
+                            return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.r = ERROR;
+                        }
+                        else
+                        {
+                            return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.r = type;
+                        }
                     }
                 }
                 
@@ -177,51 +202,22 @@
                 return (parseAll) ? { value: stream.cur(1), type: DEFAULT, error: null } : state.r = DEFAULT;
             },
             
-            indent : function(state, textAfter, fullLine) {
-                // Default for now, TODO
-                return _CodeMirror.Pass;
-            }/*,
-            
-            handleInnerMode : function(stream, state) {
-            },
-            
-            addInnerMode : function(startToken, endToken, mode) {
-                this.innerModes = this.innerModes || [];
-                this.innerModes.push([startToken, endToken, mode]);
-                return this;
-            },
-            
-            removeInnerMode : function(mode) {
-                if (this.innerModes)
-                {
-                    var modes = this.innerModes;
-                    for (var i=0, l=modes.length; i<l; i++)
-                    {
-                        if ( mode === modes[i][2])
-                        {
-                            modes.splice(i, 1);
-                            break;
-                        }
-                    }
-                }
-                return this;
-            }*/
+            indent : function(state, textAfter, fullLine, conf, parserConf) {
+                var indentUnit = conf.indentUnit || 4, Pass = _CodeMirror.Pass;
+                
+                return Pass;
+            }
         }),
-        
-        getParser = function(grammar, LOCALS) {
-            return new CodemirrorParser(grammar, LOCALS);
-        },
         
         getCodemirrorMode = function(parser) {
                 
             // Codemirror-compatible Mode
-            var mode = function(conf, parserConf) {
+            var modeF = function(conf, parserConf) {
                 
-                parser.conf = conf;
-                parser.parserConf = parserConf;
+                //var supportGrammarAnnotations = conf ? conf.supportGrammarAnnotations : false;
                 
                 // return the (codemirror) parser mode for the grammar
-                return  {
+                var mode = {
                     /*
                     // maybe needed in later versions..
                     
@@ -234,20 +230,18 @@
                     
                     copyState: function( state ) { return state.clone(); },
                     
-                    electricChars: parser.electricChars,
+                    token: function(stream, state) { return parser.getToken(stream, state); },
+                    
+                    indent: function(state, textAfter, fullLine) { return parser.indent(state, textAfter, fullLine, conf, parserConf); },
                     
                     // syntax, lint-like validator generated from grammar
                     // maybe use this as a worker (a-la ACE) ??
                     validator: function (text, options)  {
                         
-                        if ( !parser.conf || !parser.conf.supportGrammarAnnotations ) return [];
+                        if ( !modeF.supportGrammarAnnotations ) return [];
                         
-                        var errorFound = 0, code, errors, linetokens, tokens, token, t, lines, line, row, column;
-                        code = text;
-                        if ( !code || !code.length ) 
-                        {
-                            return [];
-                        }
+                        var errorFound = 0, code = text, errors, linetokens, tokens, token, t, lines, line, row, column;
+                        if ( !code || !code.length ) return [];
                         
                         errors = [];
                         linetokens = parser.parse( code );
@@ -256,7 +250,7 @@
                         for (line=0; line<lines; line++) 
                         {
                             tokens = linetokens[ line ];
-                            if ( !tokens || !tokens.length )  continue;
+                            if ( !tokens || !tokens.length ) continue;
                             
                             column = 0;
                             for (t=0; t<tokens.length; t++)
@@ -277,31 +271,26 @@
                                 column += token.value.length;
                             }
                         }
-                        if (errorFound)
-                        {
-                            //console.log(errors);
-                            return errors;
-                        }
-                        else
-                        {
-                            return [];
-                        }
-                    },
-                    
-                    // support comments toggle functionality
-                    lineComment: parser.LC,
-                    blockCommentStart: parser.BCS,
-                    blockCommentEnd: parser.BCE,
-                    blockCommentContinue: parser.BCC,
-                    blockCommentLead: parser.BCL,
-                    
-                    token: function(stream, state) { return parser.getToken(stream, state); },
-                    
-                    indent: function(state, textAfter, fullLine) { return parser.indent(state, textAfter, fullLine); }
+                        if ( errorFound ) return errors;
+                        else  return [];
+                    }
                 };
                 
+                // support comments toggle functionality
+                mode.lineComment = parser.LC,
+                mode.blockCommentStart = parser.BCS,
+                mode.blockCommentEnd = parser.BCE,
+                mode.blockCommentContinue = parser.BCC,
+                mode.blockCommentLead = parser.BCL
+                // support extra functionality defined in grammar
+                // eg. code folding, electriChars etc..
+                mode.electricChars = parser.Extra.electricChars || false;
+                mode.fold = parser.Extra.fold || false;
+                
+                return mode;
+                
             };
-            return mode;
+            return modeF;
         },
         
         getMode = function(grammar, DEFAULT) {
@@ -318,7 +307,7 @@
             grammar = parseGrammar( grammar );
             //console.log(grammar);
             
-            return getCodemirrorMode( getParser( grammar, LOCALS ) );
+            return getCodemirrorMode( new CodemirrorParser(grammar, LOCALS) );
         }
     ;
   

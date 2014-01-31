@@ -140,7 +140,8 @@
                 if ( token = startMatcher.get(stream, eat) )
                 {
                     // use the token key to get the associated endMatcher
-                    var endMatcher = endMatchers[ token[0] ], T = get_type( endMatcher ), T0 = startMatcher.ms[ token[0] ].tt;
+                    var endMatcher = endMatchers[ token[0] ], m, 
+                        T = get_type( endMatcher ), T0 = startMatcher.ms[ token[0] ].tt;
                     
                     if ( T_REGEX == T0 )
                     {
@@ -149,14 +150,16 @@
                         {
                             // the regex is wrapped in an additional group, 
                             // add 1 to the requested regex group transparently
-                            endMatcher = new SimpleMatcher( T_STR, ayto.tn + '_End', token[1][ endMatcher+1 ] );
+                            m = token[1][ endMatcher+1 ];
+                            endMatcher = new SimpleMatcher( (m.length > 1) ? T_STR : T_CHAR, ayto.tn + '_End', m );
                         }
                         // string replacement pattern given, get the proper pattern for the ending of this block
                         else if ( T_STR == T )
                         {
                             // the regex is wrapped in an additional group, 
                             // add 1 to the requested regex group transparently
-                            endMatcher = new SimpleMatcher( T_STR, ayto.tn + '_End', groupReplace(endMatcher, token[1]) );
+                            m = groupReplace(endMatcher, token[1]);
+                            endMatcher = new SimpleMatcher( (m.length > 1) ? T_STR : T_CHAR, ayto.tn + '_End', m );
                         }
                     }
                     return endMatcher;

@@ -4,6 +4,10 @@ var json_grammar = {
     // prefix ID for regular expressions used in the grammar
     "RegExpID" : "RegExp::",
     
+    "Extra" : {
+        "fold" : "brace"
+    },
+    
     //
     // Style model
     "Style" : {

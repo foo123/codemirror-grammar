@@ -37,7 +37,6 @@
         T_ESCBLOCK = 33,
         T_COMMENT = 34,
         T_EITHER = 64,
-        //T_NONE = 2048,
         T_ALL = 128,
         T_REPEATED = 256,
         T_ZEROORONE = 257,
@@ -45,14 +44,22 @@
         T_ONEORMORE = 259,
         T_GROUP = 512,
         T_NGRAM = 1024,
+        /*T_INDENT = 2048,
+        T_INDENTBEFORE = 2049,
+        T_DEDENT = 4096,
+        T_DEDENTBEFORE = 4097,*/
         
         //
         // tokenizer types
         groupTypes = {
-            ONEOF: T_EITHER, EITHER: T_EITHER, ALL: T_ALL, ZEROORONE: T_ZEROORONE, ZEROORMORE: T_ZEROORMORE, ONEORMORE: T_ONEORMORE, REPEATED: T_REPEATED
+            ONEOF: T_EITHER, EITHER: T_EITHER, ALL: T_ALL, 
+            ZEROORONE: T_ZEROORONE, ZEROORMORE: T_ZEROORMORE, ONEORMORE: T_ONEORMORE, 
+            REPEATED: T_REPEATED
         },
         
         tokenTypes = {
-            BLOCK: T_BLOCK, COMMENT: T_COMMENT, ESCAPEDBLOCK: T_ESCBLOCK, SIMPLE: T_SIMPLE, GROUP: T_GROUP, NGRAM: T_NGRAM
+            //INDENT: T_INDENT, INDENTBEFORE: T_INDENTBEFORE, DEDENT: T_DEDENT, DEDENTBEFORE: T_DEDENTBEFORE, 
+            BLOCK: T_BLOCK, COMMENT: T_COMMENT, ESCAPEDBLOCK: T_ESCBLOCK, 
+            SIMPLE: T_SIMPLE, GROUP: T_GROUP, NGRAM: T_NGRAM
         }
     ;

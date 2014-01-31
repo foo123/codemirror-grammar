@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.7.5
+*   @version: 0.8
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -240,7 +240,6 @@
         T_ESCBLOCK = 33,
         T_COMMENT = 34,
         T_EITHER = 64,
-        //T_NONE = 2048,
         T_ALL = 128,
         T_REPEATED = 256,
         T_ZEROORONE = 257,
@@ -248,15 +247,23 @@
         T_ONEORMORE = 259,
         T_GROUP = 512,
         T_NGRAM = 1024,
+        /*T_INDENT = 2048,
+        T_INDENTBEFORE = 2049,
+        T_DEDENT = 4096,
+        T_DEDENTBEFORE = 4097,*/
         
         //
         // tokenizer types
         groupTypes = {
-            ONEOF: T_EITHER, EITHER: T_EITHER, ALL: T_ALL, ZEROORONE: T_ZEROORONE, ZEROORMORE: T_ZEROORMORE, ONEORMORE: T_ONEORMORE, REPEATED: T_REPEATED
+            ONEOF: T_EITHER, EITHER: T_EITHER, ALL: T_ALL, 
+            ZEROORONE: T_ZEROORONE, ZEROORMORE: T_ZEROORMORE, ONEORMORE: T_ONEORMORE, 
+            REPEATED: T_REPEATED
         },
         
         tokenTypes = {
-            BLOCK: T_BLOCK, COMMENT: T_COMMENT, ESCAPEDBLOCK: T_ESCBLOCK, SIMPLE: T_SIMPLE, GROUP: T_GROUP, NGRAM: T_NGRAM
+            //INDENT: T_INDENT, INDENTBEFORE: T_INDENTBEFORE, DEDENT: T_DEDENT, DEDENTBEFORE: T_DEDENTBEFORE, 
+            BLOCK: T_BLOCK, COMMENT: T_COMMENT, ESCAPEDBLOCK: T_ESCBLOCK, 
+            SIMPLE: T_SIMPLE, GROUP: T_GROUP, NGRAM: T_NGRAM
         }
     ;
     
@@ -485,7 +492,21 @@
     //
     // Stream Class
     var
-        Max = Math.max, spaceRegex = /^[\s\u00a0]+/,
+        Max = Math.max, spaceRegex = /^[\s\u00a0]+/, spc = /[^\s\u00a0]/,
+        // Counts the column offset in a string, taking tabs into account.
+        // Used mostly to find indentation.
+        // adapted from CodeMirror
+        countColumn = function(string, end, tabSize, startIndex, startValue) {
+            var i, n;
+            if ( null === end ) 
+            {
+                end = string.search(spc);
+                if ( -1 == end ) end = string.length;
+            }
+            for (i = startIndex || 0, n = startValue || 0; i < end; ++i) 
+                n += ( "\t" == string.charAt(i) ) ? (tabSize - (n % tabSize)) : 1;
+            return n;
+        }
         // a wrapper-class to manipulate a string as a stream, based on Codemirror's StringStream
         ParserStream = Class({
             
@@ -494,6 +515,8 @@
                 ayto._ = null;
                 ayto.s = (line) ? ''+line : '';
                 ayto.start = ayto.pos = 0;
+                ayto.lastColumnPos = ayto.lastColumnValue = 0;
+                ayto.lineStart = 0;
             },
             
             // abbreviations used for optimal minification
@@ -502,6 +525,9 @@
             s: '',
             start: 0,
             pos: 0,
+            lastColumnPos: 0,
+            lastColumnValue: 0,
+            lineStart: 0,
             
             fromStream: function( _ ) {
                 var ayto = this;
@@ -509,10 +535,13 @@
                 ayto.s = ''+_.string;
                 ayto.start = _.start;
                 ayto.pos = _.pos;
+                ayto.lastColumnPos = _.lastColumnPos;
+                ayto.lastColumnValue = _.lastColumnValue;
+                ayto.lineStart = _.lineStart;
                 return ayto;
             },
             
-            toString: function() { return this.s; },
+            toString: function( ) { return this.s; },
             
             // string start-of-line?
             sol: function( ) { return 0 == this.pos; },
@@ -521,7 +550,7 @@
             eol: function( ) { return this.pos >= this.s.length; },
             
             // char match
-            chr : function(pattern, eat) {
+            chr : function( pattern, eat ) {
                 var ayto = this, ch = ayto.s.charAt(ayto.pos) || null;
                 if (ch && pattern == ch) 
                 {
@@ -536,7 +565,7 @@
             },
             
             // char list match
-            chl : function(pattern, eat) {
+            chl : function( pattern, eat ) {
                 var ayto = this, ch = ayto.s.charAt(ayto.pos) || null;
                 if ( ch && (-1 < pattern.indexOf( ch )) ) 
                 {
@@ -551,7 +580,7 @@
             },
             
             // string match
-            str : function(pattern, startsWith, eat) {
+            str : function( pattern, startsWith, eat ) {
                 var ayto = this, len, pos = ayto.pos, str = ayto.s, ch = str.charAt(pos) || null;
                 if ( ch && startsWith[ ch ] )
                 {
@@ -570,7 +599,7 @@
             },
             
             // regex match
-            rex : function(pattern, startsWith, notStartsWith, group, eat) {
+            rex : function( pattern, startsWith, notStartsWith, group, eat ) {
                 var ayto = this, match, pos = ayto.pos, str = ayto.s, ch = str.charAt(pos) || null;
                 if ( ch && ( startsWith && startsWith[ ch ] ) || ( notStartsWith && !notStartsWith[ ch ] ) )
                 {
@@ -587,7 +616,7 @@
             },
 
             // skip to end
-            end: function() {
+            end: function( ) {
                 var ayto = this;
                 ayto.pos = ayto.s.length;
                 if ( ayto._ ) ayto._.pos = ayto.pos;
@@ -619,6 +648,23 @@
                 ayto.pos = Max(0, pos);
                 if ( ayto._ ) ayto._.pos = ayto.pos;
                 return ayto;
+            },
+            
+            // get current column including tabs
+            col: function( tabSize ) {
+                var ayto = this;
+                if (ayto.lastColumnPos < ayto.start) 
+                {
+                    ayto.lastColumnValue = countColumn(ayto.s, ayto.start, tabSize, ayto.lastColumnPos, ayto.lastColumnValue);
+                    ayto.lastColumnPos = ayto.start;
+                }
+                return ayto.lastColumnValue - (ayto.lineStart ? countColumn(ayto.s, ayto.lineStart, tabSize) : 0);
+            },
+            
+            // get current indentation including tabs
+            ind: function( tabSize ) {
+                var ayto = this;
+                return countColumn(ayto.s, null, tabSize) - (ayto.lineStart ? countColumn(ayto.s, ayto.lineStart, tabSize) : 0);
             },
             
             // eat space
@@ -660,6 +706,7 @@
                 ayto.id = unique ? new Date().getTime() : 0;
                 ayto.l = line || 0;
                 ayto.stack = [];
+                ayto.data = [];
                 ayto.t = T_DEFAULT;
                 ayto.r = '0';
                 ayto.inBlock = null;
@@ -672,6 +719,8 @@
             l: 0,
             // state token stack
             stack: null,
+            // state token push/pop match data
+            data: null,
             // state current token id
             t: null,
             // state current token type
@@ -686,6 +735,7 @@
                 c.t = ayto.t;
                 c.r = ayto.r;
                 c.stack = ayto.stack.slice();
+                c.data = ayto.data.slice();
                 c.inBlock = ayto.inBlock;
                 c.endBlock = ayto.endBlock;
                 return c;
@@ -846,7 +896,8 @@
                 if ( token = startMatcher.get(stream, eat) )
                 {
                     // use the token key to get the associated endMatcher
-                    var endMatcher = endMatchers[ token[0] ], T = get_type( endMatcher ), T0 = startMatcher.ms[ token[0] ].tt;
+                    var endMatcher = endMatchers[ token[0] ], m, 
+                        T = get_type( endMatcher ), T0 = startMatcher.ms[ token[0] ].tt;
                     
                     if ( T_REGEX == T0 )
                     {
@@ -855,14 +906,16 @@
                         {
                             // the regex is wrapped in an additional group, 
                             // add 1 to the requested regex group transparently
-                            endMatcher = new SimpleMatcher( T_STR, ayto.tn + '_End', token[1][ endMatcher+1 ] );
+                            m = token[1][ endMatcher+1 ];
+                            endMatcher = new SimpleMatcher( (m.length > 1) ? T_STR : T_CHAR, ayto.tn + '_End', m );
                         }
                         // string replacement pattern given, get the proper pattern for the ending of this block
                         else if ( T_STR == T )
                         {
                             // the regex is wrapped in an additional group, 
                             // add 1 to the requested regex group transparently
-                            endMatcher = new SimpleMatcher( T_STR, ayto.tn + '_End', groupReplace(endMatcher, token[1]) );
+                            m = groupReplace(endMatcher, token[1]);
+                            endMatcher = new SimpleMatcher( (m.length > 1) ? T_STR : T_CHAR, ayto.tn + '_End', m );
                         }
                     }
                     return endMatcher;
@@ -1016,17 +1069,22 @@
     var
         _id_ = 0, getId = function() { return ++_id_; },
         emptyStack = function(stack, id) {
-            if (id)
+            if ( id )
             {
-                while (stack.length && id == stack[stack.length-1].sID) 
-                    stack.pop();
+                while (stack.length && id == stack[stack.length-1].sID) stack.pop();
             }
-            else
-            {
-                stack.length = 0;
-            }
+            else stack.length = 0;
             return stack;
         },
+        pushStack = function(stack, pos, token, stackId) {
+            // associate a stack id with this token
+            // as part of a posible syntax sequence
+            if ( stackId ) token.sID = stackId;
+            if ( pos < stack.length ) stack.splice( pos, 0, token );
+            else stack.push( token );
+            return stack;
+        },
+            
         
         SimpleToken = Class({
             
@@ -1038,30 +1096,69 @@
                 ayto.r = style;
                 ayto.REQ = 0;
                 ayto.ERR = 0;
-                ayto.toClone = ['t', 'r'];
+                ayto.MTCH = 0;
+                ayto.CLONE = ['t', 'r'];
             },
             
             // stack id
             sID: null,
             // tokenizer/token name
-            tn : null,
+            tn: null,
             // tokenizer type
-            tt : null,
+            tt: null,
             // tokenizer token matcher
-            t : null,
+            t: null,
             // tokenizer return val
-            r : null,
-            REQ : 0,
-            ERR : 0,
-            toClone: null,
+            r: null,
+            // tokenizer match action (optional)
+            tm: null,
+            REQ: 0,
+            ERR: 0,
+            MTCH: 0,
+            CLONE: null,
             
-            err : function() {
-                var t = this;
-                return t.REQ ? ('Token "'+t.tn+'" Expected') : ('Syntax Error: "'+t.tn+'"');
+            m : function(token, state) {
+                var matchAction = this.tm || null, t, T, data = state.data;
+                
+                if ( matchAction )
+                {
+                    t = matchAction[1];
+                    
+                    if ( "push" == matchAction[0] && t )
+                    {
+                        if ( token )
+                        {
+                            T = get_type( t );
+                            if ( T_NUM == T )  t = token[1][t];
+                            else t = groupReplace(t, token[1]);
+                        }
+                        data.push( t );
+                    }
+                    
+                    else if ( "pop" ==  matchAction[0] )
+                    {
+                        if ( t )
+                        {
+                            if ( token )
+                            {
+                                T = get_type( t );
+                                if ( T_NUM == T )  t = token[1][t];
+                                else t = groupReplace(t, token[1]);
+                            }
+                            
+                            if ( !data.length || t != data.pop() ) return t;
+                        }
+                        else if ( data.length ) data.pop();
+                    }
+                }
+                return 0;
             },
-        
+            
             get : function( stream, state ) {
-                var ayto = this, token = ayto.t, type = ayto.tt;
+                var ayto = this, matchAction = ayto.tm, token = ayto.t, 
+                    type = ayto.tt, style = ayto.r, t = null;
+                
+                ayto.MTCH = 0;
                 // match EOL ( with possible leading spaces )
                 if ( T_EOL == type ) 
                 { 
@@ -1069,8 +1166,8 @@
                     if ( stream.eol() )
                     {
                         state.t = T_DEFAULT; 
-                        //state.r = ayto.r; 
-                        return ayto.r; 
+                        //state.r = style; 
+                        return style; 
                     }
                 }
                 // match non-space
@@ -1080,34 +1177,35 @@
                     ayto.REQ = 0;
                 }
                 // else match a simple token
-                else if ( token.get(stream) ) 
+                else if ( t = token.get(stream) ) 
                 { 
-                    state.t = ayto.tt; 
-                    //state.r = ayto.r; 
-                    return ayto.r; 
+                    if ( matchAction ) ayto.MTCH = ayto.m(t, state);
+                    state.t = type; 
+                    //state.r = style; 
+                    return style; 
                 }
                 return false;
             },
             
-            require : function(bool) { 
+            req : function(bool) { 
                 this.REQ = (bool) ? 1 : 0;
                 return this;
             },
             
-            push : function(stack, pos, token, stackId) {
-                // associate a stack id with this token
-                // as part of a posible syntax sequence
-                if ( stackId ) token.sID = stackId;
-                if ( pos < stack.length ) stack.splice( pos, 0, token );
-                else stack.push( token );
+            err : function() {
+                var t = this;
+                if ( t.REQ ) return ('Token "'+t.tn+'" Expected');
+                else if ( t.MTCH ) return ('Token "'+t.MTCH+'" No Match')
+                return ('Syntax Error: "'+t.tn+'"');
             },
-            
+        
             clone : function() {
-                var ayto = this, t, i, toClone = ayto.toClone, toClonelen;
+                var ayto = this, t, i, toClone = ayto.CLONE, toClonelen;
                 
                 t = new ayto.$class();
                 t.tt = ayto.tt;
                 t.tn = ayto.tn;
+                t.tm = (ayto.tm) ? ayto.tm.slice() : ayto.tm;
                 
                 if (toClone && toClone.length)
                 {
@@ -1132,7 +1230,7 @@
                 // a block is multiline by default
                 ayto.mline = ( 'undefined' == typeof(allowMultiline) ) ? 1 : allowMultiline;
                 ayto.esc = escChar || "\\";
-                ayto.toClone = ['t', 'r', 'ri', 'mline', 'esc'];
+                ayto.CLONE = ['t', 'r', 'ri', 'mline', 'esc'];
             },    
             
             // return val for interior
@@ -1193,7 +1291,7 @@
                         
                         if ( !alreadyIn )
                         {
-                            ayto.push( state.stack, stackPos, ayto.clone(), thisBlock );
+                            pushStack( state.stack, stackPos, ayto.clone(), thisBlock );
                             state.t = type;
                             //state.r = ret; 
                             return ret;
@@ -1253,7 +1351,7 @@
                     }
                     else
                     {
-                        ayto.push( state.stack, stackPos, ayto.clone(), thisBlock );
+                        pushStack( state.stack, stackPos, ayto.clone(), thisBlock );
                     }
                     
                     state.t = type;
@@ -1278,7 +1376,7 @@
                 ayto.min = min || 0;
                 ayto.max = max || INF;
                 ayto.found = 0;
-                ayto.toClone = ['ts', 'min', 'max', 'found'];
+                ayto.CLONE = ['ts', 'min', 'max', 'found'];
                 if (tokens) ayto.set( tokens );
             },
             
@@ -1300,13 +1398,14 @@
                 
                 ayto.ERR = 0;
                 ayto.REQ = 0;
+                ayto.MTCH = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
                 stackId = ayto.tn + '_' + getId();
                 
                 for (i=0; i<n; i++)
                 {
-                    token = tokens[i].clone().require(1);
+                    token = tokens[i].clone().req( 1 );
                     style = token.get(stream, state);
                     
                     if ( false !== style )
@@ -1316,8 +1415,9 @@
                         {
                             // push it to the stack for more
                             ayto.found = found;
-                            ayto.push( state.stack, stackPos, ayto.clone(), stackId );
+                            pushStack( state.stack, stackPos, ayto.clone(), stackId );
                             ayto.found = 0;
+                            ayto.MTCH = token.MTCH;
                             return style;
                         }
                         break;
@@ -1349,17 +1449,19 @@
                 
                 ayto.REQ = 1;
                 ayto.ERR = 0;
+                ayto.MTCH = 0;
                 streamPos = stream.pos;
                 
                 for (i=0; i<n; i++)
                 {
-                    token = tokens[i].clone();
+                    token = tokens[i].clone().req( 1 );
                     style = token.get(stream, state);
                     
                     tokensRequired += (token.REQ) ? 1 : 0;
                     
                     if ( false !== style )
                     {
+                        ayto.MTCH = token.MTCH;
                         return style;
                     }
                     else if ( token.ERR )
@@ -1389,17 +1491,19 @@
                 
                 ayto.REQ = 1;
                 ayto.ERR = 0;
+                ayto.MTCH = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
                 stackId = ayto.tn + '_' + getId();
-                token = tokens[ 0 ].clone().require( 1 );
+                token = tokens[ 0 ].clone().req( 1 );
                 style = token.get(stream, state);
                 
                 if ( false !== style )
                 {
                     for (var i=n-1; i>0; i--)
-                        ayto.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ), stackId );
+                        pushStack( state.stack, stackPos+n-i-1, tokens[ i ].clone().req( 1 ), stackId );
                         
+                    ayto.MTCH = token.MTCH;
                     return style;
                 }
                 else if ( token.ERR /*&& token.REQ*/ )
@@ -1426,21 +1530,23 @@
             get : function( stream, state ) {
                 
                 var ayto = this, token, style, tokens = ayto.ts, n = tokens.length, 
-                    streamPos, stackPos, stackId;
+                    streamPos, stackPos, stackId, i;
                 
                 ayto.REQ = 0;
                 ayto.ERR = 0;
+                ayto.MTCH = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
                 stackId = ayto.tn + '_' + getId();
-                token = tokens[ 0 ].clone().require( 0 );
+                token = tokens[ 0 ].clone().req( 0 );
                 style = token.get(stream, state);
                 
                 if ( false !== style )
                 {
-                    for (var i=n-1; i>0; i--)
-                        ayto.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ), stackId );
+                    for (i=n-1; i>0; i--)
+                        pushStack( state.stack, stackPos+n-i-1, tokens[ i ].clone().req( 1 ), stackId );
                     
+                    ayto.MTCH = token.MTCH;
                     return style;
                 }
                 else if ( token.ERR )
@@ -1454,10 +1560,13 @@
                 
         getTokenizer = function(tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords) {
             
+            var tok, token = null, type, combine, matchAction, matchType, tokens, subTokenizers,
+                ngrams, ngram, i, l, j, l2;
+            
             if ( null === tokenID )
             {
                 // EOL Tokenizer
-                var token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
+                token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
                 token.tt = T_EOL;
                 token.tn = 'EOL';
                 return token;
@@ -1466,7 +1575,7 @@
             else if ( "" === tokenID )
             {
                 // NONSPACE Tokenizer
-                var token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
+                token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
                 token.tt = T_NONSPACE;
                 token.tn = 'NONSPACE';
                 return token;
@@ -1478,8 +1587,6 @@
                 
                 if ( !cachedTokens[ tokenID ] )
                 {
-                    var tok, token = null, type, combine, action, matchType, tokens, subTokenizers;
-                
                     // allow token to be literal and wrap to simple token with default style
                     tok = Lex[ tokenID ] || Syntax[ tokenID ] || { type: "simple", tokens: tokenID };
                     
@@ -1519,11 +1626,20 @@
                         }
             
                         tok.tokens = make_array( tok.tokens );
-                        action = tok.action || null;
                         
                         if ( T_SIMPLE & type )
                         {
                             if ( tok.autocomplete ) getAutoComplete(tok, tokenID, keywords);
+                            
+                            matchAction = null;
+                            if ( tok.push )
+                            {
+                                matchAction = [ "push", tok.push ];
+                            }
+                            else if  ( 'undefined' != typeof(tok.pop) )
+                            {
+                                matchAction = [ "pop", tok.pop ];
+                            }
                             
                             // combine by default if possible using word-boundary delimiter
                             combine = ( 'undefined' ==  typeof(tok.combine) ) ? "\\b" : tok.combine;
@@ -1533,6 +1649,7 @@
                                         Style[ tokenID ] || DEFAULTSTYLE
                                     );
                             
+                            token.tm = matchAction;
                             // pre-cache tokenizer to handle recursive calls to same tokenizer
                             cachedTokens[ tokenID ] = token;
                         }
@@ -1588,7 +1705,7 @@
                             cachedTokens[ tokenID ] = token;
                             
                             subTokenizers = [];
-                            for (var i=0, l=tokens.length; i<l; i++)
+                            for (i=0, l=tokens.length; i<l; i++)
                                 subTokenizers = subTokenizers.concat( getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords ) );
                             
                             token.set( subTokenizers );
@@ -1599,9 +1716,9 @@
                         {
                             // get n-gram tokenizer
                             token = make_array_2( tok.tokens.slice() ).slice(); // array of arrays
-                            var ngrams = [], ngram;
+                            ngrams = [];
                             
-                            for (var i=0, l=token.length; i<l; i++)
+                            for (i=0, l=token.length; i<l; i++)
                             {
                                 // get tokenizers for each ngram part
                                 ngrams[i] = token[i].slice();
@@ -1612,12 +1729,12 @@
                             // pre-cache tokenizer to handle recursive calls to same tokenizer
                             cachedTokens[ tokenID ] = token;
                             
-                            for (var i=0, l=token.length; i<l; i++)
+                            for (i=0, l=token.length; i<l; i++)
                             {
                                 ngram = ngrams[i];
                                 
                                 subTokenizers = [];
-                                for (var j=0, l2=ngram.length; j<l2; j++)
+                                for (j=0, l2=ngram.length; j<l2; j++)
                                     subTokenizers = subTokenizers.concat( getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens,  comments, keywords ) );
                                 
                                 // get tokenizer for whole ngram
@@ -1712,6 +1829,7 @@
             grammar.Style = Style;
             grammar.Comments = comments;
             grammar.Keywords = keywords;
+            grammar.Extra = grammar.Extra || {};
             
             // this grammar is parsed
             grammar.__parsed = 1;
@@ -1730,7 +1848,9 @@
             
             constructor: function(grammar, LOC) {
                 var ayto = this;
-                ayto.electricChars = grammar.electricChars || false;
+                
+                // support extra functionality
+                ayto.Extra = grammar.Extra || {};
                 
                 // support comments toggle functionality
                 ayto.LC = (grammar.Comments.line) ? grammar.Comments.line[0] : null,
@@ -1747,9 +1867,7 @@
                 ayto.cTokens = (grammar.cTokens.length) ? grammar.cTokens : null;
             },
             
-            conf: null,
-            parserConf: null,
-            electricChars: false,
+            Extra: null,
             LC: null,
             BCS: null,
             BCE: null,
@@ -1760,8 +1878,6 @@
             Keywords: null,
             cTokens: null,
             Tokens: null,
-            //innerModes: null,
-            //currentMode: null,
             
             parse: function(code) {
                 code = code || "";
@@ -1771,14 +1887,14 @@
                 state.parseAll = 1;
                 for (i=0; i<l; i++)
                 {
-                    stream = new ParserStream(lines[i]);
+                    stream = new ParserStream( lines[i] );
                     tokens = [];
                     while ( !stream.eol() )
                     {
-                        tokens.push(this.getToken(stream, state));
+                        tokens.push( this.getToken(stream, state) );
                         //stream.sft();
                     }
-                    linetokens.push(tokens);
+                    linetokens.push( tokens );
                 }
                 return linetokens;
             },
@@ -1786,24 +1902,25 @@
             // Codemirror Tokenizer compatible
             getToken: function(stream_, state) {
                 
-                var i, ci, ayto = this,
-                    tokenizer, type, interleavedCommentTokens = ayto.cTokens, tokens = ayto.Tokens, numTokens = tokens.length, parseAll = state.parseAll,
-                    stream, stack, DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
+                var i, ci, ayto = this, tokenizer, type, 
+                    interleavedCommentTokens = ayto.cTokens, tokens = ayto.Tokens, numTokens = tokens.length, 
+                    parseAll = state.parseAll, stream, stack, top,
+                    DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
                 ;
                 
-                stack = state.stack;
                 stream = (parseAll) ? stream_ : new ParserStream().fromStream( stream_ );
-                
-                /*if ( ayto.currentMode )
-                {
-                    return ayto.handleInnerMode(stream_, state);
-                }*/
+                stack = state.stack;
+                top = (stack.length) ? stack[stack.length-1] : null;
                 
                 // if EOL tokenizer is left on stack, pop it now
-                if ( stream.sol() && stack.length && T_EOL == stack[stack.length-1].tt ) stack.pop();
+                if ( top && T_EOL == top.tt && stream.sol() ) 
+                {
+                    stack.pop();
+                    top = (stack.length) ? stack[stack.length-1] : null;
+                }
                 
                 // check for non-space tokenizer before parsing space
-                if ( !stack.length || T_NONSPACE != stack[stack.length-1].tt )
+                if ( !top || T_NONSPACE != top.tt )
                 {
                     if ( stream.spc() ) 
                     {
@@ -1855,7 +1972,20 @@
                     // found token
                     else
                     {
-                        return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.r = type;
+                        // match action error
+                        if ( tokenizer.MTCH )
+                        {
+                            // empty the stack
+                            //stack.length = 0;
+                            emptyStack(stack, tokenizer.sID);
+                            // generate error
+                            state.t = T_ERROR;
+                            return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.r = ERROR;
+                        }
+                        else
+                        {
+                            return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.r = type;
+                        }
                     }
                 }
                 
@@ -1888,7 +2018,20 @@
                     // found token
                     else
                     {
-                        return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.r = type;
+                        // match action error
+                        if ( tokenizer.MTCH )
+                        {
+                            // empty the stack
+                            //stack.length = 0;
+                            emptyStack(stack, tokenizer.sID);
+                            // generate error
+                            state.t = T_ERROR;
+                            return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.r = ERROR;
+                        }
+                        else
+                        {
+                            return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.r = type;
+                        }
                     }
                 }
                 
@@ -1898,51 +2041,22 @@
                 return (parseAll) ? { value: stream.cur(1), type: DEFAULT, error: null } : state.r = DEFAULT;
             },
             
-            indent : function(state, textAfter, fullLine) {
-                // Default for now, TODO
-                return _CodeMirror.Pass;
-            }/*,
-            
-            handleInnerMode : function(stream, state) {
-            },
-            
-            addInnerMode : function(startToken, endToken, mode) {
-                this.innerModes = this.innerModes || [];
-                this.innerModes.push([startToken, endToken, mode]);
-                return this;
-            },
-            
-            removeInnerMode : function(mode) {
-                if (this.innerModes)
-                {
-                    var modes = this.innerModes;
-                    for (var i=0, l=modes.length; i<l; i++)
-                    {
-                        if ( mode === modes[i][2])
-                        {
-                            modes.splice(i, 1);
-                            break;
-                        }
-                    }
-                }
-                return this;
-            }*/
+            indent : function(state, textAfter, fullLine, conf, parserConf) {
+                var indentUnit = conf.indentUnit || 4, Pass = _CodeMirror.Pass;
+                
+                return Pass;
+            }
         }),
-        
-        getParser = function(grammar, LOCALS) {
-            return new CodemirrorParser(grammar, LOCALS);
-        },
         
         getCodemirrorMode = function(parser) {
                 
             // Codemirror-compatible Mode
-            var mode = function(conf, parserConf) {
+            var modeF = function(conf, parserConf) {
                 
-                parser.conf = conf;
-                parser.parserConf = parserConf;
+                //var supportGrammarAnnotations = conf ? conf.supportGrammarAnnotations : false;
                 
                 // return the (codemirror) parser mode for the grammar
-                return  {
+                var mode = {
                     /*
                     // maybe needed in later versions..
                     
@@ -1955,20 +2069,18 @@
                     
                     copyState: function( state ) { return state.clone(); },
                     
-                    electricChars: parser.electricChars,
+                    token: function(stream, state) { return parser.getToken(stream, state); },
+                    
+                    indent: function(state, textAfter, fullLine) { return parser.indent(state, textAfter, fullLine, conf, parserConf); },
                     
                     // syntax, lint-like validator generated from grammar
                     // maybe use this as a worker (a-la ACE) ??
                     validator: function (text, options)  {
                         
-                        if ( !parser.conf || !parser.conf.supportGrammarAnnotations ) return [];
+                        if ( !modeF.supportGrammarAnnotations ) return [];
                         
-                        var errorFound = 0, code, errors, linetokens, tokens, token, t, lines, line, row, column;
-                        code = text;
-                        if ( !code || !code.length ) 
-                        {
-                            return [];
-                        }
+                        var errorFound = 0, code = text, errors, linetokens, tokens, token, t, lines, line, row, column;
+                        if ( !code || !code.length ) return [];
                         
                         errors = [];
                         linetokens = parser.parse( code );
@@ -1977,7 +2089,7 @@
                         for (line=0; line<lines; line++) 
                         {
                             tokens = linetokens[ line ];
-                            if ( !tokens || !tokens.length )  continue;
+                            if ( !tokens || !tokens.length ) continue;
                             
                             column = 0;
                             for (t=0; t<tokens.length; t++)
@@ -1998,31 +2110,26 @@
                                 column += token.value.length;
                             }
                         }
-                        if (errorFound)
-                        {
-                            //console.log(errors);
-                            return errors;
-                        }
-                        else
-                        {
-                            return [];
-                        }
-                    },
-                    
-                    // support comments toggle functionality
-                    lineComment: parser.LC,
-                    blockCommentStart: parser.BCS,
-                    blockCommentEnd: parser.BCE,
-                    blockCommentContinue: parser.BCC,
-                    blockCommentLead: parser.BCL,
-                    
-                    token: function(stream, state) { return parser.getToken(stream, state); },
-                    
-                    indent: function(state, textAfter, fullLine) { return parser.indent(state, textAfter, fullLine); }
+                        if ( errorFound ) return errors;
+                        else  return [];
+                    }
                 };
                 
+                // support comments toggle functionality
+                mode.lineComment = parser.LC,
+                mode.blockCommentStart = parser.BCS,
+                mode.blockCommentEnd = parser.BCE,
+                mode.blockCommentContinue = parser.BCC,
+                mode.blockCommentLead = parser.BCL
+                // support extra functionality defined in grammar
+                // eg. code folding, electriChars etc..
+                mode.electricChars = parser.Extra.electricChars || false;
+                mode.fold = parser.Extra.fold || false;
+                
+                return mode;
+                
             };
-            return mode;
+            return modeF;
         },
         
         getMode = function(grammar, DEFAULT) {
@@ -2039,13 +2146,13 @@
             grammar = parseGrammar( grammar );
             //console.log(grammar);
             
-            return getCodemirrorMode( getParser( grammar, LOCALS ) );
+            return getCodemirrorMode( new CodemirrorParser(grammar, LOCALS) );
         }
     ;
   /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.7.5
+*   @version: 0.8
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2082,7 +2189,7 @@
     DEFAULTERROR = "error";
     var CodeMirrorGrammar = {
         
-        VERSION : "0.7.5",
+        VERSION : "0.8",
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]

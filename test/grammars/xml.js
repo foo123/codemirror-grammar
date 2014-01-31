@@ -4,26 +4,28 @@ var xml_grammar = {
     // prefix ID for regular expressions used in the grammar
     "RegExpID" : "RegExp::",
 
+    "Extra" : {
+        "fold" : "xml"
+    },
+    
     //
     // Style model
     "Style" : {
         // lang token type  -> Editor (style) tag
         "commentBlock":         "comment",
         "metaBlock":            "meta",
-        "atom":                 "atom",
         "cdataBlock":           "atom",
-        "startTag":             "tag",
-        "endTag":               "tag",
-        "autocloseTag":         "tag",
+        "atom":                 "atom",
+        "openTag":              "tag",
         "closeTag":             "tag",
+        "autoCloseTag":         "tag",
+        "endTag":               "tag",
         "attribute":            "attribute",
         "number":               "number",
         "hexnumber":            "number",
         "string":               "string"
     },
 
-    "electricChars" : null,
-    
     //
     // Lexical model
     "Lex" : {
@@ -55,9 +57,6 @@ var xml_grammar = {
             ]
         },
         
-        // tag attributes
-        "attribute" : "RegExp::/[_a-zA-Z][_a-zA-Z0-9\\-]*/",
-        
         // numbers, in order of matching
         "number" : [
             // floats
@@ -75,38 +74,41 @@ var xml_grammar = {
 
         // strings
         "string" : {
-            "type" : "escaped-block",
-            "escape" : "\\",
+            "type" : "block",
             "multiline" : false,
             "tokens" : [ 
-                // start, end of string (can be the matched regex group ie. 1 )
                 // if no end given, end is same as start
-                [ "\"" ], 
-                [ "'" ] 
+                [ "\"" ], [ "'" ] 
             ]
         },
         
         // atoms
-        // "simple" token type is default, if no token type
-        //"type" : "simple",
         "atom" : [
             "RegExp::/&[a-zA-Z][a-zA-Z0-9]*;/",
             "RegExp::/&#[\\d]+;/",
             "RegExp::/&#x[a-fA-F\\d]+;/"
         ],
         
+        // tag attributes
+        "attribute" : "RegExp::/[_a-zA-Z][_a-zA-Z0-9\\-]*/",
+        
         // tags
-        "startTag" : { 
-            "expects": "closeTag",
-            "tokens": "RegExp::/<[_a-zA-Z][_a-zA-Z0-9\\-]*/"
+        "closeTag" : ">",
+        "openTag" : {
+            // allow to match start/end tags
+            "push" : "TAG<$1>",
+            "tokens" : "RegExp::/<([_a-zA-Z][_a-zA-Z0-9\\-]*)/"
         },
-        
-        "endTag" : ">",
-        
-        "autocloseTag" : "/>",
-        
-        // close tag, outdent action
-        "closeTag" : "RegExp::#</[_a-zA-Z][_a-zA-Z0-9\\-]*>#"
+        "autoCloseTag" : {
+            // allow to match start/end tags
+            "pop" : null,
+            "tokens" : "/>"
+        },
+        "endTag" : {
+            // allow to match start/end tags
+            "pop" : "TAG<$1>",
+            "tokens" : "RegExp::#</([_a-zA-Z][_a-zA-Z0-9\\-]*)>#"
+        }
     },
     
     //
@@ -131,19 +133,20 @@ var xml_grammar = {
             "tokens" : [ "tagAttribute" ]
         },
         
-        "startCloseTag" : { 
+        "closeOpenTag" : { 
             "type" : "group",
             "match" : "either",
-            "tokens" : [ "endTag", "autocloseTag" ]
+            "tokens" : [ "closeTag",  "autoCloseTag"]
         },
         
         // n-grams define syntax sequences
-        "openTag" : { 
+        "tags" : { 
             "type" : "n-gram",
             "tokens" :[
-                [ "startTag", "tagAttributes", "startCloseTag" ]
+                [ "openTag", "tagAttributes", "closeOpenTag" ],
+                [ "endTag" ]
             ]
-        }
+        },
     },
     
     // what to parse and in what order
@@ -151,8 +154,7 @@ var xml_grammar = {
         "commentBlock",
         "cdataBlock",
         "metaBlock",
-        "openTag",
-        "closeTag",
+        "tags",
         "atom"
     ]
 };

@@ -4,17 +4,22 @@
     var
         _id_ = 0, getId = function() { return ++_id_; },
         emptyStack = function(stack, id) {
-            if (id)
+            if ( id )
             {
-                while (stack.length && id == stack[stack.length-1].sID) 
-                    stack.pop();
+                while (stack.length && id == stack[stack.length-1].sID) stack.pop();
             }
-            else
-            {
-                stack.length = 0;
-            }
+            else stack.length = 0;
             return stack;
         },
+        pushStack = function(stack, pos, token, stackId) {
+            // associate a stack id with this token
+            // as part of a posible syntax sequence
+            if ( stackId ) token.sID = stackId;
+            if ( pos < stack.length ) stack.splice( pos, 0, token );
+            else stack.push( token );
+            return stack;
+        },
+            
         
         SimpleToken = Class({
             
@@ -26,30 +31,69 @@
                 ayto.r = style;
                 ayto.REQ = 0;
                 ayto.ERR = 0;
-                ayto.toClone = ['t', 'r'];
+                ayto.MTCH = 0;
+                ayto.CLONE = ['t', 'r'];
             },
             
             // stack id
             sID: null,
             // tokenizer/token name
-            tn : null,
+            tn: null,
             // tokenizer type
-            tt : null,
+            tt: null,
             // tokenizer token matcher
-            t : null,
+            t: null,
             // tokenizer return val
-            r : null,
-            REQ : 0,
-            ERR : 0,
-            toClone: null,
+            r: null,
+            // tokenizer match action (optional)
+            tm: null,
+            REQ: 0,
+            ERR: 0,
+            MTCH: 0,
+            CLONE: null,
             
-            err : function() {
-                var t = this;
-                return t.REQ ? ('Token "'+t.tn+'" Expected') : ('Syntax Error: "'+t.tn+'"');
+            m : function(token, state) {
+                var matchAction = this.tm || null, t, T, data = state.data;
+                
+                if ( matchAction )
+                {
+                    t = matchAction[1];
+                    
+                    if ( "push" == matchAction[0] && t )
+                    {
+                        if ( token )
+                        {
+                            T = get_type( t );
+                            if ( T_NUM == T )  t = token[1][t];
+                            else t = groupReplace(t, token[1]);
+                        }
+                        data.push( t );
+                    }
+                    
+                    else if ( "pop" ==  matchAction[0] )
+                    {
+                        if ( t )
+                        {
+                            if ( token )
+                            {
+                                T = get_type( t );
+                                if ( T_NUM == T )  t = token[1][t];
+                                else t = groupReplace(t, token[1]);
+                            }
+                            
+                            if ( !data.length || t != data.pop() ) return t;
+                        }
+                        else if ( data.length ) data.pop();
+                    }
+                }
+                return 0;
             },
-        
+            
             get : function( stream, state ) {
-                var ayto = this, token = ayto.t, type = ayto.tt;
+                var ayto = this, matchAction = ayto.tm, token = ayto.t, 
+                    type = ayto.tt, style = ayto.r, t = null;
+                
+                ayto.MTCH = 0;
                 // match EOL ( with possible leading spaces )
                 if ( T_EOL == type ) 
                 { 
@@ -57,8 +101,8 @@
                     if ( stream.eol() )
                     {
                         state.t = T_DEFAULT; 
-                        //state.r = ayto.r; 
-                        return ayto.r; 
+                        //state.r = style; 
+                        return style; 
                     }
                 }
                 // match non-space
@@ -68,34 +112,35 @@
                     ayto.REQ = 0;
                 }
                 // else match a simple token
-                else if ( token.get(stream) ) 
+                else if ( t = token.get(stream) ) 
                 { 
-                    state.t = ayto.tt; 
-                    //state.r = ayto.r; 
-                    return ayto.r; 
+                    if ( matchAction ) ayto.MTCH = ayto.m(t, state);
+                    state.t = type; 
+                    //state.r = style; 
+                    return style; 
                 }
                 return false;
             },
             
-            require : function(bool) { 
+            req : function(bool) { 
                 this.REQ = (bool) ? 1 : 0;
                 return this;
             },
             
-            push : function(stack, pos, token, stackId) {
-                // associate a stack id with this token
-                // as part of a posible syntax sequence
-                if ( stackId ) token.sID = stackId;
-                if ( pos < stack.length ) stack.splice( pos, 0, token );
-                else stack.push( token );
+            err : function() {
+                var t = this;
+                if ( t.REQ ) return ('Token "'+t.tn+'" Expected');
+                else if ( t.MTCH ) return ('Token "'+t.MTCH+'" No Match')
+                return ('Syntax Error: "'+t.tn+'"');
             },
-            
+        
             clone : function() {
-                var ayto = this, t, i, toClone = ayto.toClone, toClonelen;
+                var ayto = this, t, i, toClone = ayto.CLONE, toClonelen;
                 
                 t = new ayto.$class();
                 t.tt = ayto.tt;
                 t.tn = ayto.tn;
+                t.tm = (ayto.tm) ? ayto.tm.slice() : ayto.tm;
                 
                 if (toClone && toClone.length)
                 {
@@ -120,7 +165,7 @@
                 // a block is multiline by default
                 ayto.mline = ( 'undefined' == typeof(allowMultiline) ) ? 1 : allowMultiline;
                 ayto.esc = escChar || "\\";
-                ayto.toClone = ['t', 'r', 'ri', 'mline', 'esc'];
+                ayto.CLONE = ['t', 'r', 'ri', 'mline', 'esc'];
             },    
             
             // return val for interior
@@ -181,7 +226,7 @@
                         
                         if ( !alreadyIn )
                         {
-                            ayto.push( state.stack, stackPos, ayto.clone(), thisBlock );
+                            pushStack( state.stack, stackPos, ayto.clone(), thisBlock );
                             state.t = type;
                             //state.r = ret; 
                             return ret;
@@ -241,7 +286,7 @@
                     }
                     else
                     {
-                        ayto.push( state.stack, stackPos, ayto.clone(), thisBlock );
+                        pushStack( state.stack, stackPos, ayto.clone(), thisBlock );
                     }
                     
                     state.t = type;
@@ -266,7 +311,7 @@
                 ayto.min = min || 0;
                 ayto.max = max || INF;
                 ayto.found = 0;
-                ayto.toClone = ['ts', 'min', 'max', 'found'];
+                ayto.CLONE = ['ts', 'min', 'max', 'found'];
                 if (tokens) ayto.set( tokens );
             },
             
@@ -288,13 +333,14 @@
                 
                 ayto.ERR = 0;
                 ayto.REQ = 0;
+                ayto.MTCH = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
                 stackId = ayto.tn + '_' + getId();
                 
                 for (i=0; i<n; i++)
                 {
-                    token = tokens[i].clone().require(1);
+                    token = tokens[i].clone().req( 1 );
                     style = token.get(stream, state);
                     
                     if ( false !== style )
@@ -304,8 +350,9 @@
                         {
                             // push it to the stack for more
                             ayto.found = found;
-                            ayto.push( state.stack, stackPos, ayto.clone(), stackId );
+                            pushStack( state.stack, stackPos, ayto.clone(), stackId );
                             ayto.found = 0;
+                            ayto.MTCH = token.MTCH;
                             return style;
                         }
                         break;
@@ -337,17 +384,19 @@
                 
                 ayto.REQ = 1;
                 ayto.ERR = 0;
+                ayto.MTCH = 0;
                 streamPos = stream.pos;
                 
                 for (i=0; i<n; i++)
                 {
-                    token = tokens[i].clone();
+                    token = tokens[i].clone().req( 1 );
                     style = token.get(stream, state);
                     
                     tokensRequired += (token.REQ) ? 1 : 0;
                     
                     if ( false !== style )
                     {
+                        ayto.MTCH = token.MTCH;
                         return style;
                     }
                     else if ( token.ERR )
@@ -377,17 +426,19 @@
                 
                 ayto.REQ = 1;
                 ayto.ERR = 0;
+                ayto.MTCH = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
                 stackId = ayto.tn + '_' + getId();
-                token = tokens[ 0 ].clone().require( 1 );
+                token = tokens[ 0 ].clone().req( 1 );
                 style = token.get(stream, state);
                 
                 if ( false !== style )
                 {
                     for (var i=n-1; i>0; i--)
-                        ayto.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ), stackId );
+                        pushStack( state.stack, stackPos+n-i-1, tokens[ i ].clone().req( 1 ), stackId );
                         
+                    ayto.MTCH = token.MTCH;
                     return style;
                 }
                 else if ( token.ERR /*&& token.REQ*/ )
@@ -414,21 +465,23 @@
             get : function( stream, state ) {
                 
                 var ayto = this, token, style, tokens = ayto.ts, n = tokens.length, 
-                    streamPos, stackPos, stackId;
+                    streamPos, stackPos, stackId, i;
                 
                 ayto.REQ = 0;
                 ayto.ERR = 0;
+                ayto.MTCH = 0;
                 streamPos = stream.pos;
                 stackPos = state.stack.length;
                 stackId = ayto.tn + '_' + getId();
-                token = tokens[ 0 ].clone().require( 0 );
+                token = tokens[ 0 ].clone().req( 0 );
                 style = token.get(stream, state);
                 
                 if ( false !== style )
                 {
-                    for (var i=n-1; i>0; i--)
-                        ayto.push( state.stack, stackPos+n-i-1, tokens[ i ].clone().require( 1 ), stackId );
+                    for (i=n-1; i>0; i--)
+                        pushStack( state.stack, stackPos+n-i-1, tokens[ i ].clone().req( 1 ), stackId );
                     
+                    ayto.MTCH = token.MTCH;
                     return style;
                 }
                 else if ( token.ERR )
@@ -442,10 +495,13 @@
                 
         getTokenizer = function(tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords) {
             
+            var tok, token = null, type, combine, matchAction, matchType, tokens, subTokenizers,
+                ngrams, ngram, i, l, j, l2;
+            
             if ( null === tokenID )
             {
                 // EOL Tokenizer
-                var token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
+                token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
                 token.tt = T_EOL;
                 token.tn = 'EOL';
                 return token;
@@ -454,7 +510,7 @@
             else if ( "" === tokenID )
             {
                 // NONSPACE Tokenizer
-                var token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
+                token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
                 token.tt = T_NONSPACE;
                 token.tn = 'NONSPACE';
                 return token;
@@ -466,8 +522,6 @@
                 
                 if ( !cachedTokens[ tokenID ] )
                 {
-                    var tok, token = null, type, combine, action, matchType, tokens, subTokenizers;
-                
                     // allow token to be literal and wrap to simple token with default style
                     tok = Lex[ tokenID ] || Syntax[ tokenID ] || { type: "simple", tokens: tokenID };
                     
@@ -507,11 +561,20 @@
                         }
             
                         tok.tokens = make_array( tok.tokens );
-                        action = tok.action || null;
                         
                         if ( T_SIMPLE & type )
                         {
                             if ( tok.autocomplete ) getAutoComplete(tok, tokenID, keywords);
+                            
+                            matchAction = null;
+                            if ( tok.push )
+                            {
+                                matchAction = [ "push", tok.push ];
+                            }
+                            else if  ( 'undefined' != typeof(tok.pop) )
+                            {
+                                matchAction = [ "pop", tok.pop ];
+                            }
                             
                             // combine by default if possible using word-boundary delimiter
                             combine = ( 'undefined' ==  typeof(tok.combine) ) ? "\\b" : tok.combine;
@@ -521,6 +584,7 @@
                                         Style[ tokenID ] || DEFAULTSTYLE
                                     );
                             
+                            token.tm = matchAction;
                             // pre-cache tokenizer to handle recursive calls to same tokenizer
                             cachedTokens[ tokenID ] = token;
                         }
@@ -576,7 +640,7 @@
                             cachedTokens[ tokenID ] = token;
                             
                             subTokenizers = [];
-                            for (var i=0, l=tokens.length; i<l; i++)
+                            for (i=0, l=tokens.length; i<l; i++)
                                 subTokenizers = subTokenizers.concat( getTokenizer( tokens[i], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords ) );
                             
                             token.set( subTokenizers );
@@ -587,9 +651,9 @@
                         {
                             // get n-gram tokenizer
                             token = make_array_2( tok.tokens.slice() ).slice(); // array of arrays
-                            var ngrams = [], ngram;
+                            ngrams = [];
                             
-                            for (var i=0, l=token.length; i<l; i++)
+                            for (i=0, l=token.length; i<l; i++)
                             {
                                 // get tokenizers for each ngram part
                                 ngrams[i] = token[i].slice();
@@ -600,12 +664,12 @@
                             // pre-cache tokenizer to handle recursive calls to same tokenizer
                             cachedTokens[ tokenID ] = token;
                             
-                            for (var i=0, l=token.length; i<l; i++)
+                            for (i=0, l=token.length; i<l; i++)
                             {
                                 ngram = ngrams[i];
                                 
                                 subTokenizers = [];
-                                for (var j=0, l2=ngram.length; j<l2; j++)
+                                for (j=0, l2=ngram.length; j<l2; j++)
                                     subTokenizers = subTokenizers.concat( getTokenizer( ngram[j], RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens,  comments, keywords ) );
                                 
                                 // get tokenizer for whole ngram
@@ -700,6 +764,7 @@
             grammar.Style = Style;
             grammar.Comments = comments;
             grammar.Keywords = keywords;
+            grammar.Extra = grammar.Extra || {};
             
             // this grammar is parsed
             grammar.__parsed = 1;

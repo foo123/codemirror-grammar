@@ -12,6 +12,7 @@
                 ayto.id = unique ? new Date().getTime() : 0;
                 ayto.l = line || 0;
                 ayto.stack = [];
+                ayto.data = [];
                 ayto.t = T_DEFAULT;
                 ayto.r = '0';
                 ayto.inBlock = null;
@@ -24,6 +25,8 @@
             l: 0,
             // state token stack
             stack: null,
+            // state token push/pop match data
+            data: null,
             // state current token id
             t: null,
             // state current token type
@@ -38,6 +41,7 @@
                 c.t = ayto.t;
                 c.r = ayto.r;
                 c.stack = ayto.stack.slice();
+                c.data = ayto.data.slice();
                 c.inBlock = ayto.inBlock;
                 c.endBlock = ayto.endBlock;
                 return c;

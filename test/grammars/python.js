@@ -4,6 +4,10 @@ var python_grammar = {
     // prefix ID for regular expressions used in the grammar
     "RegExpID" : "RegExp::",
 
+    "Extra" : {
+        "fold" : "indent"
+    },
+    
     //
     // Style model
     "Style" : {
