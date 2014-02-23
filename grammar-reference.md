@@ -53,13 +53,46 @@ Grammar.Lex model defines the mapping of token patterns and token configuration 
     2. "tokens": pattern or array of patterns for this token
     3. properties depending on **token type** (see below)
 
-* a token type can be **"simple"** (default), **"indent"** , **"dedent"** , **"comment"** , **"block"** , **"escaped-block"**
+* a token type can be **"simple"** (default), **"comment"** , **"block"** , **"escaped-block"**
+* a token can *extend / reference* another token using the **extend** property; this way 2 tokens that share common configuration but different styles (depending on context) can be defined only once. Examples are tokens for *identifiers* and *properties* While both have similar tokenizers, the styles (and probably other properties) can be different.
+
+```javascript
+
+// Style
+//
+// .. stuff here..
+
+"identifier" : "style1",
+
+"property": "style2",
+
+// ..other stuff here..
+
+
+// Lex
+//
+// .. stuff here..
+
+"identifier": "RegExp::/[a-z]+/",
+
+"property": {
+    "extend" : "identifier" // allow property token to use different styles than identifier, without duplicating everything
+},
+
+// ..other stuff here..
+
+```
 
 **Simple Tokens**
 
-* a literal **null** valued token matches end-of-line (EOL); can be useful in token (syntax) sequences when **EOL** is used as separator
-* a literal empty token (  __""__  ) matches **non-space** ; can be useful when multiple tokens should be consecutive with no space between them
-* a literal string becomes a token (eg inside Syntax model sequence) with a tokenID same as its literal value
+* a literal **null** valued token matches **end-of-line** (EOL); can be useful in token (syntax) sequences when **EOL** is used as separator
+
+* a literal **false** or **0** valued token matches **empty production** ; can be useful in defining syntax sequences that can repeat (can be used as alternative to "zeroOrMore", "oneOrMore" group types, plus give a familiar feel to defining rule productions )
+
+* a literal empty string token (  __""__  ) matches **non-space** ; can be useful when multiple tokens should be consecutive with no space between them
+
+* a literal string becomes a token (eg inside Syntax model sequence) with a tokenID same as its **literal value**
+
 * a token can be defined using just the tokenID and the token pattern(s); token type is assumed **"simple"**
 * **multiple "simple" tokens** (which are NOT regular expresions) are grouped into one regular expression by default using **"\\b"** (word-boundary) delimiter; this is usefull for speed fine-tuning the parser, adding the "combine" property in the token configuration, can alter this option, or use a different delimiter
 * **"simple" tokens** can also be used to enable *keyword autocomplete functionality* ("autocomplete" : true, option )

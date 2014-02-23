@@ -4,8 +4,10 @@ var xml_grammar = {
     // prefix ID for regular expressions used in the grammar
     "RegExpID" : "RegExp::",
 
-    "Extra" : {
-        "fold" : "xml"
+    //
+    // Fold model
+    "Fold" : {
+        "xml" : ["RegExp::/<([_a-zA-Z][_a-zA-Z0-9\\-]*)[^>]*?[^/]>/", "</$1>"]
     },
     
     //

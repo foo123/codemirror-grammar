@@ -2,7 +2,7 @@
     //
     // Stream Class
     var
-        Max = Math.max, spaceRegex = /^[\s\u00a0]+/, spc = /[^\s\u00a0]/,
+        Max = Math.max, spcRegex = /^[\s\u00a0]+/, spc = /[^\s\u00a0]/,
         // Counts the column offset in a string, taking tabs into account.
         // Used mostly to find indentation.
         // adapted from CodeMirror
@@ -16,28 +16,33 @@
             for (i = startIndex || 0, n = startValue || 0; i < end; ++i) 
                 n += ( "\t" == string.charAt(i) ) ? (tabSize - (n % tabSize)) : 1;
             return n;
-        }
+        },
+        
         // a wrapper-class to manipulate a string as a stream, based on Codemirror's StringStream
-        ParserStream = Class({
+        Stream = Class({
             
             constructor: function( line ) {
                 var ayto = this;
                 ayto._ = null;
                 ayto.s = (line) ? ''+line : '';
                 ayto.start = ayto.pos = 0;
-                ayto.lastColumnPos = ayto.lastColumnValue = 0;
-                ayto.lineStart = 0;
+                ayto.lCP = ayto.lCV = 0;
+                ayto.lS = 0;
             },
             
             // abbreviations used for optimal minification
-            
             _: null,
             s: '',
             start: 0,
             pos: 0,
-            lastColumnPos: 0,
-            lastColumnValue: 0,
-            lineStart: 0,
+            // last column pos
+            lCP: 0,
+            // last column value
+            lCV: 0,
+            // line start
+            lS: 0,
+            
+            toString: function( ) { return this.s; },
             
             fromStream: function( _ ) {
                 var ayto = this;
@@ -45,13 +50,11 @@
                 ayto.s = ''+_.string;
                 ayto.start = _.start;
                 ayto.pos = _.pos;
-                ayto.lastColumnPos = _.lastColumnPos;
-                ayto.lastColumnValue = _.lastColumnValue;
-                ayto.lineStart = _.lineStart;
+                ayto.lCP = _.lastColumnPos;
+                ayto.lCV = _.lastColumnValue;
+                ayto.lS = _.lineStart;
                 return ayto;
             },
-            
-            toString: function( ) { return this.s; },
             
             // string start-of-line?
             sol: function( ) { return 0 == this.pos; },
@@ -60,7 +63,7 @@
             eol: function( ) { return this.pos >= this.s.length; },
             
             // char match
-            chr : function( pattern, eat ) {
+            chr: function( pattern, eat ) {
                 var ayto = this, ch = ayto.s.charAt(ayto.pos) || null;
                 if (ch && pattern == ch) 
                 {
@@ -75,7 +78,7 @@
             },
             
             // char list match
-            chl : function( pattern, eat ) {
+            chl: function( pattern, eat ) {
                 var ayto = this, ch = ayto.s.charAt(ayto.pos) || null;
                 if ( ch && (-1 < pattern.indexOf( ch )) ) 
                 {
@@ -90,7 +93,7 @@
             },
             
             // string match
-            str : function( pattern, startsWith, eat ) {
+            str: function( pattern, startsWith, eat ) {
                 var ayto = this, len, pos = ayto.pos, str = ayto.s, ch = str.charAt(pos) || null;
                 if ( ch && startsWith[ ch ] )
                 {
@@ -109,7 +112,7 @@
             },
             
             // regex match
-            rex : function( pattern, startsWith, notStartsWith, group, eat ) {
+            rex: function( pattern, startsWith, notStartsWith, group, eat ) {
                 var ayto = this, match, pos = ayto.pos, str = ayto.s, ch = str.charAt(pos) || null;
                 if ( ch && ( startsWith && startsWith[ ch ] ) || ( notStartsWith && !notStartsWith[ ch ] ) )
                 {
@@ -125,6 +128,21 @@
                 return false;
             },
 
+            // eat space
+            spc: function( eat ) {
+                var ayto = this, m, start = ayto.pos, s = ayto.s.slice(start);
+                if ( m = s.match( spcRegex ) ) 
+                {
+                    if ( false !== eat )
+                    {
+                        ayto.pos += m[0].length;
+                        if ( ayto._ ) ayto._.pos = ayto.pos;
+                    }
+                    return 1;
+                }
+                return 0;
+            },
+            
             // skip to end
             end: function( ) {
                 var ayto = this;
@@ -163,29 +181,27 @@
             // get current column including tabs
             col: function( tabSize ) {
                 var ayto = this;
-                if (ayto.lastColumnPos < ayto.start) 
+                tabSize = tabSize || 1;
+                if (ayto.lCP < ayto.start) 
                 {
-                    ayto.lastColumnValue = countColumn(ayto.s, ayto.start, tabSize, ayto.lastColumnPos, ayto.lastColumnValue);
-                    ayto.lastColumnPos = ayto.start;
+                    ayto.lCV = countColumn(ayto.s, ayto.start, tabSize, ayto.lCP, ayto.lCV);
+                    ayto.lCP = ayto.start;
+                    if ( ayto._ )
+                    {
+                        ayto._.start = ayto.start;
+                        ayto._.lastColumnPos = ayto.lCP;
+                        ayto._.lastColumnValue = ayto.lCV;
+                        ayto._.lineStart = ayto.lS;
+                    }
                 }
-                return ayto.lastColumnValue - (ayto.lineStart ? countColumn(ayto.s, ayto.lineStart, tabSize) : 0);
+                return ayto.lCV - (ayto.lS ? countColumn(ayto.s, ayto.lS, tabSize) : 0);
             },
             
             // get current indentation including tabs
             ind: function( tabSize ) {
                 var ayto = this;
-                return countColumn(ayto.s, null, tabSize) - (ayto.lineStart ? countColumn(ayto.s, ayto.lineStart, tabSize) : 0);
-            },
-            
-            // eat space
-            spc: function( ) {
-                var ayto = this, m, start = ayto.pos, s = ayto.s.slice(start);
-                if ( m = s.match( spaceRegex ) ) 
-                {
-                    ayto.pos += m[0].length;
-                    if ( ayto._ ) ayto._.pos = ayto.pos;
-                }
-                return ayto.pos > start;
+                tabSize = tabSize || 1;
+                return countColumn(ayto.s, null, tabSize) - (ayto.lS ? countColumn(ayto.s, ayto.lS, tabSize) : 0);
             },
             
             // current stream selection

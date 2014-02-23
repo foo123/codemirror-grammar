@@ -4,7 +4,6 @@
     var AP = Array.prototype, OP = Object.prototype,
         slice = AP.slice, splice = AP.splice, concat = AP.concat, 
         hasKey = OP.hasOwnProperty, toStr = OP.toString, isEnum = OP.propertyIsEnumerable,
-        
         Keys = Object.keys,
         
         get_type = function(v) {
@@ -101,7 +100,7 @@
         },
         
         escRegexp = function(str) {
-            return str.replace(/([.*+?^${}()|[\]\/\\])/g, '\\$1');
+            return str.replace(/([.*+?^${}()|[\]\/\\\-])/g, '\\$1');
         },
         
         groupReplace = function(pattern, token) {
@@ -185,6 +184,8 @@
                     ;
             return [ new RegExp("^(" + combined + ")"+b), { peek: peek, negativepeek: null }, 1 ];
         },
+        
+        _id_ = 0, getId = function() { return ++_id_; },
         
         isNode = (typeof global !== "undefined" && {}.toString.call(global) == '[object global]') ? 1 : 0,
         isBrowser = (!isNode && typeof navigator !== "undefined") ? 1 : 0, 

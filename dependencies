@@ -21,6 +21,7 @@ SRC =[]
     ./src/lib/types.js
     ./src/lib/utils.js
     ./src/lib/stream.js
+    ./src/lib/stack.js
     ./src/lib/state.js
     ./src/factories/matchers.js
     ./src/factories/tokenizers.js
@@ -38,7 +39,7 @@ HEADER =
 # do any replacements to the source (map)
 REPLACE =[{}]
 
-    "@@VERSION@@" = "0.8"
+    "@@VERSION@@" = "0.9"
     
     "@@MODULE_NAME@@" = "CodeMirrorGrammar"
     

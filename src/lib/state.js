@@ -1,8 +1,8 @@
     
     //
-    // ParserState Class
+    // State Class
     var
-        ParserState = Class({
+        State = Class({
             
             constructor: function( line, unique ) {
                 var ayto = this;
@@ -11,10 +11,11 @@
                 // however updates also occur when no update necessary ??
                 ayto.id = unique ? new Date().getTime() : 0;
                 ayto.l = line || 0;
-                ayto.stack = [];
-                ayto.data = [];
-                ayto.t = T_DEFAULT;
-                ayto.r = '0';
+                ayto.stack = new Stack();
+                ayto.data = new Stack();
+                ayto.col = 0;
+                ayto.indent = 0;
+                ayto.t = null;
                 ayto.inBlock = null;
                 ayto.endBlock = null;
             },
@@ -23,14 +24,14 @@
             id: 0,
             // state current line
             l: 0,
+            col: 0,
+            indent: 0,
             // state token stack
             stack: null,
             // state token push/pop match data
             data: null,
-            // state current token id
+            // state current token
             t: null,
-            // state current token type
-            r: null,
             // state current block name
             inBlock: null,
             // state endBlock for current block
@@ -39,9 +40,10 @@
             clone: function( unique ) {
                 var ayto = this, c = new ayto.$class( ayto.l, unique );
                 c.t = ayto.t;
-                c.r = ayto.r;
-                c.stack = ayto.stack.slice();
-                c.data = ayto.data.slice();
+                c.col = ayto.col;
+                c.indent = ayto.indent;
+                c.stack = ayto.stack.clone();
+                c.data = ayto.data.clone();
                 c.inBlock = ayto.inBlock;
                 c.endBlock = ayto.endBlock;
                 return c;

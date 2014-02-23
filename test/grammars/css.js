@@ -49,11 +49,11 @@ var css_grammar = {
         "number" : [
             // integers
             // decimal
-            "RegExp::/[0-9]\\d*(rem|em|px|%|pt|in|s)?/i",
+            "RegExp::/[0-9]\\d*(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
             // floats
-            "RegExp::/\\.\\d+(rem|em|px|%|pt|in|s)?/i",
-            "RegExp::/\\d+\\.\\d*(rem|em|px|%|pt|in|s)?/i",
-            "RegExp::/\\d*\\.\\d+(rem|em|px|%|pt|in|s)?/i",
+            "RegExp::/\\.\\d+(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
+            "RegExp::/\\d+\\.\\d*(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
+            "RegExp::/\\d*\\.\\d+(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
             // hex color
             "RegExp::/#[0-9a-f]{3,6}/i"
         ],

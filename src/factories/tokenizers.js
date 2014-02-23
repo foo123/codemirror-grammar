@@ -2,49 +2,26 @@
     //
     // tokenizer factories
     var
-        _id_ = 0, getId = function() { return ++_id_; },
-        emptyStack = function(stack, id) {
-            if ( id )
-            {
-                while (stack.length && id == stack[stack.length-1].sID) stack.pop();
-            }
-            else stack.length = 0;
-            return stack;
-        },
-        pushStack = function(stack, pos, token, stackId) {
-            // associate a stack id with this token
-            // as part of a posible syntax sequence
-            if ( stackId ) token.sID = stackId;
-            if ( pos < stack.length ) stack.splice( pos, 0, token );
-            else stack.push( token );
-            return stack;
-        },
-            
-        
         SimpleToken = Class({
             
-            constructor : function(name, token, style) {
+            constructor : function(type, name, token) {
                 var ayto = this;
-                ayto.tt = T_SIMPLE;
-                ayto.tn = name;
-                ayto.t = token;
-                ayto.r = style;
+                ayto.tt = type || T_SIMPLE;
+                ayto.id = name;
+                ayto.tk = token;
                 ayto.REQ = 0;
                 ayto.ERR = 0;
                 ayto.MTCH = 0;
-                ayto.CLONE = ['t', 'r'];
+                ayto.CLONE = ['tk'];
             },
             
-            // stack id
             sID: null,
-            // tokenizer/token name
-            tn: null,
+            // tokenizer/token name/id
+            id: null,
             // tokenizer type
             tt: null,
             // tokenizer token matcher
-            t: null,
-            // tokenizer return val
-            r: null,
+            tk: null,
             // tokenizer match action (optional)
             tm: null,
             REQ: 0,
@@ -52,6 +29,7 @@
             MTCH: 0,
             CLONE: null,
             
+            // tokenizer match action (optional)
             m : function(token, state) {
                 var matchAction = this.tm || null, t, T, data = state.data;
                 
@@ -81,7 +59,8 @@
                                 else t = groupReplace(t, token[1]);
                             }
                             
-                            if ( !data.length || t != data.pop() ) return t;
+                            if ( data.isEmpty() || t != data.peek() ) return t;
+                            data.pop();
                         }
                         else if ( data.length ) data.pop();
                     }
@@ -90,19 +69,24 @@
             },
             
             get : function( stream, state ) {
-                var ayto = this, matchAction = ayto.tm, token = ayto.t, 
-                    type = ayto.tt, style = ayto.r, t = null;
+                var ayto = this, matchAction = ayto.tm, token = ayto.tk, 
+                    type = ayto.tt, tokenID = ayto.id, t = null;
                 
                 ayto.MTCH = 0;
+                // match EMPTY token
+                if ( T_EMPTY == type ) 
+                { 
+                    ayto.ERR = 0;
+                    ayto.REQ = 0;
+                    return true;
+                }
                 // match EOL ( with possible leading spaces )
-                if ( T_EOL == type ) 
+                else if ( T_EOL == type ) 
                 { 
                     stream.spc();
                     if ( stream.eol() )
                     {
-                        state.t = T_DEFAULT; 
-                        //state.r = style; 
-                        return style; 
+                        return tokenID; 
                     }
                 }
                 // match non-space
@@ -115,9 +99,7 @@
                 else if ( t = token.get(stream) ) 
                 { 
                     if ( matchAction ) ayto.MTCH = ayto.m(t, state);
-                    state.t = type; 
-                    //state.r = style; 
-                    return style; 
+                    return tokenID; 
                 }
                 return false;
             },
@@ -129,9 +111,9 @@
             
             err : function() {
                 var t = this;
-                if ( t.REQ ) return ('Token "'+t.tn+'" Expected');
+                if ( t.REQ ) return ('Token "'+t.id+'" Expected');
                 else if ( t.MTCH ) return ('Token "'+t.MTCH+'" No Match')
-                return ('Syntax Error: "'+t.tn+'"');
+                return ('Syntax Error: "'+t.id+'"');
             },
         
             clone : function() {
@@ -139,7 +121,7 @@
                 
                 t = new ayto.$class();
                 t.tt = ayto.tt;
-                t.tn = ayto.tn;
+                t.id = ayto.id;
                 t.tm = (ayto.tm) ? ayto.tm.slice() : ayto.tm;
                 
                 if (toClone && toClone.length)
@@ -151,33 +133,31 @@
             },
             
             toString : function() {
-                return ['[', 'Tokenizer: ', this.tn, ', Matcher: ', ((this.t) ? this.t.toString() : null), ']'].join('');
+                return ['[', 'Tokenizer: ', this.id, ', Matcher: ', ((this.tk) ? this.tk.toString() : null), ']'].join('');
             }
         }),
         
         BlockToken = Class(SimpleToken, {
             
-            constructor : function(type, name, token, style, styleInterior, allowMultiline, escChar) {
+            constructor : function(type, name, token, allowMultiline, escChar, hasInterior) {
                 var ayto = this;
-                ayto.$super('constructor', name, token, style);
-                ayto.ri = ( 'undefined' == typeof(styleInterior) ) ? ayto.r : styleInterior;
-                ayto.tt = type;
+                ayto.$super('constructor', type, name, token);
                 // a block is multiline by default
                 ayto.mline = ( 'undefined' == typeof(allowMultiline) ) ? 1 : allowMultiline;
                 ayto.esc = escChar || "\\";
-                ayto.CLONE = ['t', 'r', 'ri', 'mline', 'esc'];
+                ayto.inter = hasInterior;
+                ayto.CLONE = ['tk', 'mline', 'esc', 'inter'];
             },    
             
-            // return val for interior
-            ri : null,
+            inter: 0,
             mline : 0,
             esc : null,
             
             get : function( stream, state ) {
             
                 var ayto = this, ended = 0, found = 0, endBlock, next = "", continueToNextLine, stackPos, 
-                    allowMultiline = ayto.mline, startBlock = ayto.t, thisBlock = ayto.tn, type = ayto.tt,
-                    style = ayto.r, styleInterior = ayto.ri, differentInterior = (style != styleInterior),
+                    allowMultiline = ayto.mline, startBlock = ayto.tk, thisBlock = ayto.id, type = ayto.tt,
+                    hasInterior = ayto.inter, thisBlockInterior = (hasInterior) ? (thisBlock+'.inside') : thisBlock,
                     charIsEscaped = 0, isEscapedBlock = (T_ESCBLOCK == type), escChar = ayto.esc,
                     isEOLBlock, alreadyIn, ret, streamPos, streamPos0, continueBlock
                 ;
@@ -198,23 +178,23 @@
                     found = 1;
                     endBlock = state.endBlock;
                     alreadyIn = 1;
-                    ret = styleInterior;
+                    ret = thisBlockInterior;
                 }    
                 else if ( !state.inBlock && (endBlock = startBlock.get(stream)) )
                 {
                     found = 1;
                     state.inBlock = thisBlock;
                     state.endBlock = endBlock;
-                    ret = style;
+                    ret = thisBlock;
                 }    
                 
                 if ( found )
                 {
-                    stackPos = state.stack.length;
+                    stackPos = state.stack.pos();
                     
                     isEOLBlock = (T_NULL == endBlock.tt);
                     
-                    if ( differentInterior )
+                    if ( hasInterior )
                     {
                         if ( alreadyIn && isEOLBlock && stream.sol() )
                         {
@@ -226,9 +206,7 @@
                         
                         if ( !alreadyIn )
                         {
-                            pushStack( state.stack, stackPos, ayto.clone(), thisBlock );
-                            state.t = type;
-                            //state.r = ret; 
+                            state.stack.pushAt( stackPos, ayto.clone(), 'sID', thisBlock );
                             return ret;
                         }
                     }
@@ -245,23 +223,23 @@
                             streamPos = stream.pos;
                             if ( !(isEscapedBlock && charIsEscaped) && endBlock.get(stream) ) 
                             {
-                                if ( differentInterior )
+                                if ( hasInterior )
                                 {
-                                    if ( stream.pos > streamPos && streamPos > streamPos0)
+                                    if ( stream.pos > streamPos && streamPos > streamPos0 )
                                     {
-                                        ret = styleInterior;
+                                        ret = thisBlockInterior;
                                         stream.bck2(streamPos);
                                         continueBlock = 1;
                                     }
                                     else
                                     {
-                                        ret = style;
+                                        ret = thisBlock;
                                         ended = 1;
                                     }
                                 }
                                 else
                                 {
-                                    ret = style;
+                                    ret = thisBlock;
                                     ended = 1;
                                 }
                                 break;
@@ -275,7 +253,7 @@
                     }
                     else
                     {
-                        ret = (isEOLBlock) ? styleInterior : style;
+                        ret = (isEOLBlock) ? thisBlockInterior : thisBlock;
                     }
                     continueToNextLine = allowMultiline || (isEscapedBlock && charIsEscaped);
                     
@@ -286,11 +264,9 @@
                     }
                     else
                     {
-                        pushStack( state.stack, stackPos, ayto.clone(), thisBlock );
+                        state.stack.pushAt( stackPos, ayto.clone(), 'sID', thisBlock );
                     }
                     
-                    state.t = type;
-                    //state.r = ret; 
                     return ret;
                 }
                 
@@ -302,11 +278,11 @@
                 
         RepeatedTokens = Class(SimpleToken, {
                 
-            constructor : function( name, tokens, min, max ) {
+            constructor : function( type, name, tokens, min, max ) {
                 var ayto = this;
-                ayto.tt = T_REPEATED;
-                ayto.tn = name || null;
-                ayto.t = null;
+                ayto.tt = type || T_REPEATED;
+                ayto.id = name || null;
+                ayto.tk = null;
                 ayto.ts = null;
                 ayto.min = min || 0;
                 ayto.max = max || INF;
@@ -335,8 +311,8 @@
                 ayto.REQ = 0;
                 ayto.MTCH = 0;
                 streamPos = stream.pos;
-                stackPos = state.stack.length;
-                stackId = ayto.tn + '_' + getId();
+                stackPos = state.stack.pos();
+                stackId = ayto.id+'_'+getId();
                 
                 for (i=0; i<n; i++)
                 {
@@ -350,7 +326,7 @@
                         {
                             // push it to the stack for more
                             ayto.found = found;
-                            pushStack( state.stack, stackPos, ayto.clone(), stackId );
+                            state.stack.pushAt( stackPos, ayto.clone(), 'sID', stackId );
                             ayto.found = 0;
                             ayto.MTCH = token.MTCH;
                             return style;
@@ -372,9 +348,8 @@
         
         EitherTokens = Class(RepeatedTokens, {
                 
-            constructor : function( name, tokens ) {
-                this.$super('constructor', name, tokens, 1, 1);
-                this.tt = T_EITHER;
+            constructor : function( type, name, tokens ) {
+                this.$super('constructor', type, name, tokens, 1, 1);
             },
             
             get : function( stream, state ) {
@@ -414,9 +389,8 @@
 
         AllTokens = Class(RepeatedTokens, {
                 
-            constructor : function( name, tokens ) {
-                this.$super('constructor', name, tokens, 1, 1);
-                this.tt = T_ALL;
+            constructor : function( type, name, tokens ) {
+                this.$super('constructor', type, name, tokens, 1, 1);
             },
             
             get : function( stream, state ) {
@@ -428,15 +402,19 @@
                 ayto.ERR = 0;
                 ayto.MTCH = 0;
                 streamPos = stream.pos;
-                stackPos = state.stack.length;
-                stackId = ayto.tn + '_' + getId();
+                stackPos = state.stack.pos();
                 token = tokens[ 0 ].clone().req( 1 );
                 style = token.get(stream, state);
+                stackId = ayto.id+'_'+getId();
                 
                 if ( false !== style )
                 {
-                    for (var i=n-1; i>0; i--)
-                        pushStack( state.stack, stackPos+n-i-1, tokens[ i ].clone().req( 1 ), stackId );
+                    // not empty token
+                    if ( true !== style )
+                    {
+                        for (var i=n-1; i>0; i--)
+                            state.stack.pushAt( stackPos+n-i-1, tokens[ i ].clone().req( 1 ), 'sID', stackId );
+                    }
                         
                     ayto.MTCH = token.MTCH;
                     return style;
@@ -457,9 +435,8 @@
                 
         NGramToken = Class(RepeatedTokens, {
                 
-            constructor : function( name, tokens ) {
-                this.$super('constructor', name, tokens, 1, 1);
-                this.tt = T_NGRAM;
+            constructor : function( type, name, tokens ) {
+                this.$super('constructor', type, name, tokens, 1, 1);
             },
             
             get : function( stream, state ) {
@@ -471,15 +448,19 @@
                 ayto.ERR = 0;
                 ayto.MTCH = 0;
                 streamPos = stream.pos;
-                stackPos = state.stack.length;
-                stackId = ayto.tn + '_' + getId();
+                stackPos = state.stack.pos();
                 token = tokens[ 0 ].clone().req( 0 );
                 style = token.get(stream, state);
+                stackId = ayto.id+'_'+getId();
                 
                 if ( false !== style )
                 {
-                    for (i=n-1; i>0; i--)
-                        pushStack( state.stack, stackPos+n-i-1, tokens[ i ].clone().req( 1 ), stackId );
+                    // not empty token
+                    if ( true !== style )
+                    {
+                        for (i=n-1; i>0; i--)
+                            state.stack.pushAt( stackPos+n-i-1, tokens[ i ].clone().req( 1 ), 'sID', stackId );
+                    }
                     
                     ayto.MTCH = token.MTCH;
                     return style;
@@ -501,19 +482,19 @@
             if ( null === tokenID )
             {
                 // EOL Tokenizer
-                token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
-                token.tt = T_EOL;
-                token.tn = 'EOL';
-                return token;
+                return new SimpleToken( T_EOL, 'EOL', tokenID );
             }
             
             else if ( "" === tokenID )
             {
                 // NONSPACE Tokenizer
-                token = new SimpleToken( tokenID, tokenID, DEFAULTSTYLE );
-                token.tt = T_NONSPACE;
-                token.tn = 'NONSPACE';
-                return token;
+                return new SimpleToken( T_NONSPACE, 'NONSPACE', tokenID );
+            }
+            
+            else if ( false === tokenID || 0 === tokenID )
+            {
+                // EMPTY Tokenizer
+                return new SimpleToken( T_EMPTY, 'EMPTY', tokenID );
             }
             
             else
@@ -533,6 +514,24 @@
                             tok = { type: "simple", tokens: tok };
                         }
                         
+                        // allow tokens to extend / reference other tokens
+                        while ( tok['extend'] )
+                        {
+                            var xtends = tok['extend'], xtendedTok = Lex[xtends] || Syntax[xtends];
+                            delete tok['extend'];
+                            if ( xtendedTok ) 
+                            {
+                                // tokens given directly, no token configuration object, wrap it
+                                if ( (T_STR | T_ARRAY) & get_type( xtendedTok ) )
+                                {
+                                    xtendedTok = { type: "simple", tokens: xtendedTok };
+                                }
+                                tok = extend(xtendedTok, tok);
+                            }
+                            // xtendedTok may in itself extebnd another tok and so on,
+                            // loop and get all references
+                        }
+                        
                         // provide some defaults
                         type = (tok.type) ? tokenTypes[ tok.type.toUpperCase().replace('-', '').replace('_', '') ] : T_SIMPLE;
                         
@@ -541,9 +540,7 @@
                             if ( "" === tok.tokens )
                             {
                                 // NONSPACE Tokenizer
-                                token = new SimpleToken( tokenID, "", DEFAULTSTYLE );
-                                token.tt = T_NONSPACE;
-                                token.tn = 'NONSPACE';
+                                token = new SimpleToken( T_NONSPACE, tokenID, tokenID );
                                 // pre-cache tokenizer to handle recursive calls to same tokenizer
                                 cachedTokens[ tokenID ] = token;
                                 return token;
@@ -551,9 +548,15 @@
                             else if ( null === tok.tokens )
                             {
                                 // EOL Tokenizer
-                                token = new SimpleToken( tokenID, "", DEFAULTSTYLE );
-                                token.tt = T_EOL;
-                                token.tn = 'EOL';
+                                token = new SimpleToken( T_EOL, tokenID, tokenID );
+                                // pre-cache tokenizer to handle recursive calls to same tokenizer
+                                cachedTokens[ tokenID ] = token;
+                                return token;
+                            }
+                            else if ( false === tok.tokens || 0 === tok.tokens )
+                            {
+                                // EMPTY Tokenizer
+                                token = new SimpleToken( T_EMPTY, tokenID, tokenID );
                                 // pre-cache tokenizer to handle recursive calls to same tokenizer
                                 cachedTokens[ tokenID ] = token;
                                 return token;
@@ -578,10 +581,8 @@
                             
                             // combine by default if possible using word-boundary delimiter
                             combine = ( 'undefined' ==  typeof(tok.combine) ) ? "\\b" : tok.combine;
-                            token = new SimpleToken( 
-                                        tokenID,
-                                        getCompositeMatcher( tokenID, tok.tokens.slice(), RegExpID, combine, cachedRegexes, cachedMatchers ), 
-                                        Style[ tokenID ] || DEFAULTSTYLE
+                            token = new SimpleToken( T_SIMPLE, tokenID,
+                                        getCompositeMatcher( tokenID, tok.tokens.slice(), RegExpID, combine, cachedRegexes, cachedMatchers )
                                     );
                             
                             token.tm = matchAction;
@@ -593,15 +594,12 @@
                         {
                             if ( T_COMMENT & type ) getComments(tok, comments);
 
-                            token = new BlockToken( 
-                                        type,
-                                        tokenID,
+                            token = new BlockToken( type, tokenID,
                                         getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, cachedRegexes, cachedMatchers ), 
-                                        Style[ tokenID ] || DEFAULTSTYLE,
-                                        // allow block delims / block interior to have different styles
-                                        Style[ tokenID + '.inside' ],
                                         tok.multiline,
-                                        tok.escape
+                                        tok.escape,
+                                        // allow block delims / block interior to have different styles
+                                        Style[ tokenID + '.inside' ] ? 1 : 0
                                     );
                             
                             // pre-cache tokenizer to handle recursive calls to same tokenizer
@@ -614,26 +612,26 @@
                             tokens = tok.tokens.slice();
                             if ( T_ARRAY & get_type( tok.match ) )
                             {
-                                token = new RepeatedTokens(tokenID, null, tok.match[0], tok.match[1]);
+                                token = new RepeatedTokens(T_REPEATED, tokenID, null, tok.match[0], tok.match[1]);
                             }
                             else
                             {
                                 matchType = groupTypes[ tok.match.toUpperCase() ]; 
                                 
                                 if (T_ZEROORONE == matchType) 
-                                    token = new RepeatedTokens(tokenID, null, 0, 1);
+                                    token = new RepeatedTokens(T_ZEROORONE, tokenID, null, 0, 1);
                                 
                                 else if (T_ZEROORMORE == matchType) 
-                                    token = new RepeatedTokens(tokenID, null, 0, INF);
+                                    token = new RepeatedTokens(T_ZEROORMORE, tokenID, null, 0, INF);
                                 
                                 else if (T_ONEORMORE == matchType) 
-                                    token = new RepeatedTokens(tokenID, null, 1, INF);
+                                    token = new RepeatedTokens(T_ONEORMORE, tokenID, null, 1, INF);
                                 
                                 else if (T_EITHER & matchType) 
-                                    token = new EitherTokens(tokenID, null);
+                                    token = new EitherTokens(T_EITHER, tokenID, null);
                                 
                                 else //if (T_ALL == matchType)
-                                    token = new AllTokens(tokenID, null);
+                                    token = new AllTokens(T_ALL, tokenID, null);
                             }
                             
                             // pre-cache tokenizer to handle recursive calls to same tokenizer
@@ -658,7 +656,7 @@
                                 // get tokenizers for each ngram part
                                 ngrams[i] = token[i].slice();
                                 // get tokenizer for whole ngram
-                                token[i] = new NGramToken( tokenID + '_NGRAM_' + i, null );
+                                token[i] = new NGramToken( T_NGRAM, tokenID + '_NGRAM_' + i, null );
                             }
                             
                             // pre-cache tokenizer to handle recursive calls to same tokenizer
