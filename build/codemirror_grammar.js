@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9
+*   @version: 0.9.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -212,16 +212,19 @@
         // javascript variable types
         INF = Infinity,
         T_NUM = 2,
+        T_NAN = 3,
+        //T_INF = 3,
         T_BOOL = 4,
         T_STR = 8,
         T_CHAR = 9,
         T_CHARLIST = 10,
-        T_REGEX = 16,
-        T_ARRAY = 32,
-        T_OBJ = 64,
-        T_NULL = 128,
-        T_UNDEF = 256,
-        T_UNKNOWN = 512,
+        T_ARRAY = 16,
+        T_OBJ = 32,
+        T_FUNC = 64,
+        T_REGEX = 128,
+        T_NULL = 256,
+        T_UNDEF = 512,
+        T_UNKNOWN = 1024,
         
         //
         // matcher types
@@ -270,32 +273,38 @@
     
     var AP = Array.prototype, OP = Object.prototype,
         slice = AP.slice, splice = AP.splice, concat = AP.concat, 
-        hasKey = OP.hasOwnProperty, toStr = OP.toString, isEnum = OP.propertyIsEnumerable,
-        Keys = Object.keys,
+        hasKey = OP.hasOwnProperty, toStr = OP.toString, 
+        isEnum = OP.propertyIsEnumerable, Keys = Object.keys,
         
         get_type = function(v) {
             var type_of = typeof(v), to_string = toStr.call(v);
             
-            if ('undefined' == type_of)  return T_UNDEF;
+            if ( "undefined" === type_of )  return T_UNDEF;
             
-            else if ('number' == type_of || v instanceof Number)  return T_NUM;
+            else if ("number" === type_of || v instanceof Number)  return isNaN(v) ? T_NAN : T_NUM;
             
             else if (null === v)  return T_NULL;
             
             else if (true === v || false === v)  return T_BOOL;
             
-            else if (v && ('string' == type_of || v instanceof String))  return (1 == v.length) ? T_CHAR : T_STR;
+            else if (v && ("string" === type_of || v instanceof String)) return (1 === v.length) ? T_CHAR : T_STR;
             
-            else if (v && ("[object RegExp]" == to_string || v instanceof RegExp))  return T_REGEX;
+            else if (v && ("[object Array]" === to_string || v instanceof Array))  return T_ARRAY;
             
-            else if (v && ("[object Array]" == to_string || v instanceof Array))  return T_ARRAY;
+            else if (v && ("[object RegExp]" === to_string || v instanceof RegExp))  return T_REGEX;
             
-            else if (v && "[object Object]" == to_string)  return T_OBJ;
+            else if (v && (("function" === type_of && "[object Function]" === to_string) || v instanceof Function))  return T_FUNC;
+            
+            else if (v && "[object Object]" === to_string)  return T_OBJ;
             
             // unkown type
             return T_UNKNOWN;
         },
-        
+        /*
+        isType = function( v, type ) { 
+            return !!( type & get_type( v ) );
+        },
+        */
         make_array = function(a, force) {
             return ( force || T_ARRAY != get_type( a ) ) ? [ a ] : a;
         },
@@ -2269,7 +2278,7 @@
   /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9
+*   @version: 0.9.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2306,7 +2315,7 @@
     DEFAULTERROR = "error";
     var CodeMirrorGrammar = {
         
-        VERSION : "0.9",
+        VERSION : "0.9.1",
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]

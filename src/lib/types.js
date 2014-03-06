@@ -9,16 +9,19 @@
         // javascript variable types
         INF = Infinity,
         T_NUM = 2,
+        T_NAN = 3,
+        //T_INF = 3,
         T_BOOL = 4,
         T_STR = 8,
         T_CHAR = 9,
         T_CHARLIST = 10,
-        T_REGEX = 16,
-        T_ARRAY = 32,
-        T_OBJ = 64,
-        T_NULL = 128,
-        T_UNDEF = 256,
-        T_UNKNOWN = 512,
+        T_ARRAY = 16,
+        T_OBJ = 32,
+        T_FUNC = 64,
+        T_REGEX = 128,
+        T_NULL = 256,
+        T_UNDEF = 512,
+        T_UNKNOWN = 1024,
         
         //
         // matcher types

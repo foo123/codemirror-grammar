@@ -39,7 +39,7 @@ HEADER =
 # do any replacements to the source (map)
 REPLACE =[{}]
 
-    "@@VERSION@@" = "0.9"
+    "@@VERSION@@" = "0.9.1"
     
     "@@MODULE_NAME@@" = "CodeMirrorGrammar"
     
