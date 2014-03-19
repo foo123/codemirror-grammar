@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9.1
+*   @version: 0.9.2
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -272,39 +272,12 @@
     var Class = Classy.Class;
     
     var AP = Array.prototype, OP = Object.prototype, FP = Function.prototype,
-        slice = FP.call.bind(AP.slice), //splice = AP.splice, concat = AP.concat, 
+        slice = FP.call.bind(AP.slice),
         hasKey = FP.call.bind(OP.hasOwnProperty), toStr = FP.call.bind(OP.toString), 
         isEnum = FP.call.bind(OP.propertyIsEnumerable), Keys = Object.keys,
         
-        get_type = function(v) {
-            var type_of = typeof(v), to_string = toStr(v);
-            
-            if ( "undefined" === type_of )  return T_UNDEF;
-            
-            else if ("number" === type_of || v instanceof Number)  return isNaN(v) ? T_NAN : T_NUM;
-            
-            else if (null === v)  return T_NULL;
-            
-            else if (true === v || false === v)  return T_BOOL;
-            
-            else if (v && ("string" === type_of || v instanceof String)) return (1 === v.length) ? T_CHAR : T_STR;
-            
-            else if (v && ("[object Array]" === to_string || v instanceof Array))  return T_ARRAY;
-            
-            else if (v && ("[object RegExp]" === to_string || v instanceof RegExp))  return T_REGEX;
-            
-            else if (v && (("function" === type_of && "[object Function]" === to_string) || v instanceof Function))  return T_FUNC;
-            
-            else if (v && "[object Object]" === to_string)  return T_OBJ;
-            
-            // unkown type
-            return T_UNKNOWN;
-        },
-        /*
-        isType = function( v, type ) { 
-            return !!( type & get_type( v ) );
-        },
-        */
+        get_type = Classy.Type,
+
         make_array = function(a, force) {
             return ( force || T_ARRAY != get_type( a ) ) ? [ a ] : a;
         },
@@ -2278,7 +2251,7 @@
   /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9.1
+*   @version: 0.9.2
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2315,7 +2288,7 @@
     DEFAULTERROR = "error";
     var CodeMirrorGrammar = {
         
-        VERSION : "0.9.1",
+        VERSION : "0.9.2",
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]
