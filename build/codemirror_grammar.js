@@ -271,13 +271,13 @@
     
     var Class = Classy.Class;
     
-    var AP = Array.prototype, OP = Object.prototype,
-        slice = AP.slice, splice = AP.splice, concat = AP.concat, 
-        hasKey = OP.hasOwnProperty, toStr = OP.toString, 
-        isEnum = OP.propertyIsEnumerable, Keys = Object.keys,
+    var AP = Array.prototype, OP = Object.prototype, FP = Function.prototype,
+        slice = FP.call.bind(AP.slice), //splice = AP.splice, concat = AP.concat, 
+        hasKey = FP.call.bind(OP.hasOwnProperty), toStr = FP.call.bind(OP.toString), 
+        isEnum = FP.call.bind(OP.propertyIsEnumerable), Keys = Object.keys,
         
         get_type = function(v) {
-            var type_of = typeof(v), to_string = toStr.call(v);
+            var type_of = typeof(v), to_string = toStr(v);
             
             if ( "undefined" === type_of )  return T_UNDEF;
             
@@ -323,7 +323,7 @@
             var co = {}, k;
             for (k in o) 
             {
-                if ( hasKey.call(o, k) && isEnum.call(o, k) ) 
+                if ( hasKey(o, k) && isEnum(o, k) ) 
                 { 
                     T2 = get_type( o[k] );
                     
@@ -338,7 +338,7 @@
         },
         
         extend = function() {
-            var args = slice.call(arguments), argslen = args.length;
+            var args = slice(arguments), argslen = args.length;
             
             if ( argslen<1 ) return null;
             else if ( argslen<2 ) return clone( args[0] );
@@ -353,9 +353,9 @@
                 
                 for (k in o2) 
                 { 
-                    if ( hasKey.call(o2, k) && isEnum.call(o2, k) )
+                    if ( hasKey(o2, k) && isEnum(o2, k) )
                     {
-                        if ( hasKey.call(o1, k) && isEnum.call(o1, k) ) 
+                        if ( hasKey(o1, k) && isEnum(o1, k) ) 
                         { 
                             T = get_type( o1[k] );
                             
