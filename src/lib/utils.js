@@ -2,7 +2,7 @@
     var Class = Classy.Class;
     
     var AP = Array.prototype, OP = Object.prototype, FP = Function.prototype,
-        slice = FP.call.bind(AP.slice),
+        slice = FP.call.bind(AP.slice), concat = AP.concat,
         hasKey = FP.call.bind(OP.hasOwnProperty), toStr = FP.call.bind(OP.toString), 
         isEnum = FP.call.bind(OP.propertyIsEnumerable), Keys = Object.keys,
         
