@@ -39,12 +39,11 @@ HEADER =
 # do any replacements to the source (map)
 REPLACE =[{}]
 
-    "@@VERSION@@" = "0.9.2"
-    
+    "@@ROOT@@" = "this"
+    "@@EXPORTS@@" = "exports"
+    "@@VERSION@@" = "0.9.3"
     "@@MODULE_NAME@@" = "CodeMirrorGrammar"
-    
-    "@@MODULE_DEPENDENCIES@@" = "[ ['Classy', './classy'],  ['RegExAnalyzer', './regexanalyzer'] ]"
-    
+    "@@MODULE_DEPENDENCIES@@" = "[ ['Classy', 'RegExAnalyzer'],  ['./classy.js', './regexanalyzer.js'] ]"
     "@@MODULE_ARGUMENTS@@"  = "Classy, RegexAnalyzer, undef"
     
 @ # end block

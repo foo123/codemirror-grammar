@@ -1,205 +1,151 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9.2
+*   @version: 0.9.3
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
 *
-**/!function ( root, name, deps, factory, undef ) {
-
-    var isNode = (typeof global !== "undefined" && {}.toString.call(global) == '[object global]') ? 1 : 0,
-        isBrowser = (!isNode && typeof navigator !== "undefined") ? 1 : 0, 
-        isWorker = (typeof importScripts === "function" && navigator instanceof WorkerNavigator) ? 1 : 0,
-        A = Array, AP = A.prototype
-    ;
-    // Get current filename/path
-    var getCurrentPath = function() {
-            var file = null;
-            if ( isNode ) 
-            {
-                // http://nodejs.org/docs/latest/api/globals.html#globals_filename
-                // this should hold the current file in node
-                file = __filename;
-                return { path: __dirname, file: __filename };
-            }
-            else if ( isWorker )
-            {
-                // https://developer.mozilla.org/en-US/docs/Web/API/WorkerLocation
-                // this should hold the current url in a web worker
-                file = self.location.href;
-            }
-            else if ( isBrowser )
-            {
-                // get last script (should be the current one) in browser
-                var scripts;
-                if ((scripts = document.getElementsByTagName('script')) && scripts.length) 
-                    file  = scripts[scripts.length - 1].src;
-            }
-            
-            if ( file )
-                return { path: file.split('/').slice(0, -1).join('/'), file: file };
-            return { path: null, file: null };
-        },
-        thisPath = getCurrentPath(),
-        makePath = function(base, dep) {
-            if ( isNode )
-            {
-                //return require('path').join(base, dep);
-                return dep;
-            }
-            if ( "." == dep.charAt(0) ) 
-            {
-                base = base.split('/');
-                dep = dep.split('/'); 
-                var index = 0, index2 = 0, i, l = dep.length, l2 = base.length;
-                
-                for (i=0; i<l; i++)
-                {
-                    if ( /^\.\./.test( dep[i] ) )
-                    {
-                        index++;
-                        index2++;
-                    }
-                    else if ( /^\./.test( dep[i] ) )
-                    {
-                        index2++;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-                index = ( index >= l2 ) ? 0 : l2-index;
-                dep = base.slice(0, index).concat( dep.slice( index2 ) ).join('/');
-            }
-            return dep;
-        }
-    ;
+**/!function ( root, name, deps, factory ) {
+    "use strict";
     
     //
-    // export the module in a umd-style generic way
-    deps = ( deps ) ? [].concat(deps) : [];
-    var i, dl = deps.length, ids = new A( dl ), paths = new A( dl ), fpaths = new A( dl ), mods = new A( dl ), _module_, head;
-        
-    for (i=0; i<dl; i++) { ids[i] = deps[i][0]; paths[i] = deps[i][1]; fpaths[i] = /\.js$/i.test(paths[i]) ? makePath(thisPath.path, paths[i]) : makePath(thisPath.path, paths[i]+'.js'); }
+    // export the module umd-style (with deps bundled-in or external)
     
-    // node, commonjs, etc..
-    if ( 'object' == typeof( module ) && module.exports ) 
+    // Get current filename/path
+    function currentPath( isNode, isWebWorker, isAMD, isBrowser, amdMod ) 
     {
-        if ( undef === module.exports[name] )
-        {
-            for (i=0; i<dl; i++)  mods[i] = module.exports[ ids[i] ] || require( fpaths[i] )[ ids[i] ];
-            _module_ = factory.apply(root, mods );
-            // allow factory just to add to existing modules without returning a new module
-            module.exports[ name ] = _module_ || 1;
-        }
+        var f;
+        if ( isNode ) 
+            return { file: __filename, path: __dirname };
+        else if ( isWebWorker )
+            return { file: (f=self.location.href), path: f.split('/').slice(0, -1).join('/') };
+        else if ( isAMD && amdMod && amdMod.uri ) 
+            return { file: (f=amdMod.uri), path: f.split('/').slice(0, -1).join('/') };
+        else if ( isBrowser && (f = document.getElementsByTagName('script')) && f.length ) 
+            return { file: (f=f[f.length - 1].src), path: f.split('/').slice(0, -1).join('/') };
+        return { path: null, file: null };
     }
     
-    // amd, etc..
-    else if ( 'function' == typeof( define ) && define.amd ) 
+    // load javascript(s) async using <script> tags in browser
+    function loadScripts( root, base, names, paths, mods, callback )
     {
-        define( ['exports'].concat( paths ), function( exports ) {
-            if ( undef === exports[name] )
-            {
-                var args = AP.slice.call( arguments, 1 ), dl = args.length;
-                for (var i=0; i<dl; i++)   mods[i] = exports[ ids[i] ] || args[ i ];
-                _module_ = factory.apply(root, mods );
-                // allow factory just to add to existing modules without returning a new module
-                exports[ name ] = _module_ || 1;
-            }
-        });
-    }
-    
-    // web worker
-    else if ( isWorker ) 
-    {
-        for (i=0; i<dl; i++)  
-        {
-            if ( !self[ ids[i] ] ) importScripts( fpaths[i] );
-            mods[i] = self[ ids[i] ];
-        }
-        _module_ = factory.apply(root, mods );
-        // allow factory just to add to existing modules without returning a new module
-        self[ name ] = _module_ || 1;
-    }
-    
-    // browsers, other loaders, etc..
-    else
-    {
-        if ( undef === root[name] )
-        {
-            /*
-            for (i=0; i<dl; i++)  mods[i] = root[ ids[i] ];
-            _module_ = factory.apply(root, mods );
-            // allow factory just to add to existing modules without returning a new module
-            root[name] = _module_ || 1;
-            */
-            
-            // load javascript async using <script> tags in browser
-            var loadJs = function(url, callback) {
-                head = head || document.getElementsByTagName("head")[0];
-                var done = 0, script = document.createElement('script');
-                
-                script.type = 'text/javascript';
-                script.language = 'javascript';
-                script.src = url;
-                script.onload = script.onreadystatechange = function() {
-                    if (!done && (!script.readyState || script.readyState == 'loaded' || script.readyState == 'complete'))
-                    {
-                        done = 1;
-                        script.onload = script.onreadystatechange = null;
-                        head.removeChild( script );
-                        script = null;
-                        if ( callback )  callback();
-                    }
+        loadScripts.head = loadScripts.head || document.getElementsByTagName("head")[ 0 ];
+        loadScripts.link = loadScripts.link || document.createElement( 'a' );
+        var i = 0, dl = names.length, rel = /^\./, t = 0;
+        var load = function( url, cb ) {
+            var head = loadScripts.head, link = loadScripts.link, done = 0, script = document.createElement('script');
+            script.type = 'text/javascript'; script.language = 'javascript';
+            script.onload = script.onreadystatechange = function( ) {
+                if (!done && (!script.readyState || script.readyState == 'loaded' || script.readyState == 'complete'))
+                {
+                    done = 1;
+                    script.onload = script.onreadystatechange = null;
+                    cb( );
+                    head.removeChild( script ); script = null;
                 }
-                // load it
-                head.appendChild( script );
-            };
+            }
+            if ( rel.test( url ) ) 
+            {
+                // http://stackoverflow.com/a/14781678/3591273
+                // let the browser generate abs path
+                link.href = base + url;
+                url = link.protocol + "//" + link.host + link.pathname + link.search + link.hash;
+            }
+            // load it
+            script.src = url; head.appendChild( script );
+        };
+        var next = function( ) {
+            if ( names[ i ] in root )
+            {
+                mods[ i ] = root[ names[ i ] ];
+                if ( ++i >= dl ) callback( );
+                else if ( names[ i ] in root ) next( ); 
+                else load( paths[ i ], next );
+            }
+            else if ( ++t < 30 ) { setTimeout( next, 30 ); }
+            else { t = 0; i++; next( ); }
+        };
+        while ( i < dl && (names[ i ] in root) ) mods[ i ] = root[ names[ i++ ] ];
+        if ( i < dl ) load( paths[ i ], next );
+        else callback( );
+    }
 
-            var loadNext = function(id, url, callback) { 
-                    if ( !root[ id ] ) 
-                        loadJs( url, callback ); 
-                    else
-                        callback();
-                },
-                continueLoad = function( i ) {
-                    return function() {
-                        if ( i < dl )  mods[ i ] = root[ ids[ i ] ];
-                        if ( ++i < dl )
-                        {
-                            loadNext( ids[ i ], fpaths[ i ], continueLoad( i ) );
-                        }
-                        else
-                        {
-                            _module_ = factory.apply(root, mods );
-                            // allow factory just to add to existing modules without returning a new module
-                            root[ name ] = _module_ || 1;
-                        }
-                    };
-                }
-            ;
-            if ( dl ) 
-            {
-                loadNext( ids[ 0 ], fpaths[ 0 ], continueLoad( 0 ) );
-            }
-            else
-            {
-                _module_ = factory.apply(root, mods );
-                // allow factory just to add to existing modules without returning a new module
-                root[ name ] = _module_ || 1;
-            }
+    deps = deps || [[],[]]; name = name && name.length ? name : 0;
+    
+    var isNode = ("undefined" !== typeof(global)) && ("[object global]" === {}.toString.call(global)),
+        isBrowser = !isNode && ("undefined" !== typeof(navigator)), 
+        isWebWorker = !isNode && ("function" === typeof(importScripts)) && (navigator instanceof WorkerNavigator),
+        isAMD = ("function" === typeof(define)) && define.amd,
+        isCommonJS = isNode && ("object" === typeof(module)) && module.exports,
+        names = [].concat(deps[0]), paths = [].concat(deps[1]), dl = names.length, mods = new Array( dl ),
+        basePath = currentPath( isNode, isWebWorker, isAMD, isBrowser ), defineAMD, requireJSPath, ext_js = /\.js$/i, i, m
+    ;
+    
+    // commonjs, node, etc..
+    if ( isCommonJS ) 
+    {
+        module.$deps = module.$deps || {};
+        for (i=0; i<dl; i++)  mods[ i ] = module.$deps[ names[ i ] ] || require( paths[ i ] );
+        m = factory.apply( root, [{NODE:module}].concat(mods) ) || 1;
+        name && (module.exports = module.$deps[ name ] = m);
+    }
+    
+    // amd, requirejs, etc..
+    else if ( isAMD && ("function" === typeof(require)) && ("function" === typeof(require.specified)) &&
+        name && require.specified(name) ) 
+    {
+        if ( !require.defined(name) )
+        {
+            requireJSPath = { };
+            for (i=0; i<dl; i++) 
+                require.specified( names[ i ] ) || (requireJSPath[ names[ i ] ] = paths[ i ].replace(ext_js, ''));
+            //requireJSPath[ name ] = basePath.file.replace(ext_js, '');
+            require.config({ paths: requireJSPath });
+            defineAMD = function( require, exports, module ) {
+                for (i=0; i<dl; i++) mods[ i ] = arguments[i+3]; /*require( paths[ i ] );*/
+                return factory.apply( root, [{AMD:module}].concat(mods) );
+            };
+            names = ["require", "exports", "module"].concat( names );
+            // named modules, require the module by name given
+            name ? define( name, names, defineAMD ) : define( names, defineAMD );
         }
+    }
+    
+    // web worker + AMD
+    else if ( isWebWorker ) 
+    {
+        if ( !(name in self) )
+        {
+            for (i=0; i<dl; i++)  
+            {
+                if ( !(names[ i ] in self) ) importScripts( paths[ i ] );
+                mods[ i ] = self[ names[ i ] ];
+            }
+            m = factory.apply( root, [{}].concat(mods) ) || 1;
+            name && (self[name] = m) && isAMD && define( name, ["require"], function( ){ return m; } );
+        }
+    }
+    
+    // browsers, other loaders, etc.. + AMD
+    else if ( !(name in root) ) /*if ( isBrowser )*/
+    {
+        if ( dl > 0 ) 
+            loadScripts( root, basePath.path + '/', names, paths, mods, function( ){ 
+                m = factory.apply( root, [{}].concat(mods) ) || 1; 
+                name && (root[ name ] = m);
+            });
+        else (m = factory.call( root, {} ) || 1) && name && (root[ name ] = m);
+        name && isAMD && define( name, ["require"], function( ){ return m; } );
     }
 
 
 }(  /* current root */          this, 
     /* module name */           "CodeMirrorGrammar",
-    /* module dependencies */   [ ['Classy', './classy'],  ['RegExAnalyzer', './regexanalyzer'] ], 
-    /* module factory */        function( Classy, RegexAnalyzer, undef ) {
+    /* module dependencies */   [ ['Classy', 'RegExAnalyzer'],  ['./classy.js', './regexanalyzer.js'] ], 
+    /* module factory */        function( exports, Classy, RegexAnalyzer, undef ) {
         
-        /* main code starts here */
+    /* main code starts here */
 
         
     //
@@ -2251,7 +2197,7 @@
   /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9.2
+*   @version: 0.9.3
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2286,9 +2232,9 @@
     [/DOC_MARKDOWN]**/
     DEFAULTSTYLE = null;
     DEFAULTERROR = "error";
-    var CodeMirrorGrammar = {
+    var CodeMirrorGrammar = exports.CodeMirrorGrammar = {
         
-        VERSION : "0.9.2",
+        VERSION : "0.9.3",
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]
@@ -2333,10 +2279,8 @@
         [/DOC_MARKDOWN]**/
         getMode : getMode
     };
-
-
-    /* main code ends here */
     
-    /* export the module "CodeMirrorGrammar" */
-    return CodeMirrorGrammar;
+    /* main code ends here */
+    /* export the module */
+    return exports["CodeMirrorGrammar"];
 });
