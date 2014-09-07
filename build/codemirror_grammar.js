@@ -2218,7 +2218,7 @@
     [/DOC_MARKDOWN]**/
     DEFAULTSTYLE = null;
     DEFAULTERROR = "error";
-    var CodeMirrorGrammar = exports.CodeMirrorGrammar = {
+    var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
         
         VERSION : "0.9.3",
         
