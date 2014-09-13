@@ -141,7 +141,7 @@
             
             constructor : function(type, name, token, allowMultiline, escChar, hasInterior) {
                 var ayto = this;
-                ayto.$super('constructor', type, name, token);
+                ayto.$superv('constructor', [type, name, token]);
                 // a block is multiline by default
                 ayto.mline = ( 'undefined' == typeof(allowMultiline) ) ? 1 : allowMultiline;
                 ayto.esc = escChar || "\\";
@@ -349,7 +349,7 @@
         EitherTokens = Class(RepeatedTokens, {
                 
             constructor : function( type, name, tokens ) {
-                this.$super('constructor', type, name, tokens, 1, 1);
+                this.$superv('constructor', [type, name, tokens, 1, 1]);
             },
             
             get : function( stream, state ) {
@@ -390,7 +390,7 @@
         AllTokens = Class(RepeatedTokens, {
                 
             constructor : function( type, name, tokens ) {
-                this.$super('constructor', type, name, tokens, 1, 1);
+                this.$superv('constructor', [type, name, tokens, 1, 1]);
             },
             
             get : function( stream, state ) {
@@ -436,7 +436,7 @@
         NGramToken = Class(RepeatedTokens, {
                 
             constructor : function( type, name, tokens ) {
-                this.$super('constructor', type, name, tokens, 1, 1);
+                this.$superv('constructor', [type, name, tokens, 1, 1]);
             },
             
             get : function( stream, state ) {

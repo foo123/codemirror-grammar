@@ -41,7 +41,7 @@ REPLACE =[{}]
 
     "@@ROOT@@" = "this"
     "@@EXPORTS@@" = "exports"
-    "@@VERSION@@" = "0.9.3"
+    "@@VERSION@@" = "0.9.4"
     "@@MODULE_NAME@@" = "CodeMirrorGrammar"
     "@@MODULE_DEPENDENCIES@@" = "[ ['Classy', 'RegExAnalyzer'],  ['./classy.js', './regexanalyzer.js'] ]"
     "@@MODULE_ARGUMENTS@@"  = "Classy, RegexAnalyzer, undef"

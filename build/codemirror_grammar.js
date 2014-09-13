@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9.3
+*   @version: 0.9.4
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -1225,7 +1225,7 @@
             
             constructor : function(type, name, token, allowMultiline, escChar, hasInterior) {
                 var ayto = this;
-                ayto.$super('constructor', type, name, token);
+                ayto.$superv('constructor', [type, name, token]);
                 // a block is multiline by default
                 ayto.mline = ( 'undefined' == typeof(allowMultiline) ) ? 1 : allowMultiline;
                 ayto.esc = escChar || "\\";
@@ -1433,7 +1433,7 @@
         EitherTokens = Class(RepeatedTokens, {
                 
             constructor : function( type, name, tokens ) {
-                this.$super('constructor', type, name, tokens, 1, 1);
+                this.$superv('constructor', [type, name, tokens, 1, 1]);
             },
             
             get : function( stream, state ) {
@@ -1474,7 +1474,7 @@
         AllTokens = Class(RepeatedTokens, {
                 
             constructor : function( type, name, tokens ) {
-                this.$super('constructor', type, name, tokens, 1, 1);
+                this.$superv('constructor', [type, name, tokens, 1, 1]);
             },
             
             get : function( stream, state ) {
@@ -1520,7 +1520,7 @@
         NGramToken = Class(RepeatedTokens, {
                 
             constructor : function( type, name, tokens ) {
-                this.$super('constructor', type, name, tokens, 1, 1);
+                this.$superv('constructor', [type, name, tokens, 1, 1]);
             },
             
             get : function( stream, state ) {
@@ -2183,7 +2183,7 @@
   /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9.3
+*   @version: 0.9.4
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2220,7 +2220,7 @@
     DEFAULTERROR = "error";
     var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
         
-        VERSION : "0.9.3",
+        VERSION : "0.9.4",
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]
