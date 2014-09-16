@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9.4
+*   @version: 0.9.5
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2183,7 +2183,7 @@
   /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9.4
+*   @version: 0.9.5
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2220,7 +2220,7 @@
     DEFAULTERROR = "error";
     var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
         
-        VERSION : "0.9.4",
+        VERSION : "0.9.5",
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]
