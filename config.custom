@@ -1,0 +1,106 @@
+###################################################
+#
+#   The buildtools repository is at:
+#   https://github.com/foo123/Beeld
+#
+###################################################
+
+tasks =[{}]
+    
+    build ={}
+        
+        src =[]
+            
+            !tpl:umd-header.tpl.js  # include a umd-header template
+            ./src/lib/types.js
+            ./src/lib/utils.js
+            ./src/lib/stream.js
+            ./src/lib/stack.js
+            ./src/lib/state.js
+            ./src/factories/matchers.js
+            ./src/factories/tokenizers.js
+            ./src/factories/parsers.js
+            #./src/factories/workers.js
+            ./src/main.js
+            !tpl:umd-footer.tpl.js  # include a umd-footer template
+
+        @ # end block
+
+        # extract header from this file
+        header = ./src/main.js
+
+        # do any replacements to the source (orderedmap)
+        replace =[{}]
+
+            "@@ROOT@@" = "this"
+            "@@EXPORTS@@" = "exports"
+            "@@VERSION@@" = "0.9.5"
+            "@@MODULE_NAME@@" = "CodeMirrorGrammar"
+            "@@MODULE_DEPENDENCIES@@" = "[ ['Classy', 'RegExAnalyzer'],  ['./classy.js', './regexanalyzer.js'] ]"
+            "@@MODULE_ARGUMENTS@@"  = "Classy, RegexAnalyzer, undef"
+            
+        @ # end block
+
+        out = ./build/codemirror_grammar.js
+        
+    @ # end block
+    
+    minify ={}
+        
+        src =[]
+            
+            ./build/codemirror_grammar.js
+            
+        @ # end block
+
+
+        # extract documentation from the source (map)
+        doc ={}
+            "startdoc" = "/**[DOC_MARKDOWN]"
+            "enddoc" = "[/DOC_MARKDOWN]**/"
+            "trimx" = "\\s*\\*[ ]?"
+            "output" = "./api-reference.md"
+        @ # end block
+
+
+        # Minify the Package (map of lists)
+        minify ={}
+
+            # Options for Node UglifyJS Compiler (if used, default), (mangle and compress)
+            "uglifyjs" =[]
+                -m -c
+            @ # end block
+
+            # Options for Java Closure Compiler (if used)
+            "closure" =[]
+                "--language_in=ECMASCRIPT5_STRICT"
+            @ # end block
+
+            # Options for Java YUI Compressor Compiler (if used)
+            "yui" =[]
+                --preserve-semi
+            @ # end block
+
+        @ # end block
+
+        out = ./build/codemirror_grammar.min.js
+    
+    @ # end block
+    
+    bundle ={}
+        
+        bundle =[]
+            
+            ## bundle-in external dependencies ##
+            ./build/classy.js
+            ./build/regexanalyzer.js
+            ./build/codemirror_grammar.min.js
+            
+        @ # end block
+
+
+        out = ./build/codemirror_grammar.bundle.js
+    
+    @ # end block
+
+@ # end block
