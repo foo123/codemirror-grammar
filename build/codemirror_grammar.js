@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9.5
+*   @version: 0.10
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -128,8 +128,8 @@
 
 }(  /* current root */          this, 
     /* module name */           "CodeMirrorGrammar",
-    /* module dependencies */   [ ['Classy', 'RegExAnalyzer'],  ['./classy.js', './regexanalyzer.js'] ], 
-    /* module factory */        function( exports, Classy, RegexAnalyzer, undef ) {
+    /* module dependencies */   [ ['RegexAnalyzer'],  ['./RegexAnalyzer.js'] ], 
+    /* module factory */        function( exports, RegexAnalyzer, undef ) {
         
     /* main code starts here */
 
@@ -143,20 +143,6 @@
         //
         // javascript variable types
         INF = Infinity,
-        T_NUM = 2,
-        T_NAN = 3,
-        //T_INF = 3,
-        T_BOOL = 4,
-        T_STR = 8,
-        T_CHAR = 9,
-        T_CHARLIST = 10,
-        T_ARRAY = 16,
-        T_OBJ = 32,
-        T_FUNC = 64,
-        T_REGEX = 128,
-        T_NULL = 256,
-        T_UNDEF = 512,
-        T_UNKNOWN = 1024,
         
         //
         // matcher types
@@ -201,40 +187,109 @@
         }
     ;
     
-    var Class = Classy.Class;
-    
-    var AP = Array.prototype, OP = Object.prototype, FP = Function.prototype,
-        slice = FP.call.bind(AP.slice), concat = AP.concat,
-        hasKey = FP.call.bind(OP.hasOwnProperty), toStr = FP.call.bind(OP.toString), 
-        isEnum = FP.call.bind(OP.propertyIsEnumerable), Keys = Object.keys,
+    var PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'propertyIsEnumerable',
+        Keys = Object.keys, AP = Array[PROTO], OP = Object[PROTO], FP = Function[PROTO],
+        toString = OP.toString, 
         
-        get_type = Classy.Type,
-
+        // types
+        //T_INF = 5,
+        T_NUM = 4, T_NAN = 5,  T_BOOL = 8,
+        T_STR = 16, T_CHAR = 17, T_CHARLIST = 18,
+        T_ARRAY = 32, T_OBJ = 64, T_FUNC = 128,  T_REGEX = 256,
+        T_NULL = 512, T_UNDEF = 1024, T_UNKNOWN = 2048,
+        T_STR_OR_ARRAY = T_STR|T_ARRAY, T_OBJ_OR_ARRAY = T_OBJ|T_ARRAY
+        TO_STRING = {
+            "[object Array]"    : T_ARRAY,
+            "[object RegExp]"   : T_REGEX,
+            "[object Number]"   : T_NUM,
+            "[object String]"   : T_STR,
+            "[object Function]" : T_FUNC,
+            "[object Object]"   : T_OBJ
+        },
+        get_type = function( v ) {
+            var /*type_of,*/ to_string;
+            
+            if (null === v)  return T_NULL;
+            else if (true === v || false === v)  return T_BOOL;
+            else if (undef === v /*|| "undefined" === type_of*/)  return T_UNDEF;
+            
+            //type_of = typeOf(v);
+            to_string = toString.call( v );
+            //to_string = TO_STRING[HAS](to_string) ? TO_STRING[to_string] : T_UNKNOWN;
+            to_string = TO_STRING[to_string] || T_UNKNOWN;
+            
+            //if (undef === v /*|| "undefined" === type_of*/)  return T_UNDEF;
+            if (T_NUM === to_string || v instanceof Number)  return isNaN(v) ? T_NAN : T_NUM;
+            else if (T_STR === to_string || v instanceof String) return (1 === v.length) ? T_CHAR : T_STR;
+            else if (T_ARRAY === to_string || v instanceof Array)  return T_ARRAY;
+            else if (T_REGEX === to_string || v instanceof RegExp)  return T_REGEX;
+            else if (T_FUNC === to_string || v instanceof Function)  return T_FUNC;
+            else if (T_OBJ === to_string)  return T_OBJ;
+            // unkown type
+            return T_UNKNOWN;
+        },
+        
+        Extend = Object.create,
+        Merge = function(/* var args here.. */) { 
+            var args = arguments, argslen, 
+                o1, o2, v, p, i, T;
+            o1 = args[0] || {}; 
+            argslen = args.length;
+            for (i=1; i<argslen; i++)
+            {
+                o2 = args[ i ];
+                if ( T_OBJ === get_type( o2 ) )
+                {
+                    for (p in o2)
+                    {            
+                        if ( o2[HAS](p) && o2[IS_ENUM](p) ) 
+                        {
+                            v = o2[p];
+                            T = get_type( v );
+                            
+                            if ( T_NUM & T )
+                                // shallow copy for numbers, better ??
+                                o1[p] = 0 + v;  
+                            
+                            else if ( T_STR_OR_ARRAY & T )
+                                // shallow copy for arrays or strings, better ??
+                                o1[p] = v.slice(0);  
+                            
+                            else
+                                // just reference copy
+                                o1[p] = v;  
+                        }
+                    }
+                }
+            }
+            return o1; 
+        },
+        
         make_array = function(a, force) {
-            return ( force || T_ARRAY != get_type( a ) ) ? [ a ] : a;
+            return ( force || T_ARRAY !== get_type( a ) ) ? [ a ] : a;
         },
         
         make_array_2 = function(a, force) {
             a = make_array( a, force );
-            if ( force || T_ARRAY != get_type( a[0] ) ) a = [ a ]; // array of arrays
+            if ( force || T_ARRAY !== get_type( a[0] ) ) a = [ a ]; // array of arrays
             return a;
         },
         
         clone = function(o) {
             var T = get_type( o ), T2;
             
-            if ( !((T_OBJ | T_ARRAY) & T) ) return o;
+            if ( !(T_OBJ_OR_ARRAY & T) ) return o;
             
             var co = {}, k;
             for (k in o) 
             {
-                if ( hasKey(o, k) && isEnum(o, k) ) 
+                if ( o[HAS](k) && o[IS_ENUM](k) ) 
                 { 
                     T2 = get_type( o[k] );
                     
                     if (T_OBJ & T2)  co[k] = clone(o[k]);
                     
-                    else if (T_ARRAY & T2)  co[k] = o[k].slice();
+                    else if (T_STR_OR_ARRAY & T2)  co[k] = o[k].slice();
                     
                     else  co[k] = o[k]; 
                 }
@@ -243,24 +298,24 @@
         },
         
         extend = function() {
-            var args = slice(arguments), argslen = args.length;
+            var args = arguments, argslen = args.length;
             
             if ( argslen<1 ) return null;
             else if ( argslen<2 ) return clone( args[0] );
             
-            var o1 = args.shift(), o2, o = clone(o1), i, k, T; 
+            var o1 = args[0], o2, o = clone(o1), i, k, T; 
             argslen--;            
             
-            for (i=0; i<argslen; i++)
+            for (i=1; i<argslen; i++)
             {
-                o2 = args.shift();
+                o2 = args[i];
                 if ( !o2 ) continue;
                 
                 for (k in o2) 
                 { 
-                    if ( hasKey(o2, k) && isEnum(o2, k) )
+                    if ( o2[HAS](k) && o2[IS_ENUM](k) )
                     {
-                        if ( hasKey(o1, k) && isEnum(o1, k) ) 
+                        if ( o1[HAS](k) && o1[IS_ENUM](k) ) 
                         { 
                             T = get_type( o1[k] );
                             
@@ -314,7 +369,7 @@
             if ( l && rid == r.substr(0, l) ) 
             {
                 var regexSource = r.substr(l), delim = regexSource[0], flags = '',
-                    regexBody, regexID, regex, chars, analyzer, i, ch
+                    regexBody, regexID, regex, chars, i, ch
                 ;
                 
                 // allow regex to have delimiters and flags
@@ -335,10 +390,9 @@
                 if ( !cachedRegexes[ regexID ] )
                 {
                     regex = new RegExp( regexID, flags );
-                    analyzer = new RegexAnalyzer( regex ).analyze();
-                    chars = analyzer.getPeekChars();
-                    if ( !Keys(chars.peek).length )  chars.peek = null;
-                    if ( !Keys(chars.negativepeek).length )  chars.negativepeek = null;
+                    chars = new RegexAnalyzer( regex ).peek();
+                    if ( null !== chars.peek && !Keys(chars.peek).length )  chars.peek = null;
+                    if ( null !== chars.negativepeek && !Keys(chars.negativepeek).length )  chars.negativepeek = null;
                     
                     // shared, light-weight
                     cachedRegexes[ regexID ] = [ regex, chars ];
@@ -405,8 +459,7 @@
     
     //
     // Stream Class
-    var
-        Max = Math.max, spcRegex = /^[\s\u00a0]+/, spc = /[^\s\u00a0]/,
+    var Max = Math.max, spcRegex = /^[\s\u00a0]+/, spc = /[^\s\u00a0]/,
         // Counts the column offset in a string, taking tabs into account.
         // Used mostly to find indentation.
         // adapted from CodeMirror
@@ -423,528 +476,538 @@
         },
         
         // a wrapper-class to manipulate a string as a stream, based on Codemirror's StringStream
-        Stream = Class({
-            
-            constructor: function( line ) {
-                var ayto = this;
-                ayto._ = null;
-                ayto.s = (line) ? ''+line : '';
-                ayto.start = ayto.pos = 0;
-                ayto.lCP = ayto.lCV = 0;
-                ayto.lS = 0;
-            },
-            
-            // abbreviations used for optimal minification
-            _: null,
-            s: '',
-            start: 0,
-            pos: 0,
-            // last column pos
-            lCP: 0,
-            // last column value
-            lCV: 0,
-            // line start
-            lS: 0,
-            
-            toString: function( ) { return this.s; },
-            
-            fromStream: function( _ ) {
-                var ayto = this;
-                ayto._ = _;
-                ayto.s = ''+_.string;
-                ayto.start = _.start;
-                ayto.pos = _.pos;
-                ayto.lCP = _.lastColumnPos;
-                ayto.lCV = _.lastColumnValue;
-                ayto.lS = _.lineStart;
-                return ayto;
-            },
-            
-            // string start-of-line?
-            sol: function( ) { return 0 == this.pos; },
-            
-            // string end-of-line?
-            eol: function( ) { return this.pos >= this.s.length; },
-            
-            // char match
-            chr: function( pattern, eat ) {
-                var ayto = this, ch = ayto.s.charAt(ayto.pos) || null;
-                if (ch && pattern == ch) 
-                {
-                    if (false !== eat) 
-                    {
-                        ayto.pos += 1;
-                        if ( ayto._ ) ayto._.pos = ayto.pos;
-                    }
-                    return ch;
-                }
-                return false;
-            },
-            
-            // char list match
-            chl: function( pattern, eat ) {
-                var ayto = this, ch = ayto.s.charAt(ayto.pos) || null;
-                if ( ch && (-1 < pattern.indexOf( ch )) ) 
-                {
-                    if (false !== eat) 
-                    {
-                        ayto.pos += 1;
-                        if ( ayto._ ) ayto._.pos = ayto.pos;
-                    }
-                    return ch;
-                }
-                return false;
-            },
-            
-            // string match
-            str: function( pattern, startsWith, eat ) {
-                var ayto = this, len, pos = ayto.pos, str = ayto.s, ch = str.charAt(pos) || null;
-                if ( ch && startsWith[ ch ] )
-                {
-                    len = pattern.length; 
-                    if (pattern == str.substr(pos, len)) 
-                    {
-                        if (false !== eat) 
-                        {
-                            ayto.pos += len;
-                            if ( ayto._ ) ayto._.pos = ayto.pos;
-                        }
-                        return pattern;
-                    }
-                }
-                return false;
-            },
-            
-            // regex match
-            rex: function( pattern, startsWith, notStartsWith, group, eat ) {
-                var ayto = this, match, pos = ayto.pos, str = ayto.s, ch = str.charAt(pos) || null;
-                if ( ch && ( startsWith && startsWith[ ch ] ) || ( notStartsWith && !notStartsWith[ ch ] ) )
-                {
-                    match = str.slice(pos).match(pattern);
-                    if (!match || match.index > 0) return false;
-                    if (false !== eat) 
-                    {
-                        ayto.pos += match[group||0].length;
-                        if ( ayto._ ) ayto._.pos = ayto.pos;
-                    }
-                    return match;
-                }
-                return false;
-            },
-
-            // eat space
-            spc: function( eat ) {
-                var ayto = this, m, start = ayto.pos, s = ayto.s.slice(start);
-                if ( m = s.match( spcRegex ) ) 
-                {
-                    if ( false !== eat )
-                    {
-                        ayto.pos += m[0].length;
-                        if ( ayto._ ) ayto._.pos = ayto.pos;
-                    }
-                    return 1;
-                }
-                return 0;
-            },
-            
-            // skip to end
-            end: function( ) {
-                var ayto = this;
-                ayto.pos = ayto.s.length;
-                if ( ayto._ ) ayto._.pos = ayto.pos;
-                return ayto;
-            },
-
-            // get next char
-            nxt: function( ) {
-                var ayto = this, ch, s = ayto.s;
-                if (ayto.pos < s.length)
-                {
-                    ch = s.charAt(ayto.pos++) || null;
-                    if ( ayto._ ) ayto._.pos = ayto.pos;
-                    return ch;
-                }
-            },
-            
-            // back-up n steps
-            bck: function( n ) {
-                var ayto = this;
-                ayto.pos = Max(0, ayto.pos - n);
-                if ( ayto._ ) ayto._.pos = ayto.pos;
-                return ayto;
-            },
-            
-            // back-track to pos
-            bck2: function( pos ) {
-                var ayto = this;
-                ayto.pos = Max(0, pos);
-                if ( ayto._ ) ayto._.pos = ayto.pos;
-                return ayto;
-            },
-            
-            // get current column including tabs
-            col: function( tabSize ) {
-                var ayto = this;
-                tabSize = tabSize || 1;
-                if (ayto.lCP < ayto.start) 
-                {
-                    ayto.lCV = countColumn(ayto.s, ayto.start, tabSize, ayto.lCP, ayto.lCV);
-                    ayto.lCP = ayto.start;
-                    if ( ayto._ )
-                    {
-                        ayto._.start = ayto.start;
-                        ayto._.lastColumnPos = ayto.lCP;
-                        ayto._.lastColumnValue = ayto.lCV;
-                        ayto._.lineStart = ayto.lS;
-                    }
-                }
-                return ayto.lCV - (ayto.lS ? countColumn(ayto.s, ayto.lS, tabSize) : 0);
-            },
-            
-            // get current indentation including tabs
-            ind: function( tabSize ) {
-                var ayto = this;
-                tabSize = tabSize || 1;
-                return countColumn(ayto.s, null, tabSize) - (ayto.lS ? countColumn(ayto.s, ayto.lS, tabSize) : 0);
-            },
-            
-            // current stream selection
-            cur: function( andShiftStream ) {
-                var ayto = this, ret = ayto.s.slice(ayto.start, ayto.pos);
-                if ( andShiftStream ) ayto.start = ayto.pos;
-                return ret;
-            },
-            
-            // move/shift stream
-            sft: function( ) {
-                this.start = this.pos;
-                return this;
-            }
-        })
+        Stream = function Stream( line ) {
+            var ayto = this;
+            ayto._ = null;
+            ayto.s = (line) ? ''+line : '';
+            ayto.start = ayto.pos = 0;
+            ayto.lCP = ayto.lCV = 0;
+            ayto.lS = 0;
+        }
     ;
+    Stream[PROTO] = {
+        constructor: Stream,
+        
+        // abbreviations used for optimal minification
+        _: null,
+        s: '',
+        start: 0,
+        pos: 0,
+        // last column pos
+        lCP: 0,
+        // last column value
+        lCV: 0,
+        // line start
+        lS: 0,
+        
+        toString: function( ) { return this.s; },
+        
+        fromStream: function( _ ) {
+            var ayto = this;
+            ayto._ = _;
+            ayto.s = ''+_.string;
+            ayto.start = _.start;
+            ayto.pos = _.pos;
+            ayto.lCP = _.lastColumnPos;
+            ayto.lCV = _.lastColumnValue;
+            ayto.lS = _.lineStart;
+            return ayto;
+        },
+        
+        // string start-of-line?
+        sol: function( ) { return 0 == this.pos; },
+        
+        // string end-of-line?
+        eol: function( ) { return this.pos >= this.s.length; },
+        
+        // char match
+        chr: function( pattern, eat ) {
+            var ayto = this, ch = ayto.s.charAt(ayto.pos) || null;
+            if (ch && pattern == ch) 
+            {
+                if (false !== eat) 
+                {
+                    ayto.pos += 1;
+                    if ( ayto._ ) ayto._.pos = ayto.pos;
+                }
+                return ch;
+            }
+            return false;
+        },
+        
+        // char list match
+        chl: function( pattern, eat ) {
+            var ayto = this, ch = ayto.s.charAt(ayto.pos) || null;
+            if ( ch && (-1 < pattern.indexOf( ch )) ) 
+            {
+                if (false !== eat) 
+                {
+                    ayto.pos += 1;
+                    if ( ayto._ ) ayto._.pos = ayto.pos;
+                }
+                return ch;
+            }
+            return false;
+        },
+        
+        // string match
+        str: function( pattern, startsWith, eat ) {
+            var ayto = this, len, pos = ayto.pos, str = ayto.s, ch = str.charAt(pos) || null;
+            if ( ch && startsWith[ ch ] )
+            {
+                len = pattern.length; 
+                if (pattern == str.substr(pos, len)) 
+                {
+                    if (false !== eat) 
+                    {
+                        ayto.pos += len;
+                        if ( ayto._ ) ayto._.pos = ayto.pos;
+                    }
+                    return pattern;
+                }
+            }
+            return false;
+        },
+        
+        // regex match
+        rex: function( pattern, startsWith, notStartsWith, group, eat ) {
+            var ayto = this, match, pos = ayto.pos, str = ayto.s, ch = str.charAt(pos) || null;
+            if ( ch && ( startsWith && startsWith[ ch ] ) || ( notStartsWith && !notStartsWith[ ch ] ) )
+            {
+                match = str.slice(pos).match(pattern);
+                if (!match || match.index > 0) return false;
+                if (false !== eat) 
+                {
+                    ayto.pos += match[group||0].length;
+                    if ( ayto._ ) ayto._.pos = ayto.pos;
+                }
+                return match;
+            }
+            return false;
+        },
+
+        // eat space
+        spc: function( eat ) {
+            var ayto = this, m, start = ayto.pos, s = ayto.s.slice(start);
+            if ( m = s.match( spcRegex ) ) 
+            {
+                if ( false !== eat )
+                {
+                    ayto.pos += m[0].length;
+                    if ( ayto._ ) ayto._.pos = ayto.pos;
+                }
+                return 1;
+            }
+            return 0;
+        },
+        
+        // skip to end
+        end: function( ) {
+            var ayto = this;
+            ayto.pos = ayto.s.length;
+            if ( ayto._ ) ayto._.pos = ayto.pos;
+            return ayto;
+        },
+
+        // get next char
+        nxt: function( ) {
+            var ayto = this, ch, s = ayto.s;
+            if (ayto.pos < s.length)
+            {
+                ch = s.charAt(ayto.pos++) || null;
+                if ( ayto._ ) ayto._.pos = ayto.pos;
+                return ch;
+            }
+        },
+        
+        // back-up n steps
+        bck: function( n ) {
+            var ayto = this;
+            ayto.pos = Max(0, ayto.pos - n);
+            if ( ayto._ ) ayto._.pos = ayto.pos;
+            return ayto;
+        },
+        
+        // back-track to pos
+        bck2: function( pos ) {
+            var ayto = this;
+            ayto.pos = Max(0, pos);
+            if ( ayto._ ) ayto._.pos = ayto.pos;
+            return ayto;
+        },
+        
+        // get current column including tabs
+        col: function( tabSize ) {
+            var ayto = this;
+            tabSize = tabSize || 1;
+            if (ayto.lCP < ayto.start) 
+            {
+                ayto.lCV = countColumn(ayto.s, ayto.start, tabSize, ayto.lCP, ayto.lCV);
+                ayto.lCP = ayto.start;
+                if ( ayto._ )
+                {
+                    ayto._.start = ayto.start;
+                    ayto._.lastColumnPos = ayto.lCP;
+                    ayto._.lastColumnValue = ayto.lCV;
+                    ayto._.lineStart = ayto.lS;
+                }
+            }
+            return ayto.lCV - (ayto.lS ? countColumn(ayto.s, ayto.lS, tabSize) : 0);
+        },
+        
+        // get current indentation including tabs
+        ind: function( tabSize ) {
+            var ayto = this;
+            tabSize = tabSize || 1;
+            return countColumn(ayto.s, null, tabSize) - (ayto.lS ? countColumn(ayto.s, ayto.lS, tabSize) : 0);
+        },
+        
+        // current stream selection
+        cur: function( andShiftStream ) {
+            var ayto = this, ret = ayto.s.slice(ayto.start, ayto.pos);
+            if ( andShiftStream ) ayto.start = ayto.pos;
+            return ret;
+        },
+        
+        // move/shift stream
+        sft: function( ) {
+            this.start = this.pos;
+            return this;
+        }
+    };
         
     //
     // Stack Class
-    var
-        Stack = Class({
-            
-            constructor: function( array ) {
-                this._ = array || [];
-            },
-            
-            // abbreviations used for optimal minification
-            _: null,
-            
-            toString: function( ) { 
-                var a = this._.slice(); 
-                return a.reverse().join("\n"); 
-            },
-            
-            clone: function( ) {
-                return new this.$class( this._.slice() );
-            },
-            
-            isEmpty: function( ) {
-                return 0 >= this._.length;
-            },
-            
-            pos: function( ) {
-                return this._.length;
-            },
-            
-            peek: function( index ) {
-                var stack = this._;
-                index = ('undefined' == typeof(index)) ? -1 : index;
-                if ( stack.length )
-                {
-                    if ( (0 > index) && (0 <= stack.length+index) )
-                        return stack[ stack.length + index ];
-                    else if ( 0 <= index && index < stack.length )
-                        return stack[ index ];
-                }
-                return null;
-            },
-            
-            pop: function( ) {
-                return this._.pop();
-            },
-            
-            shift: function( ) {
-                return this._.shift();
-            },
-            
-            push: function( i ) {
-                this._.push(i);
-                return this;
-            },
-            
-            unshift: function( i ) {
-                this._.unshift(i);
-                return this;
-            },
-            
-            pushAt: function( pos, token, idProp, id ) {
-                var stack = this._;
-                if ( idProp && id ) token[idProp] = id;
-                if ( pos < stack.length ) stack.splice( pos, 0, token );
-                else stack.push( token );
-                return this;
-            },
-            
-            empty: function(idProp, id) {
-                var stack = this._, l = stack.length;
-                if ( idProp && id )
-                {
-                    //while (l && stack[l-1] && stack[l-1][idProp] == id) 
-                    while (stack.length && stack[stack.length-1] && stack[stack.length-1][idProp] == id) 
-                    {
-                        //console.log([id, stack[l-1][idProp]]);
-                        //--l;
-                        stack.pop();
-                    }
-                    //stack.length = l;
-                }
-                else stack.length = 0;
-                return this;
+    var Stack = function Stack( array ) {
+        this._ = array || [];
+    };
+    Stack[PROTO] = {
+        constructor: Stack,
+        
+        // abbreviations used for optimal minification
+        _: null,
+        
+        toString: function( ) { 
+            var a = this._.slice(); 
+            return a.reverse().join("\n"); 
+        },
+        
+        clone: function( ) {
+            return new Stack( this._.slice() );
+        },
+        
+        isEmpty: function( ) {
+            return 0 >= this._.length;
+        },
+        
+        pos: function( ) {
+            return this._.length;
+        },
+        
+        peek: function( index ) {
+            var stack = this._;
+            index = ('undefined' == typeof(index)) ? -1 : index;
+            if ( stack.length )
+            {
+                if ( (0 > index) && (0 <= stack.length+index) )
+                    return stack[ stack.length + index ];
+                else if ( 0 <= index && index < stack.length )
+                    return stack[ index ];
             }
-        })
-    ;
+            return null;
+        },
+        
+        pop: function( ) {
+            return this._.pop();
+        },
+        
+        shift: function( ) {
+            return this._.shift();
+        },
+        
+        push: function( i ) {
+            this._.push(i);
+            return this;
+        },
+        
+        unshift: function( i ) {
+            this._.unshift(i);
+            return this;
+        },
+        
+        pushAt: function( pos, token, idProp, id ) {
+            var stack = this._;
+            if ( idProp && id ) token[idProp] = id;
+            if ( pos < stack.length ) stack.splice( pos, 0, token );
+            else stack.push( token );
+            return this;
+        },
+        
+        empty: function(idProp, id) {
+            var stack = this._, l = stack.length;
+            if ( idProp && id )
+            {
+                //while (l && stack[l-1] && stack[l-1][idProp] == id) 
+                while (stack.length && stack[stack.length-1] && stack[stack.length-1][idProp] == id) 
+                {
+                    //console.log([id, stack[l-1][idProp]]);
+                    //--l;
+                    stack.pop();
+                }
+                //stack.length = l;
+            }
+            else stack.length = 0;
+            return this;
+        }
+    };
         
     //
     // State Class
-    var
-        State = Class({
-            
-            constructor: function( line, unique ) {
-                var ayto = this;
-                // this enables unique state "names"
-                // thus forces highlight to update
-                // however updates also occur when no update necessary ??
-                ayto.id = unique ? new Date().getTime() : 0;
-                ayto.l = line || 0;
-                ayto.stack = new Stack();
-                ayto.data = new Stack();
-                ayto.col = 0;
-                ayto.indent = 0;
-                ayto.t = null;
-                ayto.inBlock = null;
-                ayto.endBlock = null;
-            },
-            
-            // state id
-            id: 0,
-            // state current line
-            l: 0,
-            col: 0,
-            indent: 0,
-            // state token stack
-            stack: null,
-            // state token push/pop match data
-            data: null,
-            // state current token
-            t: null,
-            // state current block name
-            inBlock: null,
-            // state endBlock for current block
-            endBlock: null,
-            
-            clone: function( unique ) {
-                var ayto = this, c = new ayto.$class( ayto.l, unique );
-                c.t = ayto.t;
-                c.col = ayto.col;
-                c.indent = ayto.indent;
-                c.stack = ayto.stack.clone();
-                c.data = ayto.data.clone();
-                c.inBlock = ayto.inBlock;
-                c.endBlock = ayto.endBlock;
-                return c;
-            },
-            
-            // used mostly for ACE which treats states as strings, 
-            // make sure to generate a string which will cover most cases where state needs to be updated by the editor
-            toString: function() {
-                var ayto = this;
-                //return ['', ayto.id, ayto.inBlock||'0'].join('_');
-                //return ['', ayto.id, ayto.t, ayto.r||'0', ayto.stack.length, ayto.inBlock||'0'].join('_');
-                //return ['', ayto.id, ayto.t, ayto.stack.length, ayto.inBlock||'0'].join('_');
-                //return ['', ayto.id, ayto.t, ayto.r||'0', ayto.inBlock||'0'].join('_');
-                //return ['', ayto.l, ayto.t, ayto.r, ayto.inBlock||'0', ayto.stack.length].join('_');
-                return ['', ayto.id, ayto.l, ayto.t, ayto.inBlock||'0'].join('_');
-            }
-        })
-    ;
+    var State = function State( line, unique ) {
+        var ayto = this;
+        // this enables unique state "names"
+        // thus forces highlight to update
+        // however updates also occur when no update necessary ??
+        ayto.id = unique ? new Date().getTime() : 0;
+        ayto.l = line || 0;
+        ayto.stack = new Stack();
+        ayto.data = new Stack();
+        ayto.col = 0;
+        ayto.indent = 0;
+        ayto.t = null;
+        ayto.inBlock = null;
+        ayto.endBlock = null;
+    };
+    State[PROTO] = {
+        constructor: State,
+        
+        // state id
+        id: 0,
+        // state current line
+        l: 0,
+        col: 0,
+        indent: 0,
+        // state token stack
+        stack: null,
+        // state token push/pop match data
+        data: null,
+        // state current token
+        t: null,
+        // state current block name
+        inBlock: null,
+        // state endBlock for current block
+        endBlock: null,
+        
+        clone: function( unique ) {
+            var ayto = this, c = new State( ayto.l, unique );
+            c.t = ayto.t;
+            c.col = ayto.col;
+            c.indent = ayto.indent;
+            c.stack = ayto.stack.clone();
+            c.data = ayto.data.clone();
+            c.inBlock = ayto.inBlock;
+            c.endBlock = ayto.endBlock;
+            return c;
+        },
+        
+        // used mostly for ACE which treats states as strings, 
+        // make sure to generate a string which will cover most cases where state needs to be updated by the editor
+        toString: function() {
+            var ayto = this;
+            //return ['', ayto.id, ayto.inBlock||'0'].join('_');
+            //return ['', ayto.id, ayto.t, ayto.r||'0', ayto.stack.length, ayto.inBlock||'0'].join('_');
+            //return ['', ayto.id, ayto.t, ayto.stack.length, ayto.inBlock||'0'].join('_');
+            //return ['', ayto.id, ayto.t, ayto.r||'0', ayto.inBlock||'0'].join('_');
+            //return ['', ayto.l, ayto.t, ayto.r, ayto.inBlock||'0', ayto.stack.length].join('_');
+            return ['', ayto.id, ayto.l, ayto.t, ayto.inBlock||'0'].join('_');
+        }
+    };
         
     //
     // matcher factories
-    var 
-        SimpleMatcher = Class({
-            
-            constructor : function(type, name, pattern, key) {
-                var ayto = this;
-                ayto.type = T_SIMPLEMATCHER;
-                ayto.tt = type || T_CHAR;
-                ayto.tn = name;
-                ayto.tk = key || 0;
-                ayto.tg = 0;
-                ayto.tp = null;
-                ayto.p = null;
-                ayto.np = null;
-                
-                // get a fast customized matcher for < pattern >
-                switch ( ayto.tt )
-                {
-                    case T_CHAR: case T_CHARLIST:
-                        ayto.tp = pattern;
-                        break;
-                    case T_STR:
-                        ayto.tp = pattern;
-                        ayto.p = {};
-                        ayto.p[ '' + pattern.charAt(0) ] = 1;
-                        break;
-                    case T_REGEX:
-                        ayto.tp = pattern[ 0 ];
-                        ayto.p = pattern[ 1 ].peek || null;
-                        ayto.np = pattern[ 1 ].negativepeek || null;
-                        ayto.tg = pattern[ 2 ] || 0;
-                        break;
-                    case T_NULL:
-                        ayto.tp = null;
-                        break;
-                }
-            },
-            
-            // matcher type
-            type: null,
-            // token type
-            tt: null,
-            // token name
-            tn: null,
-            // token pattern
-            tp: null,
-            // token pattern group
-            tg: 0,
-            // token key
-            tk: 0,
-            // pattern peek chars
-            p: null,
-            // pattern negative peek chars
-            np: null,
-            
-            get : function(stream, eat) {
-                var matchedResult, ayto = this,
-                    tokenType = ayto.tt, tokenKey = ayto.tk, 
-                    tokenPattern = ayto.tp, tokenPatternGroup = ayto.tg,
-                    startsWith = ayto.p, notStartsWith = ayto.np
-                ;    
-                // get a fast customized matcher for < pattern >
-                switch ( tokenType )
-                {
-                    case T_CHAR:
-                        if ( matchedResult = stream.chr(tokenPattern, eat) ) return [ tokenKey, matchedResult ];
-                        break;
-                    case T_CHARLIST:
-                        if ( matchedResult = stream.chl(tokenPattern, eat) ) return [ tokenKey, matchedResult ];
-                        break;
-                    case T_STR:
-                        if ( matchedResult = stream.str(tokenPattern, startsWith, eat) ) return [ tokenKey, matchedResult ];
-                        break;
-                    case T_REGEX:
-                        if ( matchedResult = stream.rex(tokenPattern, startsWith, notStartsWith, tokenPatternGroup, eat) ) return [ tokenKey, matchedResult ];
-                        break;
-                    case T_NULL:
-                        // matches end-of-line
-                        (false !== eat) && stream.end(); // skipToEnd
-                        return [ tokenKey, "" ];
-                        break;
-                }
-                return false;
-            },
-            
-            toString : function() {
-                return ['[', 'Matcher: ', this.tn, ', Pattern: ', ((this.tp) ? this.tp.toString() : null), ']'].join('');
-            }
-        }),
+    var getChar = function( stream, eat ) {
+            var self = this, matchedResult;    
+            if ( matchedResult = stream.chr(self.tp, eat) ) return [ self.tk, matchedResult ];
+            return false;
+        },
         
-        CompositeMatcher = Class(SimpleMatcher, {
-            
-            constructor : function(name, matchers, useOwnKey) {
-                var ayto = this;
-                ayto.type = T_COMPOSITEMATCHER;
-                ayto.tn = name;
-                ayto.ms = matchers;
-                ayto.ownKey = (false!==useOwnKey);
-            },
-            
-            // group of matchers
-            ms : null,
-            ownKey : true,
-            
-            get : function(stream, eat) {
-                var i, m, matchers = this.ms, l = matchers.length, useOwnKey = this.ownKey;
-                for (i=0; i<l; i++)
-                {
-                    // each one is a matcher in its own
-                    m = matchers[i].get(stream, eat);
-                    if ( m ) return ( useOwnKey ) ? [ i, m[1] ] : m;
-                }
-                return false;
-            }
-        }),
+        getCharList = function( stream, eat ) {
+            var self = this, matchedResult;    
+            if ( matchedResult = stream.chl(self.tp, eat) ) return [ self.tk, matchedResult ];
+            return false;
+        },
         
-        BlockMatcher = Class(SimpleMatcher, {
-            
-            constructor : function(name, start, end) {
-                var ayto = this;
-                ayto.type = T_BLOCKMATCHER;
-                ayto.tn = name;
-                ayto.s = new CompositeMatcher(ayto.tn + '_Start', start, false);
-                ayto.e = end;
-            },
-            
-            // start block matcher
-            s : null,
-            // end block matcher
-            e : null,
-            
-            get : function(stream, eat) {
-                    
-                var ayto = this, startMatcher = ayto.s, endMatchers = ayto.e, token;
+        getStr = function( stream, eat ) {
+            var self = this, matchedResult;    
+            if ( matchedResult = stream.str(self.tp, self.p, eat) ) return [ self.tk, matchedResult ];
+            return false;
+        },
+        
+        getRegex = function( stream, eat ) {
+            var self = this, matchedResult;    
+            if ( matchedResult = stream.rex(self.tp, self.p, self.np, self.tg, eat) ) return [ self.tk, matchedResult ];
+            return false;
+        },
+        
+        getNull = function( stream, eat ) {
+            var self = this;
+            // matches end-of-line
+            (false !== eat) && stream.end( ); // skipToEnd
+            return [ self.tk, "" ];
+        }
+    ;
+        
+    var SimpleMatcher = function SimpleMatcher( type, name, pattern, key ) {
+        var self = this;
+        self.$class = SimpleMatcher;
+        self.mt = T_SIMPLEMATCHER;
+        self.tt = type || T_CHAR;
+        self.tn = name;
+        self.tk = key || 0;
+        self.tg = 0;
+        self.tp = null;
+        self.p = null;
+        self.np = null;
+        
+        // get a fast customized matcher for < pattern >
+        switch ( self.tt )
+        {
+            case T_CHAR: case T_CHARLIST:
+                self.tp = pattern;
+                self.get = T_CHARLIST === self.tt ? getCharList : getChar;
+                break;
+            case T_STR:
+                self.tp = pattern;
+                self.p = {};
+                self.p[ '' + pattern.charAt(0) ] = 1;
+                self.get = getStr;
+                break;
+            case T_REGEX:
+                self.tp = pattern[ 0 ];
+                self.p = pattern[ 1 ].peek || null;
+                self.np = pattern[ 1 ].negativepeek || null;
+                self.tg = pattern[ 2 ] || 0;
+                self.get = getRegex;
+                break;
+            case T_NULL:
+                self.tp = null;
+                self.get = getNull;
+                break;
+        }
+    };
+    SimpleMatcher[PROTO] = {
+        constructor: SimpleMatcher,
+        $class: null,
+        // matcher type
+        mt: null,
+        // token type
+        tt: null,
+        // token name
+        tn: null,
+        // token pattern
+        tp: null,
+        // token pattern group
+        tg: 0,
+        // token key
+        tk: 0,
+        // pattern peek chars
+        p: null,
+        // pattern negative peek chars
+        np: null,
+        
+        get: function( stream, eat ) {
+            return false;
+        },
+        
+        toString: function() {
+            return ['[', 'Matcher: ', this.tn, ', Pattern: ', ((this.tp) ? this.tp.toString() : null), ']'].join('');
+        }
+    };
+        
+    var CompositeMatcher = function CompositeMatcher( name, matchers, useOwnKey ) {
+        var self = this;
+        self.$class = CompositeMatcher;
+        self.mt = T_COMPOSITEMATCHER;
+        self.tn = name;
+        self.ms = matchers;
+        self.ownKey = (false!==useOwnKey);
+    };
+    // extends SimpleMatcher
+    CompositeMatcher[PROTO] = Merge(Extend(SimpleMatcher[PROTO]), {
+        constructor: CompositeMatcher,
+        
+        // group of matchers
+        ms: null,
+        ownKey: true,
+        
+        get: function( stream, eat ) {
+            var i, m, matchers = this.ms, l = matchers.length, useOwnKey = this.ownKey;
+            for (i=0; i<l; i++)
+            {
+                // each one is a matcher in its own
+                m = matchers[ i ].get( stream, eat );
+                if ( m ) return ( useOwnKey ) ? [ i, m[1] ] : m;
+            }
+            return false;
+        }
+    });
+        
+    var BlockMatcher = function BlockMatcher(name, start, end) {
+        var self = this;
+        self.$class = BlockMatcher;
+        self.mt = T_BLOCKMATCHER;
+        self.tn = name;
+        self.s = new CompositeMatcher( self.tn + '_Start', start, false );
+        self.e = end;
+    };
+    // extends SimpleMatcher
+    BlockMatcher[PROTO] = Merge(Extend(SimpleMatcher[PROTO]), {
+        constructor: BlockMatcher,
+        // start block matcher
+        s: null,
+        // end block matcher
+        e: null,
+        
+        get: function( stream, eat ) {
                 
-                // matches start of block using startMatcher
-                // and returns the associated endBlock matcher
-                if ( token = startMatcher.get(stream, eat) )
+            var self = this, startMatcher = self.s, endMatchers = self.e, token;
+            
+            // matches start of block using startMatcher
+            // and returns the associated endBlock matcher
+            if ( token = startMatcher.get(stream, eat) )
+            {
+                // use the token key to get the associated endMatcher
+                var endMatcher = endMatchers[ token[0] ], m, 
+                    T = get_type( endMatcher ), T0 = startMatcher.ms[ token[0] ].tt;
+                
+                if ( T_REGEX == T0 )
                 {
-                    // use the token key to get the associated endMatcher
-                    var endMatcher = endMatchers[ token[0] ], m, 
-                        T = get_type( endMatcher ), T0 = startMatcher.ms[ token[0] ].tt;
-                    
-                    if ( T_REGEX == T0 )
+                    // regex group number given, get the matched group pattern for the ending of this block
+                    if ( T_NUM == T )
                     {
-                        // regex group number given, get the matched group pattern for the ending of this block
-                        if ( T_NUM == T )
-                        {
-                            // the regex is wrapped in an additional group, 
-                            // add 1 to the requested regex group transparently
-                            m = token[1][ endMatcher+1 ];
-                            endMatcher = new SimpleMatcher( (m.length > 1) ? T_STR : T_CHAR, ayto.tn + '_End', m );
-                        }
-                        // string replacement pattern given, get the proper pattern for the ending of this block
-                        else if ( T_STR == T )
-                        {
-                            // the regex is wrapped in an additional group, 
-                            // add 1 to the requested regex group transparently
-                            m = groupReplace(endMatcher, token[1]);
-                            endMatcher = new SimpleMatcher( (m.length > 1) ? T_STR : T_CHAR, ayto.tn + '_End', m );
-                        }
+                        // the regex is wrapped in an additional group, 
+                        // add 1 to the requested regex group transparently
+                        m = token[1][ endMatcher+1 ];
+                        endMatcher = new SimpleMatcher( (m.length > 1) ? T_STR : T_CHAR, self.tn + '_End', m );
                     }
-                    return endMatcher;
+                    // string replacement pattern given, get the proper pattern for the ending of this block
+                    else if ( T_STR == T )
+                    {
+                        // the regex is wrapped in an additional group, 
+                        // add 1 to the requested regex group transparently
+                        m = groupReplace(endMatcher, token[1]);
+                        endMatcher = new SimpleMatcher( (m.length > 1) ? T_STR : T_CHAR, self.tn + '_End', m );
+                    }
                 }
-                
-                return false;
+                return endMatcher;
             }
-        }),
-        
-        getSimpleMatcher = function(name, pattern, key, cachedMatchers) {
+            
+            return false;
+        }
+    });
+    
+    var    
+        getSimpleMatcher = function( name, pattern, key, cachedMatchers ) {
             var T = get_type( pattern );
             
             if ( T_NUM == T ) return pattern;
@@ -952,8 +1015,7 @@
             if ( !cachedMatchers[ name ] )
             {
                 key = key || 0;
-                var matcher;
-                var is_char_list = 0;
+                var matcher, is_char_list = 0;
                 
                 if ( pattern && pattern.isCharList )
                 {
@@ -962,13 +1024,13 @@
                 }
                 
                 // get a fast customized matcher for < pattern >
-                if ( T_NULL & T ) matcher = new SimpleMatcher(T_NULL, name, pattern, key);
+                if ( T_NULL & T ) matcher = new SimpleMatcher( T_NULL, name, pattern, key );
                 
-                else if ( T_CHAR == T ) matcher = new SimpleMatcher(T_CHAR, name, pattern, key);
+                else if ( T_CHAR == T ) matcher = new SimpleMatcher( T_CHAR, name, pattern, key );
                 
-                else if ( T_STR & T ) matcher = (is_char_list) ? new SimpleMatcher(T_CHARLIST, name, pattern, key) : new SimpleMatcher(T_STR, name, pattern, key);
+                else if ( T_STR & T ) matcher = (is_char_list) ? new SimpleMatcher( T_CHARLIST, name, pattern, key ) : new SimpleMatcher( T_STR, name, pattern, key );
                 
-                else if ( /*T_REGEX*/T_ARRAY & T ) matcher = new SimpleMatcher(T_REGEX, name, pattern, key);
+                else if ( /*T_REGEX*/T_ARRAY & T ) matcher = new SimpleMatcher( T_REGEX, name, pattern, key );
                 
                 // unknown
                 else matcher = pattern;
@@ -979,12 +1041,14 @@
             return cachedMatchers[ name ];
         },
         
-        getCompositeMatcher = function(name, tokens, RegExpID, combined, cachedRegexes, cachedMatchers) {
+        getCompositeMatcher = function( name, tokens, RegExpID, combined, cachedRegexes, cachedMatchers ) {
             
             if ( !cachedMatchers[ name ] )
             {
-                var tmp, i, l, l2, array_of_arrays = 0, has_regexs = 0, is_char_list = 1, T1, T2;
-                var matcher;
+                var tmp, i, l, l2, array_of_arrays = 0, 
+                    has_regexs = 0, is_char_list = 1, 
+                    T1, T2, matcher
+                ;
                 
                 tmp = make_array( tokens );
                 l = tmp.length;
@@ -1050,7 +1114,7 @@
             return cachedMatchers[ name ];
         },
         
-        getBlockMatcher = function(name, tokens, RegExpID, cachedRegexes, cachedMatchers) {
+        getBlockMatcher = function( name, tokens, RegExpID, cachedRegexes, cachedMatchers ) {
             
             if ( !cachedMatchers[ name ] )
             {
@@ -1076,7 +1140,7 @@
                     start.push( t1 );  end.push( t2 );
                 }
                 
-                cachedMatchers[ name ] = new BlockMatcher(name, start, end);
+                cachedMatchers[ name ] = new BlockMatcher( name, start, end );
             }
             
             return cachedMatchers[ name ];
@@ -1085,483 +1149,539 @@
     
     //
     // tokenizer factories
-    var
-        SimpleToken = Class({
+    var ACTION_PUSH = 1, ACTION_POP = 2/*,
+        
+        getEMPTY = function( stream, state ) {
+            var self = this;
             
-            constructor : function(type, name, token) {
-                var ayto = this;
-                ayto.tt = type || T_SIMPLE;
-                ayto.id = name;
-                ayto.tk = token;
-                ayto.REQ = 0;
-                ayto.ERR = 0;
-                ayto.MTCH = 0;
-                ayto.CLONE = ['tk'];
-            },
+            self.MTCH = 0;
+            // match EMPTY token
+            self.ERR = 0;
+            self.REQ = 0;
+            return true;
+        },
+        
+        getEOL = function( stream, state ) {
+            var self = this;
             
-            sID: null,
-            // tokenizer/token name/id
-            id: null,
-            // tokenizer type
-            tt: null,
-            // tokenizer token matcher
-            tk: null,
-            // tokenizer match action (optional)
-            tm: null,
-            REQ: 0,
-            ERR: 0,
-            MTCH: 0,
-            CLONE: null,
+            self.MTCH = 0;
+            // match EOL ( with possible leading spaces )
+            stream.spc( );
+            if ( stream.eol( ) )  return self.id; 
+            return false;
+        },
+        
+        getNONSPC = function( stream, state ) {
+            var self = this;
             
-            // tokenizer match action (optional)
-            m : function(token, state) {
-                var matchAction = this.tm || null, t, T, data = state.data;
+            self.MTCH = 0;
+            // match non-space
+            self.ERR = ( self.REQ && stream.spc( ) && !stream.eol( ) ) ? 1 : 0;
+            self.REQ = 0;
+            return false;
+        },
+        
+        getTOKEN = function( stream, state ) {
+            var self = this, t = null;
+            
+            self.MTCH = 0;
+            // else match a simple token
+            if ( t = self.tk.get( stream ) ) 
+            { 
+                if ( self.ta ) self.MTCH = self.act( t, state );
+                return self.id; 
+            }
+            return false;
+        }*/
+    ;
+        
+    var SimpleToken = function SimpleToken( type, name, token ) {
+        var self = this;
+        self.$class = SimpleToken;
+        self.tt = type || T_SIMPLE;
+        self.id = name;
+        self.tk = token;
+        self.REQ = 0;
+        self.ERR = 0;
+        self.MTCH = 0;
+        self.CLONE = ['tk'];
+    };
+    SimpleToken[PROTO] = {
+        constructor: SimpleToken,
+        $class: null,
+        sID: null,
+        // tokenizer/token name/id
+        id: null,
+        // tokenizer type
+        tt: null,
+        // tokenizer token matcher
+        tk: null,
+        // tokenizer match action (optional)
+        ta: null,
+        REQ: 0,
+        ERR: 0,
+        MTCH: 0,
+        CLONE: null,
+        
+        // tokenizer match action (optional)
+        act: function( token, state ) {
+            var matchAction = this.ta || null, t, T, data = state.data;
+            
+            if ( matchAction )
+            {
+                t = matchAction[1];
                 
-                if ( matchAction )
+                if ( ACTION_PUSH === matchAction[0] && t )
                 {
-                    t = matchAction[1];
-                    
-                    if ( "push" == matchAction[0] && t )
+                    if ( token )
+                    {
+                        T = get_type( t );
+                        if ( T_NUM == T )  t = token[1][t];
+                        else t = groupReplace( t, token[1] );
+                    }
+                    data.push( t );
+                }
+                
+                else if ( ACTION_POP ===  matchAction[0] )
+                {
+                    if ( t )
                     {
                         if ( token )
                         {
                             T = get_type( t );
                             if ( T_NUM == T )  t = token[1][t];
-                            else t = groupReplace(t, token[1]);
-                        }
-                        data.push( t );
-                    }
-                    
-                    else if ( "pop" ==  matchAction[0] )
-                    {
-                        if ( t )
-                        {
-                            if ( token )
-                            {
-                                T = get_type( t );
-                                if ( T_NUM == T )  t = token[1][t];
-                                else t = groupReplace(t, token[1]);
-                            }
-                            
-                            if ( data.isEmpty() || t != data.peek() ) return t;
-                            data.pop();
-                        }
-                        else if ( data.length ) data.pop();
-                    }
-                }
-                return 0;
-            },
-            
-            get : function( stream, state ) {
-                var ayto = this, matchAction = ayto.tm, token = ayto.tk, 
-                    type = ayto.tt, tokenID = ayto.id, t = null;
-                
-                ayto.MTCH = 0;
-                // match EMPTY token
-                if ( T_EMPTY == type ) 
-                { 
-                    ayto.ERR = 0;
-                    ayto.REQ = 0;
-                    return true;
-                }
-                // match EOL ( with possible leading spaces )
-                else if ( T_EOL == type ) 
-                { 
-                    stream.spc();
-                    if ( stream.eol() )
-                    {
-                        return tokenID; 
-                    }
-                }
-                // match non-space
-                else if ( T_NONSPACE == type ) 
-                { 
-                    ayto.ERR = ( ayto.REQ && stream.spc() && !stream.eol() ) ? 1 : 0;
-                    ayto.REQ = 0;
-                }
-                // else match a simple token
-                else if ( t = token.get(stream) ) 
-                { 
-                    if ( matchAction ) ayto.MTCH = ayto.m(t, state);
-                    return tokenID; 
-                }
-                return false;
-            },
-            
-            req : function(bool) { 
-                this.REQ = (bool) ? 1 : 0;
-                return this;
-            },
-            
-            err : function() {
-                var t = this;
-                if ( t.REQ ) return ('Token "'+t.id+'" Expected');
-                else if ( t.MTCH ) return ('Token "'+t.MTCH+'" No Match')
-                return ('Syntax Error: "'+t.id+'"');
-            },
-        
-            clone : function() {
-                var ayto = this, t, i, toClone = ayto.CLONE, toClonelen;
-                
-                t = new ayto.$class();
-                t.tt = ayto.tt;
-                t.id = ayto.id;
-                t.tm = (ayto.tm) ? ayto.tm.slice() : ayto.tm;
-                
-                if (toClone && toClone.length)
-                {
-                    for (i=0, toClonelen = toClone.length; i<toClonelen; i++)   
-                        t[ toClone[i] ] = ayto[ toClone[i] ];
-                }
-                return t;
-            },
-            
-            toString : function() {
-                return ['[', 'Tokenizer: ', this.id, ', Matcher: ', ((this.tk) ? this.tk.toString() : null), ']'].join('');
-            }
-        }),
-        
-        BlockToken = Class(SimpleToken, {
-            
-            constructor : function(type, name, token, allowMultiline, escChar, hasInterior) {
-                var ayto = this;
-                ayto.$superv('constructor', [type, name, token]);
-                // a block is multiline by default
-                ayto.mline = ( 'undefined' == typeof(allowMultiline) ) ? 1 : allowMultiline;
-                ayto.esc = escChar || "\\";
-                ayto.inter = hasInterior;
-                ayto.CLONE = ['tk', 'mline', 'esc', 'inter'];
-            },    
-            
-            inter: 0,
-            mline : 0,
-            esc : null,
-            
-            get : function( stream, state ) {
-            
-                var ayto = this, ended = 0, found = 0, endBlock, next = "", continueToNextLine, stackPos, 
-                    allowMultiline = ayto.mline, startBlock = ayto.tk, thisBlock = ayto.id, type = ayto.tt,
-                    hasInterior = ayto.inter, thisBlockInterior = (hasInterior) ? (thisBlock+'.inside') : thisBlock,
-                    charIsEscaped = 0, isEscapedBlock = (T_ESCBLOCK == type), escChar = ayto.esc,
-                    isEOLBlock, alreadyIn, ret, streamPos, streamPos0, continueBlock
-                ;
-                
-                /*
-                    This tokenizer class handles many different block types ( BLOCK, COMMENT, ESC_BLOCK, SINGLE_LINE_BLOCK ),
-                    having different styles ( DIFFERENT BLOCK DELIMS/INTERIOR ) etc..
-                    So logic can become somewhat complex,
-                    descriptive names and logic used here for clarity as far as possible
-                */
-                
-                // comments in general are not required tokens
-                if ( T_COMMENT == type ) ayto.REQ = 0;
-                
-                alreadyIn = 0;
-                if ( state.inBlock == thisBlock )
-                {
-                    found = 1;
-                    endBlock = state.endBlock;
-                    alreadyIn = 1;
-                    ret = thisBlockInterior;
-                }    
-                else if ( !state.inBlock && (endBlock = startBlock.get(stream)) )
-                {
-                    found = 1;
-                    state.inBlock = thisBlock;
-                    state.endBlock = endBlock;
-                    ret = thisBlock;
-                }    
-                
-                if ( found )
-                {
-                    stackPos = state.stack.pos();
-                    
-                    isEOLBlock = (T_NULL == endBlock.tt);
-                    
-                    if ( hasInterior )
-                    {
-                        if ( alreadyIn && isEOLBlock && stream.sol() )
-                        {
-                            ayto.REQ = 0;
-                            state.inBlock = null;
-                            state.endBlock = null;
-                            return false;
+                            else t = groupReplace( t, token[1] );
                         }
                         
-                        if ( !alreadyIn )
-                        {
-                            state.stack.pushAt( stackPos, ayto.clone(), 'sID', thisBlock );
-                            return ret;
-                        }
+                        if ( data.isEmpty( ) || t != data.peek( ) ) return t;
+                        data.pop( );
+                    }
+                    else if ( data.length ) data.pop( );
+                }
+            }
+            return 0;
+        },
+        
+        get: function( stream, state ) {
+            var ayto = this, matchAction = ayto.tm, token = ayto.tk, 
+                type = ayto.tt, tokenID = ayto.id, t = null;
+            
+            ayto.MTCH = 0;
+            // match EMPTY token
+            if ( T_EMPTY == type ) 
+            { 
+                ayto.ERR = 0;
+                ayto.REQ = 0;
+                return true;
+            }
+            // match EOL ( with possible leading spaces )
+            else if ( T_EOL == type ) 
+            { 
+                stream.spc();
+                if ( stream.eol() )
+                {
+                    return tokenID; 
+                }
+            }
+            // match non-space
+            else if ( T_NONSPACE == type ) 
+            { 
+                ayto.ERR = ( ayto.REQ && stream.spc() && !stream.eol() ) ? 1 : 0;
+                ayto.REQ = 0;
+            }
+            // else match a simple token
+            else if ( t = token.get(stream) ) 
+            { 
+                if ( matchAction ) ayto.MTCH = ayto.act(t, state);
+                return tokenID; 
+            }
+            return false;
+        },
+        /*get: function( stream, state ) {
+            return false;
+        },*/
+        
+        req: function( bool ) { 
+            this.REQ = bool ? 1 : 0;
+            return this;
+        },
+        
+        err: function( ) {
+            var t = this;
+            if ( t.REQ ) return ('Token "'+t.id+'" Expected');
+            else if ( t.MTCH ) return ('Token "'+t.MTCH+'" No Match')
+            return ('Syntax Error: "'+t.id+'"');
+        },
+
+        clone: function( ) {
+            var self = this, t, i, toClone = self.CLONE, toClonelen;
+            
+            t = new self.$class( );
+            t.tt = self.tt;
+            t.id = self.id;
+            t.tm = (self.tm) ? self.tm.slice() : self.tm;
+            
+            if ( toClone && toClone.length )
+            {
+                for (i=0, toClonelen = toClone.length; i<toClonelen; i++)   
+                    t[ toClone[i] ] = self[ toClone[i] ];
+            }
+            return t;
+        },
+        
+        toString: function() {
+            return ['[', 'Tokenizer: ', this.id, ', Matcher: ', ((this.tk) ? this.tk.toString() : null), ']'].join('');
+        }
+    };
+        
+    var BlockToken = function BlockToken( type, name, token, allowMultiline, escChar, hasInterior ) {
+        var self = this;
+        self.$class = BlockToken;
+        self.tt = type;
+        self.id = name;
+        self.tk = token;
+        self.REQ = 0;
+        self.ERR = 0;
+        self.MTCH = 0;
+        // a block is multiline by default
+        self.mline = ( 'undefined' == typeof(allowMultiline) ) ? 1 : allowMultiline;
+        self.esc = escChar || "\\";
+        self.inter = hasInterior;
+        self.CLONE = ['tk', 'mline', 'esc', 'inter'];
+    };
+    // extends SimpleToken
+    BlockToken[PROTO] = Merge(Extend(SimpleToken[PROTO]), {
+        constructor: BlockToken,
+        inter: 0,
+        mline: 0,
+        esc: null,
+        
+        get: function( stream, state ) {
+            var self = this, ended = 0, found = 0, endBlock, next = "", continueToNextLine, stackPos, 
+                allowMultiline = self.mline, startBlock = self.tk, thisBlock = self.id, type = self.tt,
+                hasInterior = self.inter, thisBlockInterior = (hasInterior) ? (thisBlock+'.inside') : thisBlock,
+                charIsEscaped = 0, isEscapedBlock = (T_ESCBLOCK == type), escChar = self.esc,
+                isEOLBlock, alreadyIn, ret, streamPos, streamPos0, continueBlock
+            ;
+            
+            /*
+                This tokenizer class handles many different block types ( BLOCK, COMMENT, ESC_BLOCK, SINGLE_LINE_BLOCK ),
+                having different styles ( DIFFERENT BLOCK DELIMS/INTERIOR ) etc..
+                So logic can become somewhat complex,
+                descriptive names and logic used here for clarity as far as possible
+            */
+            
+            // comments in general are not required tokens
+            if ( T_COMMENT === type ) self.REQ = 0;
+            
+            alreadyIn = 0;
+            if ( state.inBlock === thisBlock )
+            {
+                found = 1;
+                endBlock = state.endBlock;
+                alreadyIn = 1;
+                ret = thisBlockInterior;
+            }    
+            else if ( !state.inBlock && (endBlock = startBlock.get(stream)) )
+            {
+                found = 1;
+                state.inBlock = thisBlock;
+                state.endBlock = endBlock;
+                ret = thisBlock;
+            }    
+            
+            if ( found )
+            {
+                stackPos = state.stack.pos( );
+                
+                isEOLBlock = (T_NULL === endBlock.tt);
+                
+                if ( hasInterior )
+                {
+                    if ( alreadyIn && isEOLBlock && stream.sol( ) )
+                    {
+                        self.REQ = 0;
+                        state.inBlock = null;
+                        state.endBlock = null;
+                        return false;
                     }
                     
-                    ended = endBlock.get(stream);
-                    continueToNextLine = allowMultiline;
-                    continueBlock = 0;
-                    
-                    if ( !ended )
+                    if ( !alreadyIn )
                     {
-                        streamPos0 = stream.pos;
-                        while ( !stream.eol() ) 
+                        state.stack.pushAt( stackPos, self.clone( ), 'sID', thisBlock );
+                        return ret;
+                    }
+                }
+                
+                ended = endBlock.get( stream );
+                continueToNextLine = allowMultiline;
+                continueBlock = 0;
+                
+                if ( !ended )
+                {
+                    streamPos0 = stream.pos;
+                    while ( !stream.eol( ) ) 
+                    {
+                        streamPos = stream.pos;
+                        if ( !(isEscapedBlock && charIsEscaped) && endBlock.get(stream) ) 
                         {
-                            streamPos = stream.pos;
-                            if ( !(isEscapedBlock && charIsEscaped) && endBlock.get(stream) ) 
+                            if ( hasInterior )
                             {
-                                if ( hasInterior )
+                                if ( stream.pos > streamPos && streamPos > streamPos0 )
                                 {
-                                    if ( stream.pos > streamPos && streamPos > streamPos0 )
-                                    {
-                                        ret = thisBlockInterior;
-                                        stream.bck2(streamPos);
-                                        continueBlock = 1;
-                                    }
-                                    else
-                                    {
-                                        ret = thisBlock;
-                                        ended = 1;
-                                    }
+                                    ret = thisBlockInterior;
+                                    stream.bck2(streamPos);
+                                    continueBlock = 1;
                                 }
                                 else
                                 {
                                     ret = thisBlock;
                                     ended = 1;
                                 }
-                                break;
                             }
                             else
                             {
-                                next = stream.nxt();
+                                ret = thisBlock;
+                                ended = 1;
                             }
-                            charIsEscaped = !charIsEscaped && next == escChar;
+                            break;
                         }
-                    }
-                    else
-                    {
-                        ret = (isEOLBlock) ? thisBlockInterior : thisBlock;
-                    }
-                    continueToNextLine = allowMultiline || (isEscapedBlock && charIsEscaped);
-                    
-                    if ( ended || (!continueToNextLine && !continueBlock) )
-                    {
-                        state.inBlock = null;
-                        state.endBlock = null;
-                    }
-                    else
-                    {
-                        state.stack.pushAt( stackPos, ayto.clone(), 'sID', thisBlock );
-                    }
-                    
-                    return ret;
-                }
-                
-                //state.inBlock = null;
-                //state.endBlock = null;
-                return false;
-            }
-        }),
-                
-        RepeatedTokens = Class(SimpleToken, {
-                
-            constructor : function( type, name, tokens, min, max ) {
-                var ayto = this;
-                ayto.tt = type || T_REPEATED;
-                ayto.id = name || null;
-                ayto.tk = null;
-                ayto.ts = null;
-                ayto.min = min || 0;
-                ayto.max = max || INF;
-                ayto.found = 0;
-                ayto.CLONE = ['ts', 'min', 'max', 'found'];
-                if (tokens) ayto.set( tokens );
-            },
-            
-            ts: null,
-            min: 0,
-            max: 1,
-            found : 0,
-            
-            set : function( tokens ) {
-                if ( tokens ) this.ts = make_array( tokens );
-                return this;
-            },
-            
-            get : function( stream, state ) {
-            
-                var ayto = this, i, token, style, tokens = ayto.ts, n = tokens.length, 
-                    found = ayto.found, min = ayto.min, max = ayto.max,
-                    tokensRequired = 0, streamPos, stackPos, stackId;
-                
-                ayto.ERR = 0;
-                ayto.REQ = 0;
-                ayto.MTCH = 0;
-                streamPos = stream.pos;
-                stackPos = state.stack.pos();
-                stackId = ayto.id+'_'+getId();
-                
-                for (i=0; i<n; i++)
-                {
-                    token = tokens[i].clone().req( 1 );
-                    style = token.get(stream, state);
-                    
-                    if ( false !== style )
-                    {
-                        ++found;
-                        if ( found <= max )
+                        else
                         {
-                            // push it to the stack for more
-                            ayto.found = found;
-                            state.stack.pushAt( stackPos, ayto.clone(), 'sID', stackId );
-                            ayto.found = 0;
-                            ayto.MTCH = token.MTCH;
-                            return style;
+                            next = stream.nxt( );
                         }
-                        break;
+                        charIsEscaped = !charIsEscaped && next == escChar;
                     }
-                    else if ( token.REQ )
-                    {
-                        tokensRequired++;
-                    }
-                    if ( token.ERR ) stream.bck2( streamPos );
                 }
-                
-                ayto.REQ = found < min;
-                ayto.ERR = found > max || (found < min && 0 < tokensRequired);
-                return false;
-            }
-        }),
-        
-        EitherTokens = Class(RepeatedTokens, {
-                
-            constructor : function( type, name, tokens ) {
-                this.$superv('constructor', [type, name, tokens, 1, 1]);
-            },
-            
-            get : function( stream, state ) {
-            
-                var ayto = this, style, token, i, tokens = ayto.ts, n = tokens.length, 
-                    tokensRequired = 0, tokensErr = 0, streamPos;
-                
-                ayto.REQ = 1;
-                ayto.ERR = 0;
-                ayto.MTCH = 0;
-                streamPos = stream.pos;
-                
-                for (i=0; i<n; i++)
+                else
                 {
-                    token = tokens[i].clone().req( 1 );
-                    style = token.get(stream, state);
-                    
-                    tokensRequired += (token.REQ) ? 1 : 0;
-                    
-                    if ( false !== style )
-                    {
-                        ayto.MTCH = token.MTCH;
-                        return style;
-                    }
-                    else if ( token.ERR )
-                    {
-                        tokensErr++;
-                        stream.bck2( streamPos );
-                    }
+                    ret = (isEOLBlock) ? thisBlockInterior : thisBlock;
+                }
+                continueToNextLine = allowMultiline || (isEscapedBlock && charIsEscaped);
+                
+                if ( ended || (!continueToNextLine && !continueBlock) )
+                {
+                    state.inBlock = null;
+                    state.endBlock = null;
+                }
+                else
+                {
+                    state.stack.pushAt( stackPos, self.clone( ), 'sID', thisBlock );
                 }
                 
-                ayto.REQ = (tokensRequired > 0);
-                ayto.ERR = (n == tokensErr && tokensRequired > 0);
-                return false;
+                return ret;
             }
-        }),
-
-        AllTokens = Class(RepeatedTokens, {
-                
-            constructor : function( type, name, tokens ) {
-                this.$superv('constructor', [type, name, tokens, 1, 1]);
-            },
             
-            get : function( stream, state ) {
+            //state.inBlock = null;
+            //state.endBlock = null;
+            return false;
+        }
+    });
                 
-                var ayto = this, token, style, tokens = ayto.ts, n = tokens.length,
-                    streamPos, stackPos, stackId;
-                
-                ayto.REQ = 1;
-                ayto.ERR = 0;
-                ayto.MTCH = 0;
-                streamPos = stream.pos;
-                stackPos = state.stack.pos();
-                token = tokens[ 0 ].clone().req( 1 );
-                style = token.get(stream, state);
-                stackId = ayto.id+'_'+getId();
+    var RepeatedTokens = function RepeatedTokens( type, name, tokens, min, max ) {
+        var self = this;
+        self.$class = RepeatedTokens;
+        self.tt = type || T_REPEATED;
+        self.id = name || null;
+        self.tk = null;
+        self.ts = null;
+        self.min = min || 0;
+        self.max = max || INF;
+        self.found = 0;
+        self.CLONE = ['ts', 'min', 'max', 'found'];
+        if ( tokens ) self.set( tokens );
+    };
+    // extends SimpleToken
+    RepeatedTokens[PROTO] = Merge(Extend(SimpleToken[PROTO]), {
+        constructor: RepeatedTokens,
+        ts: null,
+        min: 0,
+        max: 1,
+        found : 0,
+        
+        set: function( tokens ) {
+            if ( tokens ) this.ts = make_array( tokens );
+            return this;
+        },
+        
+        get: function( stream, state ) {
+            var self = this, i, token, style, tokens = self.ts, n = tokens.length, 
+                found = self.found, min = self.min, max = self.max,
+                tokensRequired = 0, streamPos, stackPos, stackId;
+            
+            self.ERR = 0;
+            self.REQ = 0;
+            self.MTCH = 0;
+            streamPos = stream.pos;
+            stackPos = state.stack.pos( );
+            stackId = self.id+'_'+getId( );
+            
+            for (i=0; i<n; i++)
+            {
+                token = tokens[i].clone( ).req( 1 );
+                style = token.get( stream, state );
                 
                 if ( false !== style )
                 {
-                    // not empty token
-                    if ( true !== style )
+                    ++found;
+                    if ( found <= max )
                     {
-                        for (var i=n-1; i>0; i--)
-                            state.stack.pushAt( stackPos+n-i-1, tokens[ i ].clone().req( 1 ), 'sID', stackId );
+                        // push it to the stack for more
+                        self.found = found;
+                        state.stack.pushAt( stackPos, self.clone( ), 'sID', stackId );
+                        self.found = 0;
+                        self.MTCH = token.MTCH;
+                        return style;
                     }
-                        
-                    ayto.MTCH = token.MTCH;
-                    return style;
-                }
-                else if ( token.ERR /*&& token.REQ*/ )
-                {
-                    ayto.ERR = 1;
-                    stream.bck2( streamPos );
+                    break;
                 }
                 else if ( token.REQ )
                 {
-                    ayto.ERR = 1;
+                    tokensRequired++;
                 }
-                
-                return false;
+                if ( token.ERR ) stream.bck2( streamPos );
             }
-        }),
-                
-        NGramToken = Class(RepeatedTokens, {
-                
-            constructor : function( type, name, tokens ) {
-                this.$superv('constructor', [type, name, tokens, 1, 1]);
-            },
             
-            get : function( stream, state ) {
-                
-                var ayto = this, token, style, tokens = ayto.ts, n = tokens.length, 
-                    streamPos, stackPos, stackId, i;
-                
-                ayto.REQ = 0;
-                ayto.ERR = 0;
-                ayto.MTCH = 0;
-                streamPos = stream.pos;
-                stackPos = state.stack.pos();
-                token = tokens[ 0 ].clone().req( 0 );
+            self.REQ = found < min;
+            self.ERR = found > max || (found < min && 0 < tokensRequired);
+            return false;
+        }
+    });
+        
+    var EitherTokens = function EitherTokens( type, name, tokens ) {
+        RepeatedTokens.call(this, type, name, tokens, 1, 1);
+        this.$class = EitherTokens;
+    };
+    // extends RepeatedTokens
+    EitherTokens[PROTO] = Merge(Extend(RepeatedTokens[PROTO]), {
+        constructor: EitherTokens,
+        get: function( stream, state ) {
+            var self = this, style, token, i, tokens = self.ts, n = tokens.length, 
+                tokensRequired = 0, tokensErr = 0, streamPos;
+            
+            self.REQ = 1;
+            self.ERR = 0;
+            self.MTCH = 0;
+            streamPos = stream.pos;
+            
+            for (i=0; i<n; i++)
+            {
+                token = tokens[i].clone().req( 1 );
                 style = token.get(stream, state);
-                stackId = ayto.id+'_'+getId();
+                
+                tokensRequired += (token.REQ) ? 1 : 0;
                 
                 if ( false !== style )
                 {
-                    // not empty token
-                    if ( true !== style )
-                    {
-                        for (i=n-1; i>0; i--)
-                            state.stack.pushAt( stackPos+n-i-1, tokens[ i ].clone().req( 1 ), 'sID', stackId );
-                    }
-                    
-                    ayto.MTCH = token.MTCH;
+                    self.MTCH = token.MTCH;
                     return style;
                 }
                 else if ( token.ERR )
                 {
+                    tokensErr++;
                     stream.bck2( streamPos );
                 }
-                
-                return false;
             }
-        }),
-                
-        getTokenizer = function(tokenID, RegExpID, Lex, Syntax, Style, cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords) {
             
+            self.REQ = (tokensRequired > 0);
+            self.ERR = (n == tokensErr && tokensRequired > 0);
+            return false;
+        }
+    });
+
+    var AllTokens = function AllTokens( type, name, tokens ) {
+        RepeatedTokens.call(this, type, name, tokens, 1, 1);
+        this.$class = AllTokens;
+    };
+    // extends RepeatedTokens
+    AllTokens[PROTO] = Merge(Extend(RepeatedTokens[PROTO]), {
+        constructor: AllTokens,
+        get: function( stream, state ) {
+            var self = this, token, style, tokens = self.ts, n = tokens.length,
+                streamPos, stackPos, stackId;
+            
+            self.REQ = 1;
+            self.ERR = 0;
+            self.MTCH = 0;
+            streamPos = stream.pos;
+            stackPos = state.stack.pos();
+            token = tokens[ 0 ].clone().req( 1 );
+            style = token.get(stream, state);
+            stackId = self.id+'_'+getId();
+            
+            if ( false !== style )
+            {
+                // not empty token
+                if ( true !== style )
+                {
+                    for (var i=n-1; i>0; i--)
+                        state.stack.pushAt( stackPos+n-i-1, tokens[ i ].clone().req( 1 ), 'sID', stackId );
+                }
+                    
+                self.MTCH = token.MTCH;
+                return style;
+            }
+            else if ( token.ERR /*&& token.REQ*/ )
+            {
+                self.ERR = 1;
+                stream.bck2( streamPos );
+            }
+            else if ( token.REQ )
+            {
+                self.ERR = 1;
+            }
+            
+            return false;
+        }
+    });
+                
+    var NGramToken = function( type, name, tokens ) {
+        RepeatedTokens.call(this, type, name, tokens, 1, 1);
+        this.$class = NGramToken;
+    };
+    // extends RepeatedTokens
+    NGramToken[PROTO] = Merge(Extend(RepeatedTokens[PROTO]), {
+        constructor: NGramToken,
+        get: function( stream, state ) {
+            var self = this, token, style, tokens = self.ts, n = tokens.length, 
+                streamPos, stackPos, stackId, i;
+            
+            self.REQ = 0;
+            self.ERR = 0;
+            self.MTCH = 0;
+            streamPos = stream.pos;
+            stackPos = state.stack.pos();
+            token = tokens[ 0 ].clone().req( 0 );
+            style = token.get(stream, state);
+            stackId = self.id+'_'+getId();
+            
+            if ( false !== style )
+            {
+                // not empty token
+                if ( true !== style )
+                {
+                    for (i=n-1; i>0; i--)
+                        state.stack.pushAt( stackPos+n-i-1, tokens[ i ].clone().req( 1 ), 'sID', stackId );
+                }
+                
+                self.MTCH = token.MTCH;
+                return style;
+            }
+            else if ( token.ERR )
+            {
+                stream.bck2( streamPos );
+            }
+            
+            return false;
+        }
+    });
+    
+    var            
+        getTokenizer = function( tokenID, RegExpID, Lex, Syntax, Style, 
+                            cachedRegexes, cachedMatchers, cachedTokens, 
+                            commentTokens, comments, keywords ) {
             var tok, token = null, type, combine, matchAction, matchType, tokens, subTokenizers,
-                ngrams, ngram, i, l, j, l2;
+                ngrams, ngram, i, l, j, l2, xtends, xtendedTok;
             
             if ( null === tokenID )
             {
@@ -1601,7 +1721,8 @@
                         // allow tokens to extend / reference other tokens
                         while ( tok['extend'] )
                         {
-                            var xtends = tok['extend'], xtendedTok = Lex[xtends] || Syntax[xtends];
+                            xtends = tok['extend']; 
+                            xtendedTok = Lex[ xtends ] || Syntax[ xtends ];
                             delete tok['extend'];
                             if ( xtendedTok ) 
                             {
@@ -1610,14 +1731,14 @@
                                 {
                                     xtendedTok = { type: "simple", tokens: xtendedTok };
                                 }
-                                tok = extend(xtendedTok, tok);
+                                tok = extend( xtendedTok, tok );
                             }
-                            // xtendedTok may in itself extebnd another tok and so on,
+                            // xtendedTok may in itself extend another tok and so on,
                             // loop and get all references
                         }
                         
                         // provide some defaults
-                        type = (tok.type) ? tokenTypes[ tok.type.toUpperCase().replace('-', '').replace('_', '') ] : T_SIMPLE;
+                        type = tok.type ? tokenTypes[ tok.type.toUpperCase( ).replace(/[\-_]/g, '') ] : T_SIMPLE;
                         
                         if ( T_SIMPLE & type )
                         {
@@ -1651,32 +1772,31 @@
                         
                         if ( T_SIMPLE & type )
                         {
-                            if ( tok.autocomplete ) getAutoComplete(tok, tokenID, keywords);
+                            if ( tok.autocomplete ) getAutoComplete( tok, tokenID, keywords );
                             
                             matchAction = null;
                             if ( tok.push )
                             {
-                                matchAction = [ "push", tok.push ];
+                                matchAction = [ ACTION_PUSH, tok.push ];
                             }
-                            else if  ( 'undefined' != typeof(tok.pop) )
+                            else if  ( 'undefined' !== typeof( tok.pop ) )
                             {
-                                matchAction = [ "pop", tok.pop ];
+                                matchAction = [ ACTION_POP, tok.pop ];
                             }
                             
                             // combine by default if possible using word-boundary delimiter
-                            combine = ( 'undefined' ==  typeof(tok.combine) ) ? "\\b" : tok.combine;
+                            combine = ( 'undefined' === typeof(tok.combine) ) ? "\\b" : tok.combine;
                             token = new SimpleToken( T_SIMPLE, tokenID,
                                         getCompositeMatcher( tokenID, tok.tokens.slice(), RegExpID, combine, cachedRegexes, cachedMatchers )
                                     );
-                            
-                            token.tm = matchAction;
+                            token.ta = matchAction;
                             // pre-cache tokenizer to handle recursive calls to same tokenizer
                             cachedTokens[ tokenID ] = token;
                         }
                         
                         else if ( T_BLOCK & type )
                         {
-                            if ( T_COMMENT & type ) getComments(tok, comments);
+                            if ( T_COMMENT & type ) getComments( tok, comments );
 
                             token = new BlockToken( type, tokenID,
                                         getBlockMatcher( tokenID, tok.tokens.slice(), RegExpID, cachedRegexes, cachedMatchers ), 
@@ -1688,34 +1808,34 @@
                             
                             // pre-cache tokenizer to handle recursive calls to same tokenizer
                             cachedTokens[ tokenID ] = token;
-                            if ( tok.interleave ) commentTokens.push( token.clone() );
+                            if ( tok.interleave ) commentTokens.push( token.clone( ) );
                         }
                         
                         else if ( T_GROUP & type )
                         {
-                            tokens = tok.tokens.slice();
+                            tokens = tok.tokens.slice( );
                             if ( T_ARRAY & get_type( tok.match ) )
                             {
-                                token = new RepeatedTokens(T_REPEATED, tokenID, null, tok.match[0], tok.match[1]);
+                                token = new RepeatedTokens( T_REPEATED, tokenID, null, tok.match[0], tok.match[1] );
                             }
                             else
                             {
                                 matchType = groupTypes[ tok.match.toUpperCase() ]; 
                                 
-                                if (T_ZEROORONE == matchType) 
-                                    token = new RepeatedTokens(T_ZEROORONE, tokenID, null, 0, 1);
+                                if ( T_ZEROORONE === matchType ) 
+                                    token = new RepeatedTokens( T_ZEROORONE, tokenID, null, 0, 1 );
                                 
-                                else if (T_ZEROORMORE == matchType) 
-                                    token = new RepeatedTokens(T_ZEROORMORE, tokenID, null, 0, INF);
+                                else if ( T_ZEROORMORE === matchType ) 
+                                    token = new RepeatedTokens( T_ZEROORMORE, tokenID, null, 0, INF );
                                 
-                                else if (T_ONEORMORE == matchType) 
-                                    token = new RepeatedTokens(T_ONEORMORE, tokenID, null, 1, INF);
+                                else if ( T_ONEORMORE === matchType ) 
+                                    token = new RepeatedTokens( T_ONEORMORE, tokenID, null, 1, INF );
                                 
-                                else if (T_EITHER & matchType) 
-                                    token = new EitherTokens(T_EITHER, tokenID, null);
+                                else if ( T_EITHER & matchType ) 
+                                    token = new EitherTokens( T_EITHER, tokenID, null );
                                 
-                                else //if (T_ALL == matchType)
-                                    token = new AllTokens(T_ALL, tokenID, null);
+                                else //if (T_ALL === matchType)
+                                    token = new AllTokens( T_ALL, tokenID, null );
                             }
                             
                             // pre-cache tokenizer to handle recursive calls to same tokenizer
@@ -1764,7 +1884,7 @@
             }
         },
         
-        getComments = function(tok, comments) {
+        getComments = function( tok, comments ) {
             // build start/end mappings
             var tmp = make_array_2(tok.tokens.slice()); // array of arrays
             var start, end, lead;
@@ -1789,12 +1909,12 @@
             }
         },
         
-        getAutoComplete = function(tok, type, keywords) {
+        getAutoComplete = function( tok, type, keywords ) {
             var kws = [].concat(make_array(tok.tokens)).map(function(word) { return { word: word, meta: type }; });
-            keywords.autocomplete = concat.apply( keywords.autocomplete || [], kws );
+            keywords.autocomplete = (keywords.autocomplete || []).concat( kws );
         },
         
-        parseGrammar = function(grammar) {
+        parseGrammar = function( grammar ) {
             var RegExpID, tokens, numTokens, _tokens, 
                 Style, Lex, Syntax, t, tokenID, token, tok,
                 cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords;
@@ -1803,27 +1923,27 @@
             // avoid reparsing already parsed grammars
             if ( grammar.__parsed ) return grammar;
             
-            cachedRegexes = {}; cachedMatchers = {}; cachedTokens = {}; comments = {}; keywords = {};
-            commentTokens = [];
+            cachedRegexes = { }; cachedMatchers = { }; cachedTokens = { }; 
+            comments = { }; keywords = { }; commentTokens = [ ];
             grammar = clone( grammar );
             
             RegExpID = grammar.RegExpID || null;
             grammar.RegExpID = null;
             delete grammar.RegExpID;
             
-            Lex = grammar.Lex || {};
+            Lex = grammar.Lex || { };
             grammar.Lex = null;
             delete grammar.Lex;
             
-            Syntax = grammar.Syntax || {};
+            Syntax = grammar.Syntax || { };
             grammar.Syntax = null;
             delete grammar.Syntax;
             
-            Style = grammar.Style || {};
+            Style = grammar.Style || { };
             
-            _tokens = grammar.Parser || [];
+            _tokens = grammar.Parser || [ ];
             numTokens = _tokens.length;
-            tokens = [];
+            tokens = [ ];
             
             
             // build tokens
@@ -1836,7 +1956,6 @@
                 if ( token )
                 {
                     if ( T_ARRAY & get_type( token ) )  tokens = tokens.concat( token );
-                    
                     else  tokens.push( token );
                 }
             }
@@ -1846,11 +1965,10 @@
             grammar.Style = Style;
             grammar.Comments = comments;
             grammar.Keywords = keywords;
-            grammar.Extra = grammar.Extra || {};
+            grammar.Extra = grammar.Extra || { };
             
             // this grammar is parsed
             grammar.__parsed = 1;
-            
             return grammar;
         }
     ;
@@ -1860,229 +1978,229 @@
     
     //
     // parser factories
-    var
-        Parser = Class({
-            
-            constructor: function(grammar, LOC) {
-                var ayto = this;
-                
-                // support extra functionality
-                ayto.Extra = grammar.Extra || {};
-                
-                // support comments toggle functionality
-                ayto.LC = (grammar.Comments.line) ? grammar.Comments.line[0] : null,
-                ayto.BCS = (grammar.Comments.block) ? grammar.Comments.block[0][0] : null,
-                ayto.BCE = (grammar.Comments.block) ? grammar.Comments.block[0][1] : null,
-                ayto.BCC = ayto.BCL = (grammar.Comments.block) ? grammar.Comments.block[0][2] : null,
-                ayto.DEF = LOC.DEFAULT;
-                ayto.ERR = grammar.Style.error || LOC.ERROR;
-                
-                // support keyword autocompletion
-                ayto.Keywords = grammar.Keywords.autocomplete || null;
-                
-                ayto.Tokens = grammar.Parser || [];
-                ayto.cTokens = (grammar.cTokens.length) ? grammar.cTokens : null;
-                ayto.Style = grammar.Style;
-            },
-            
-            Extra: null,
-            LC: null,
-            BCS: null,
-            BCE: null,
-            BCL: null,
-            BCC: null,
-            ERR: null,
-            DEF: null,
-            Keywords: null,
-            cTokens: null,
-            Tokens: null,
-            Style: null,
-            
-            parse: function(code) {
-                code = code || "";
-                var lines = code.split(/\r\n|\r|\n/g), l = lines.length, i,
-                    linetokens = [], tokens, state, stream;
-                state = new State( );
-                state.parseAll = 1;
-                for (i=0; i<l; i++)
-                {
-                    stream = new Stream( lines[i] );
-                    tokens = [];
-                    while ( !stream.eol() )
-                    {
-                        tokens.push( this.getToken(stream, state) );
-                        //stream.sft();
-                    }
-                    linetokens.push( tokens );
-                }
-                return linetokens;
-            },
-            
-            // Codemirror Tokenizer compatible
-            getToken: function(stream_, state) {
-                
-                var i, ci, ayto = this, tokenizer, type, 
-                    interleavedCommentTokens = ayto.cTokens, tokens = ayto.Tokens, numTokens = tokens.length, 
-                    parseAll = state.parseAll, stream, stack,
-                    Style = ayto.Style, DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
-                ;
-                
-                stream = (parseAll) ? stream_ : new Stream().fromStream( stream_ );
-                stack = state.stack;
-                /*
-                var scopeOffset, lineOffset;
-                //if ( stream.sol() ) 
-                {
-                    scopeOffset = state.col;
-                    lineOffset = stream.ind();
-                    if ( lineOffset > scopeOffset ) 
-                    {
-                        state.col = lineOffset;
-                        state.indent = T_INDENT;
-                    } 
-                    else if ( lineOffset < scopeOffset ) 
-                    {
-                        state.col = lineOffset;
-                        state.indent = T_DEDENT;
-                    }
-                    console.log([state.indent, state.col, stream.toString()]);
-                }
-                */
-                
-                // if EOL tokenizer is left on stack, pop it now
-                if ( !stack.isEmpty() && T_EOL == stack.peek().tt && stream.sol() ) 
-                {
-                    stack.pop();
-                }
-                
-                // check for non-space tokenizer before parsing space
-                if ( (stack.isEmpty() || (T_NONSPACE != stack.peek().tt)) && stream.spc() )
-                {
-                    return (parseAll) ? { value: stream.cur(1), type: DEFAULT, error: null } : state.t = DEFAULT;
-                }
-                
-                while ( !stack.isEmpty() && !stream.eol() )
-                {
-                    if (interleavedCommentTokens)
-                    {
-                        ci = 0;
-                        while ( ci < interleavedCommentTokens.length )
-                        {
-                            tokenizer = interleavedCommentTokens[ci++];
-                            type = tokenizer.get(stream, state);
-                            if ( false !== type )
-                            {
-                                type = Style[type] || DEFAULT;
-                                return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.t = type;
-                            }
-                        }
-                    }
-                    
-                    tokenizer = stack.pop();
-                    type = tokenizer.get(stream, state);
-                    
-                    // match failed
-                    if ( false === type )
-                    {
-                        // error
-                        if ( tokenizer.ERR || tokenizer.REQ )
-                        {
-                            // empty the stack
-                            stack.empty('sID', tokenizer.sID);
-                            // skip this character
-                            stream.nxt();
-                            // generate error
-                            state.t = type = ERROR;
-                            return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.t = ERROR;
-                        }
-                        // optional
-                        else
-                        {
-                            continue;
-                        }
-                    }
-                    // found token (not empty)
-                    else if ( true !== type )
-                    {
-                        type = Style[type] || DEFAULT;
-                        // match action error
-                        if ( tokenizer.MTCH )
-                        {
-                            // empty the stack
-                            stack.empty('sID', tokenizer.sID);
-                            // generate error
-                            state.t = type = ERROR;
-                            return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.t = ERROR;
-                        }
-                        else
-                        {
-                            return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.t = type;
-                        }
-                    }
-                }
-                
-                for (i=0; i<numTokens; i++)
-                {
-                    tokenizer = tokens[i];
-                    type = tokenizer.get(stream, state);
-                    
-                    // match failed
-                    if ( false === type )
-                    {
-                        // error
-                        if ( tokenizer.ERR || tokenizer.REQ )
-                        {
-                            // empty the stack
-                            stack.empty('sID', tokenizer.sID);
-                            // skip this character
-                            stream.nxt();
-                            // generate error
-                            state.t = type = ERROR;
-                            return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.t = ERROR;
-                        }
-                        // optional
-                        else
-                        {
-                            continue;
-                        }
-                    }
-                    // found token (not empty)
-                    else if ( true !== type )
-                    {
-                        type = Style[type] || DEFAULT;
-                        // match action error
-                        if ( tokenizer.MTCH )
-                        {
-                            // empty the stack
-                            stack.empty('sID', tokenizer.sID);
-                            // generate error
-                            state.t = type = ERROR;
-                            return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.t = ERROR;
-                        }
-                        else
-                        {
-                            return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.t = type;
-                        }
-                    }
-                }
-                
-                // unknown, bypass
-                stream.nxt();
-                state.t = DEFAULT;
-                return (parseAll) ? { value: stream.cur(1), type: DEFAULT, error: null } : state.t = DEFAULT;
-            },
-            
-            indent : function(state, textAfter, fullLine, conf, parserConf) {
-                var indentUnit = conf.indentUnit || 4, Pass = _CodeMirror.Pass;
-                
-                return Pass;
-            }
-        }),
+    var Parser = function Parser(grammar, LOC) {
+        var ayto = this;
         
+        // support extra functionality
+        ayto.Extra = grammar.Extra || {};
+        
+        // support comments toggle functionality
+        ayto.LC = (grammar.Comments.line) ? grammar.Comments.line[0] : null,
+        ayto.BCS = (grammar.Comments.block) ? grammar.Comments.block[0][0] : null,
+        ayto.BCE = (grammar.Comments.block) ? grammar.Comments.block[0][1] : null,
+        ayto.BCC = ayto.BCL = (grammar.Comments.block) ? grammar.Comments.block[0][2] : null,
+        ayto.DEF = LOC.DEFAULT;
+        ayto.ERR = grammar.Style.error || LOC.ERROR;
+        
+        // support keyword autocompletion
+        ayto.Keywords = grammar.Keywords.autocomplete || null;
+        
+        ayto.Tokens = grammar.Parser || [];
+        ayto.cTokens = (grammar.cTokens.length) ? grammar.cTokens : null;
+        ayto.Style = grammar.Style;
+    };
+    Parser[PROTO] = {
+        constructor: Parser,
+        
+        Extra: null,
+        LC: null,
+        BCS: null,
+        BCE: null,
+        BCL: null,
+        BCC: null,
+        ERR: null,
+        DEF: null,
+        Keywords: null,
+        cTokens: null,
+        Tokens: null,
+        Style: null,
+        
+        parse: function(code) {
+            code = code || "";
+            var lines = code.split(/\r\n|\r|\n/g), l = lines.length, i,
+                linetokens = [], tokens, state, stream;
+            state = new State( );
+            state.parseAll = 1;
+            for (i=0; i<l; i++)
+            {
+                stream = new Stream( lines[i] );
+                tokens = [];
+                while ( !stream.eol() )
+                {
+                    tokens.push( this.getToken(stream, state) );
+                    //stream.sft();
+                }
+                linetokens.push( tokens );
+            }
+            return linetokens;
+        },
+        
+        // Codemirror Tokenizer compatible
+        getToken: function(stream_, state) {
+            
+            var i, ci, ayto = this, tokenizer, type, 
+                interleavedCommentTokens = ayto.cTokens, tokens = ayto.Tokens, numTokens = tokens.length, 
+                parseAll = state.parseAll, stream, stack,
+                Style = ayto.Style, DEFAULT = ayto.DEF, ERROR = ayto.ERR, ret
+            ;
+            
+            stream = (parseAll) ? stream_ : new Stream().fromStream( stream_ );
+            stack = state.stack;
+            /*
+            var scopeOffset, lineOffset;
+            //if ( stream.sol() ) 
+            {
+                scopeOffset = state.col;
+                lineOffset = stream.ind();
+                if ( lineOffset > scopeOffset ) 
+                {
+                    state.col = lineOffset;
+                    state.indent = T_INDENT;
+                } 
+                else if ( lineOffset < scopeOffset ) 
+                {
+                    state.col = lineOffset;
+                    state.indent = T_DEDENT;
+                }
+                console.log([state.indent, state.col, stream.toString()]);
+            }
+            */
+            
+            // if EOL tokenizer is left on stack, pop it now
+            if ( !stack.isEmpty() && T_EOL == stack.peek().tt && stream.sol() ) 
+            {
+                stack.pop();
+            }
+            
+            // check for non-space tokenizer before parsing space
+            if ( (stack.isEmpty() || (T_NONSPACE != stack.peek().tt)) && stream.spc() )
+            {
+                return (parseAll) ? { value: stream.cur(1), type: DEFAULT, error: null } : state.t = DEFAULT;
+            }
+            
+            while ( !stack.isEmpty() && !stream.eol() )
+            {
+                if (interleavedCommentTokens)
+                {
+                    ci = 0;
+                    while ( ci < interleavedCommentTokens.length )
+                    {
+                        tokenizer = interleavedCommentTokens[ci++];
+                        type = tokenizer.get(stream, state);
+                        if ( false !== type )
+                        {
+                            type = Style[type] || DEFAULT;
+                            return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.t = type;
+                        }
+                    }
+                }
+                
+                tokenizer = stack.pop();
+                type = tokenizer.get(stream, state);
+                
+                // match failed
+                if ( false === type )
+                {
+                    // error
+                    if ( tokenizer.ERR || tokenizer.REQ )
+                    {
+                        // empty the stack
+                        stack.empty('sID', tokenizer.sID);
+                        // skip this character
+                        stream.nxt();
+                        // generate error
+                        state.t = type = ERROR;
+                        return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.t = ERROR;
+                    }
+                    // optional
+                    else
+                    {
+                        continue;
+                    }
+                }
+                // found token (not empty)
+                else if ( true !== type )
+                {
+                    type = Style[type] || DEFAULT;
+                    // match action error
+                    if ( tokenizer.MTCH )
+                    {
+                        // empty the stack
+                        stack.empty('sID', tokenizer.sID);
+                        // generate error
+                        state.t = type = ERROR;
+                        return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.t = ERROR;
+                    }
+                    else
+                    {
+                        return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.t = type;
+                    }
+                }
+            }
+            
+            for (i=0; i<numTokens; i++)
+            {
+                tokenizer = tokens[i];
+                type = tokenizer.get(stream, state);
+                
+                // match failed
+                if ( false === type )
+                {
+                    // error
+                    if ( tokenizer.ERR || tokenizer.REQ )
+                    {
+                        // empty the stack
+                        stack.empty('sID', tokenizer.sID);
+                        // skip this character
+                        stream.nxt();
+                        // generate error
+                        state.t = type = ERROR;
+                        return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.t = ERROR;
+                    }
+                    // optional
+                    else
+                    {
+                        continue;
+                    }
+                }
+                // found token (not empty)
+                else if ( true !== type )
+                {
+                    type = Style[type] || DEFAULT;
+                    // match action error
+                    if ( tokenizer.MTCH )
+                    {
+                        // empty the stack
+                        stack.empty('sID', tokenizer.sID);
+                        // generate error
+                        state.t = type = ERROR;
+                        return (parseAll) ? { value: stream.cur(1), type: ERROR, error: tokenizer.err() } : state.t = ERROR;
+                    }
+                    else
+                    {
+                        return (parseAll) ? { value: stream.cur(1), type: type, error: null } : state.t = type;
+                    }
+                }
+            }
+            
+            // unknown, bypass
+            stream.nxt();
+            state.t = DEFAULT;
+            return (parseAll) ? { value: stream.cur(1), type: DEFAULT, error: null } : state.t = DEFAULT;
+        },
+        
+        indent : function(state, textAfter, fullLine, conf, parserConf) {
+            var indentUnit = conf.indentUnit || 4, Pass = _CodeMirror.Pass;
+            
+            return Pass;
+        }
+    };
+    
+    var    
         getCodemirrorMode = function(parser) {
                 
             // Codemirror-compatible Mode
-            var modeF = function(conf, parserConf) {
+            var modeF = function modeF(conf, parserConf) {
                 
                 //var supportGrammarAnnotations = conf ? conf.supportGrammarAnnotations : false;
                 
@@ -2183,7 +2301,7 @@
   /**
 *
 *   CodeMirrorGrammar
-*   @version: 0.9.5
+*   @version: 0.10
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2220,7 +2338,7 @@
     DEFAULTERROR = "error";
     var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
         
-        VERSION : "0.9.5",
+        VERSION : "0.10",
         
         // extend a grammar using another base grammar
         /**[DOC_MARKDOWN]

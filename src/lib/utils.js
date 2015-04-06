@@ -1,38 +1,107 @@
     
-    var Class = Classy.Class;
-    
-    var AP = Array.prototype, OP = Object.prototype, FP = Function.prototype,
-        slice = FP.call.bind(AP.slice), concat = AP.concat,
-        hasKey = FP.call.bind(OP.hasOwnProperty), toStr = FP.call.bind(OP.toString), 
-        isEnum = FP.call.bind(OP.propertyIsEnumerable), Keys = Object.keys,
+    var PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'propertyIsEnumerable',
+        Keys = Object.keys, AP = Array[PROTO], OP = Object[PROTO], FP = Function[PROTO],
+        toString = OP.toString, 
         
-        get_type = Classy.Type,
-
+        // types
+        //T_INF = 5,
+        T_NUM = 4, T_NAN = 5,  T_BOOL = 8,
+        T_STR = 16, T_CHAR = 17, T_CHARLIST = 18,
+        T_ARRAY = 32, T_OBJ = 64, T_FUNC = 128,  T_REGEX = 256,
+        T_NULL = 512, T_UNDEF = 1024, T_UNKNOWN = 2048,
+        T_STR_OR_ARRAY = T_STR|T_ARRAY, T_OBJ_OR_ARRAY = T_OBJ|T_ARRAY
+        TO_STRING = {
+            "[object Array]"    : T_ARRAY,
+            "[object RegExp]"   : T_REGEX,
+            "[object Number]"   : T_NUM,
+            "[object String]"   : T_STR,
+            "[object Function]" : T_FUNC,
+            "[object Object]"   : T_OBJ
+        },
+        get_type = function( v ) {
+            var /*type_of,*/ to_string;
+            
+            if (null === v)  return T_NULL;
+            else if (true === v || false === v)  return T_BOOL;
+            else if (undef === v /*|| "undefined" === type_of*/)  return T_UNDEF;
+            
+            //type_of = typeOf(v);
+            to_string = toString.call( v );
+            //to_string = TO_STRING[HAS](to_string) ? TO_STRING[to_string] : T_UNKNOWN;
+            to_string = TO_STRING[to_string] || T_UNKNOWN;
+            
+            //if (undef === v /*|| "undefined" === type_of*/)  return T_UNDEF;
+            if (T_NUM === to_string || v instanceof Number)  return isNaN(v) ? T_NAN : T_NUM;
+            else if (T_STR === to_string || v instanceof String) return (1 === v.length) ? T_CHAR : T_STR;
+            else if (T_ARRAY === to_string || v instanceof Array)  return T_ARRAY;
+            else if (T_REGEX === to_string || v instanceof RegExp)  return T_REGEX;
+            else if (T_FUNC === to_string || v instanceof Function)  return T_FUNC;
+            else if (T_OBJ === to_string)  return T_OBJ;
+            // unkown type
+            return T_UNKNOWN;
+        },
+        
+        Extend = Object.create,
+        Merge = function(/* var args here.. */) { 
+            var args = arguments, argslen, 
+                o1, o2, v, p, i, T;
+            o1 = args[0] || {}; 
+            argslen = args.length;
+            for (i=1; i<argslen; i++)
+            {
+                o2 = args[ i ];
+                if ( T_OBJ === get_type( o2 ) )
+                {
+                    for (p in o2)
+                    {            
+                        if ( o2[HAS](p) && o2[IS_ENUM](p) ) 
+                        {
+                            v = o2[p];
+                            T = get_type( v );
+                            
+                            if ( T_NUM & T )
+                                // shallow copy for numbers, better ??
+                                o1[p] = 0 + v;  
+                            
+                            else if ( T_STR_OR_ARRAY & T )
+                                // shallow copy for arrays or strings, better ??
+                                o1[p] = v.slice(0);  
+                            
+                            else
+                                // just reference copy
+                                o1[p] = v;  
+                        }
+                    }
+                }
+            }
+            return o1; 
+        },
+        
         make_array = function(a, force) {
-            return ( force || T_ARRAY != get_type( a ) ) ? [ a ] : a;
+            return ( force || T_ARRAY !== get_type( a ) ) ? [ a ] : a;
         },
         
         make_array_2 = function(a, force) {
             a = make_array( a, force );
-            if ( force || T_ARRAY != get_type( a[0] ) ) a = [ a ]; // array of arrays
+            if ( force || T_ARRAY !== get_type( a[0] ) ) a = [ a ]; // array of arrays
             return a;
         },
         
         clone = function(o) {
             var T = get_type( o ), T2;
             
-            if ( !((T_OBJ | T_ARRAY) & T) ) return o;
+            if ( !(T_OBJ_OR_ARRAY & T) ) return o;
             
             var co = {}, k;
             for (k in o) 
             {
-                if ( hasKey(o, k) && isEnum(o, k) ) 
+                if ( o[HAS](k) && o[IS_ENUM](k) ) 
                 { 
                     T2 = get_type( o[k] );
                     
                     if (T_OBJ & T2)  co[k] = clone(o[k]);
                     
-                    else if (T_ARRAY & T2)  co[k] = o[k].slice();
+                    else if (T_STR_OR_ARRAY & T2)  co[k] = o[k].slice();
                     
                     else  co[k] = o[k]; 
                 }
@@ -41,24 +110,24 @@
         },
         
         extend = function() {
-            var args = slice(arguments), argslen = args.length;
+            var args = arguments, argslen = args.length;
             
             if ( argslen<1 ) return null;
             else if ( argslen<2 ) return clone( args[0] );
             
-            var o1 = args.shift(), o2, o = clone(o1), i, k, T; 
+            var o1 = args[0], o2, o = clone(o1), i, k, T; 
             argslen--;            
             
-            for (i=0; i<argslen; i++)
+            for (i=1; i<argslen; i++)
             {
-                o2 = args.shift();
+                o2 = args[i];
                 if ( !o2 ) continue;
                 
                 for (k in o2) 
                 { 
-                    if ( hasKey(o2, k) && isEnum(o2, k) )
+                    if ( o2[HAS](k) && o2[IS_ENUM](k) )
                     {
-                        if ( hasKey(o1, k) && isEnum(o1, k) ) 
+                        if ( o1[HAS](k) && o1[IS_ENUM](k) ) 
                         { 
                             T = get_type( o1[k] );
                             
@@ -112,7 +181,7 @@
             if ( l && rid == r.substr(0, l) ) 
             {
                 var regexSource = r.substr(l), delim = regexSource[0], flags = '',
-                    regexBody, regexID, regex, chars, analyzer, i, ch
+                    regexBody, regexID, regex, chars, i, ch
                 ;
                 
                 // allow regex to have delimiters and flags
@@ -133,10 +202,9 @@
                 if ( !cachedRegexes[ regexID ] )
                 {
                     regex = new RegExp( regexID, flags );
-                    analyzer = new RegexAnalyzer( regex ).analyze();
-                    chars = analyzer.getPeekChars();
-                    if ( !Keys(chars.peek).length )  chars.peek = null;
-                    if ( !Keys(chars.negativepeek).length )  chars.negativepeek = null;
+                    chars = new RegexAnalyzer( regex ).peek();
+                    if ( null !== chars.peek && !Keys(chars.peek).length )  chars.peek = null;
+                    if ( null !== chars.negativepeek && !Keys(chars.negativepeek).length )  chars.negativepeek = null;
                     
                     // shared, light-weight
                     cachedRegexes[ regexID ] = [ regex, chars ];
