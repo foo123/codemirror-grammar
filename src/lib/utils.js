@@ -1,5 +1,5 @@
     
-    var PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'propertyIsEnumerable',
+    var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'propertyIsEnumerable',
         Keys = Object.keys, AP = Array[PROTO], OP = Object[PROTO], FP = Function[PROTO],
         toString = OP.toString, 
         
@@ -202,9 +202,11 @@
                 if ( !cachedRegexes[ regexID ] )
                 {
                     regex = new RegExp( regexID, flags );
-                    chars = new RegexAnalyzer( regex ).peek();
+                    /*chars = new RegexAnalyzer( regex ).peek();
                     if ( null !== chars.peek && !Keys(chars.peek).length )  chars.peek = null;
-                    if ( null !== chars.negativepeek && !Keys(chars.negativepeek).length )  chars.negativepeek = null;
+                    if ( null !== chars.negativepeek && !Keys(chars.negativepeek).length )  chars.negativepeek = null;*/
+                    // remove RegexAnalyzer dependency
+                    chars = {peek:null,negativepeek:null};
                     
                     // shared, light-weight
                     cachedRegexes[ regexID ] = [ regex, chars ];

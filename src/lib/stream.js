@@ -114,8 +114,9 @@
         // regex match
         rex: function( pattern, startsWith, notStartsWith, group, eat ) {
             var ayto = this, match, pos = ayto.pos, str = ayto.s, ch = str.charAt(pos) || null;
-            if ( ch && ( startsWith && startsWith[ ch ] ) || ( notStartsWith && !notStartsWith[ ch ] ) )
-            {
+            // remove RegexAnalyzer dependency
+            /*if ( ch && ( startsWith && startsWith[ ch ] ) || ( notStartsWith && !notStartsWith[ ch ] ) )
+            {*/
                 match = str.slice(pos).match(pattern);
                 if (!match || match.index > 0) return false;
                 if (false !== eat) 
@@ -124,8 +125,8 @@
                     if ( ayto._ ) ayto._.pos = ayto.pos;
                 }
                 return match;
-            }
-            return false;
+            /*}
+            return false;*/
         },
 
         // eat space
