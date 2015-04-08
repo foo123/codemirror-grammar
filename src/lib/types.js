@@ -1,4 +1,5 @@
-        
+    "use strict";
+    
     //
     // parser types
     var    
