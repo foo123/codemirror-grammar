@@ -145,28 +145,7 @@ var js_grammar = {
     "Syntax" : {
         
         "dotProperty" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ ".", "property" ]
-        },
-        
-        "builtinOrIdentifier" : {
-            "type" : "group",
-            "match" : "either",
-            "tokens" : [ "}", ")", "this", "builtin", "identifier", "dotProperty" ]
-        },
-        
-        "dotProperties" : {
-            "type" : "group",
-            "match" : "zeroOrMore",
-            "tokens" : [ "dotProperty" ]
-        },
-        
-        "builtinOrIdentifierWithProperties" : {
-            "type" : "n-gram",
-            "tokens" : [
-                [ "builtinOrIdentifier", "dotProperties" ]
-            ]
+            "sequence" : [ ".", "property" ]
         }
     },
 
@@ -179,6 +158,6 @@ var js_grammar = {
         "keyword",
         "operator",
         "atom",
-        "builtinOrIdentifierWithProperties"
+        [ "} | ) | this | builtin | identifier | dotProperty", "dotProperty*" ]
     ]
 };

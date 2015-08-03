@@ -5,9 +5,8 @@ function codemirror_grammar_demo(code, lang, grammar)
     
     // 3. register the mode with Codemirror
     CodeMirror.defineMode(lang, mode);
-    // enable syntax validation
     mode.supportGrammarAnnotations = true;
-    CodeMirror.registerHelper("lint", lang, mode().validator);
+    CodeMirror.registerHelper("lint", lang, mode.validator);
 
     // use it!
     var editor = CodeMirror.fromTextArea(code, {
@@ -15,12 +14,11 @@ function codemirror_grammar_demo(code, lang, grammar)
         lineNumbers: true,
         indentUnit: 4,
         indentWithTabs: false,
-        extraKeys: {"Ctrl-L": "toggleComment"},
+        extraKeys: {"Ctrl-Space": "autocomplete", "Ctrl-L": "toggleComment"},
         gutters: ["CodeMirror-lint-markers", "CodeMirror-linenumbers", "CodeMirror-foldgutter"],
         foldGutter: true,
         // enable syntax validation
         lint: true
-        //supportGrammarAnnotations: true
     });
     
     editor.setSize(null, 500);

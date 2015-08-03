@@ -106,20 +106,14 @@ var css_grammar = {
     // Syntax model (optional)
     "Syntax" : {
         
-        "stringOrText" : {
-            "type" : "group",
-            "match" : "either",
-            "tokens" : [ "string", "text" ]
-        },
-        
         "urlDeclaration" : {
             "type" : "ngram",
-            "tokens" : [ "url", "(", "stringOrText", ")" ]
+            "tokens" : [ "url", "(", "string | text", ")" ]
         },
         
         "formatDeclaration" : {
             "type" : "ngram",
-            "tokens" : [ "format", "(", "stringOrText", ")" ]
+            "tokens" : [ "format", "(", "string | text", ")" ]
         },
         
         "cssSelector" : {
@@ -134,37 +128,19 @@ var css_grammar = {
             "tokens" : [ "!important", "urlDeclaration", "formatDeclaration", "string", "number", "CssAtom", ",", "(", ")" ]
         },
         
-        "semicolon" : {
-            "type" : "group",
-            "match" : "zeroOrMore",
-            "tokens" : [ ";" ]
-        },
-        
         "cssAssignment" : {
             "type" : "group",
             "match" : "all",
             "tokens" : [ "CssProperty", ":", "RHSAssignment", "semicolon" ]
         },
         
-        "cssAssignments" : {
-            "type" : "group",
-            "match" : "zeroOrMore",
-            "tokens" : [ "cssAssignment" ]
-        },
-        
         // syntax grammar (n-gram) for a block of css assignments
         "cssBlock" : {
             "type" : "n-gram",
             "tokens" : [
-                [ "number", "{", "cssAssignments", "}" ],
-                [ "cssSelector", "{", "cssAssignments", "}" ]
+                [ "number", "{", "cssAssignment*", "}" ],
+                [ "cssSelector", "{", "cssAssignment*", "}" ]
             ]
-        },
-        
-        "cssBlocks" : {
-            "type" : "group",
-            "match": "zeroOrMore",
-            "tokens" : [ "cssBlock" ]
         },
         
         "@importDirective" : {
@@ -174,7 +150,7 @@ var css_grammar = {
         
         "@keyframesDirective" : {
             "type" : "n-gram",
-            "tokens" : [ "@keyframes", "identifier", "{", "cssBlocks", "}" ]
+            "tokens" : [ "@keyframes", "identifier", "{", "cssBlock*", "}" ]
         },
         
         "cssIdentifiers" : {
@@ -185,8 +161,10 @@ var css_grammar = {
         
         "@mediaDirective" : {
             "type" : "n-gram",
-            "tokens" : [ "@media", "cssIdentifiers", "{", "cssBlocks", "}" ]
+            "tokens" : [ "@media", "cssIdentifiers", "{", "cssBlock*", "}" ]
         },
+        
+        "semicolon" : ";*",
         
         "atruleLine" : {
             "type" : "group",
@@ -200,15 +178,9 @@ var css_grammar = {
             "tokens" : [ "{", "cssAssignments", "}" ]
         },
         
-        "atruleLineOrBlock" : {
-            "type" : "group",
-            "match": "either",
-            "tokens" : [ "atruleBlock", "atruleLine" ]
-        },
-        
         "@atruleDirective"  : {
             "type" : "n-gram",
-            "tokens" : [ "@atrule", "atruleLineOrBlock" ]
+            "tokens" : [ "@atrule", "atruleBlock | atruleLine" ]
         }
     },
 

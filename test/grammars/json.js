@@ -89,11 +89,7 @@ var json_grammar = {
         },
         
         // grammar recursion here
-        "literalValue" : {
-            "type" : "group",
-            "match" : "either",
-            "tokens" : [ "atom", "string", "number", "literalArray", "literalObject" ]
-        },
+        "literalValue" : "atom | string | number | literalArray | literalObject",
         
         "literalValuesRest" : {
             "type" : "group",
@@ -113,17 +109,9 @@ var json_grammar = {
             "tokens" : [ ",", "literalPropertyValue" ]
         },
         
-        "literalValuesRestOptional" : {
-            "type" : "group",
-            "match" : "zeroOrMore",
-            "tokens" : [ "literalValuesRest" ]
-        },
+        "literalValuesRestOptional" : "literalValuesRest*",
         
-        "literalPropertyValuesRestOptional" : {
-            "type" : "group",
-            "match" : "zeroOrMore",
-            "tokens" : [ "literalPropertyValuesRest" ]
-        },
+        "literalPropertyValuesRestOptional" : "literalPropertyValuesRest*",
         
         "literalValues" : {
             "type" : "ngram",
@@ -137,14 +125,6 @@ var json_grammar = {
             "tokens" : [
                 [ "literalPropertyValue", "literalPropertyValuesRestOptional" ]
             ]
-        },
-        
-        "literalNGram" : {
-            "type" : "n-gram",
-            "tokens" : [
-                ["literalObject"],
-                ["literalArray"]
-            ]
         }
     },
 
@@ -155,6 +135,7 @@ var json_grammar = {
         "number",
         "string",
         "atom",
-        "literalNGram"
+        ["literalObject"],
+        ["literalArray"]
     ]
 };

@@ -117,38 +117,17 @@ var xml_grammar = {
     // Syntax model (optional)
     "Syntax" : {
         
-        "stringOrNumber" : {
-            "type" : "group",
-            "match" : "either",
-            "tokens" : [ "string", "number", "hexnumber" ] 
-        },
-        
         "tagAttribute" : { 
             "type" : "group",
             "match" : "all",
-            "tokens" : [ "attribute", "=", "stringOrNumber" ]
-        },
-        
-        "tagAttributes" : { 
-            "type" : "group",
-            "match" : "zeroOrMore",
-            "tokens" : [ "tagAttribute" ]
+            "tokens" : [ "attribute", "=", "string | number | hexnumber" ]
         },
         
         "closeOpenTag" : { 
             "type" : "group",
             "match" : "either",
             "tokens" : [ "closeTag",  "autoCloseTag"]
-        },
-        
-        // n-grams define syntax sequences
-        "tags" : { 
-            "type" : "n-gram",
-            "tokens" :[
-                [ "openTag", "tagAttributes", "closeOpenTag" ],
-                [ "endTag" ]
-            ]
-        },
+        }
     },
     
     // what to parse and in what order
@@ -156,7 +135,8 @@ var xml_grammar = {
         "commentBlock",
         "cdataBlock",
         "metaBlock",
-        "tags",
+        [ "openTag", "tagAttribute*", "closeOpenTag" ],
+        [ "endTag" ]
         "atom"
     ]
 };

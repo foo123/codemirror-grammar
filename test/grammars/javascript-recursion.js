@@ -157,18 +157,10 @@ var js_grammar = {
             "tokens" : [ "[", "literalValues", "]" ]
         },
         
-        "literalProperty" : {
-            "type" : "group",
-            "match" : "either",
-            "tokens" : [ "string", "property" ]
-        },
+        "literalProperty" : "string | property",
         
         // grammar recursion here
-        "literalValue" : {
-            "type" : "group",
-            "match" : "either",
-            "tokens" : [ "atom", "string", "regex", "number", "identifier", "literalArray", "literalObject" ]
-        },
+        "literalValue" : "atom | string | regex | number | identifier | literalArray | literalObject",
         
         "literalValuesRest" : {
             "type" : "group",
@@ -188,37 +180,17 @@ var js_grammar = {
             "tokens" : [ ",", "literalPropertyValue" ]
         },
         
-        "literalValuesRestOptional" : {
-            "type" : "group",
-            "match" : "zeroOrMore",
-            "tokens" : [ "literalValuesRest" ]
-        },
-        
-        "literalPropertyValuesRestOptional" : {
-            "type" : "group",
-            "match" : "zeroOrMore",
-            "tokens" : [ "literalPropertyValuesRest" ]
-        },
-        
         "literalValues" : {
             "type" : "ngram",
             "tokens" : [
-                [ "literalValue", "literalValuesRestOptional" ]
+                [ "literalValue", "literalValuesRest*" ]
             ]
         },
         
         "literalPropertyValues" : {
             "type" : "ngram",
             "tokens" : [
-                [ "literalPropertyValue", "literalPropertyValuesRestOptional" ]
-            ]
-        },
-        
-        "literalNGram" : {
-            "type" : "n-gram",
-            "tokens" : [
-                ["literalObject"],
-                ["literalArray"]
+                [ "literalPropertyValue", "literalPropertyValuesRest*" ]
             ]
         }
     },
@@ -232,6 +204,7 @@ var js_grammar = {
         "keyword",
         "operator",
         "atom",
-        "literalNGram"
+        ["literalObject"],
+        ["literalArray"]
     ]
 };
