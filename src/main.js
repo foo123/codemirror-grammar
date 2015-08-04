@@ -220,7 +220,7 @@ Parser[PROTO] = {
             else if ( true !== type )
             {
                 type = Style[type] || DEFAULT;
-                // match action error
+                // action error
                 if ( tokenizer.ACT )
                 {
                     // empty the stack
