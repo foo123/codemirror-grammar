@@ -175,8 +175,8 @@ Parser[PROTO] = {
             else if ( true !== type )
             {
                 type = Style[type] || DEFAULT;
-                // match action error
-                if ( tokenizer.MTCH )
+                // action error
+                if ( tokenizer.ACT )
                 {
                     // empty the stack
                     stack.empty('sID', tokenizer.sID);
@@ -221,7 +221,7 @@ Parser[PROTO] = {
             {
                 type = Style[type] || DEFAULT;
                 // match action error
-                if ( tokenizer.MTCH )
+                if ( tokenizer.ACT )
                 {
                     // empty the stack
                     stack.empty('sID', tokenizer.sID);
@@ -250,9 +250,7 @@ Parser[PROTO] = {
 
 function getMode( grammar, DEFAULT ) 
 {
-    grammar = parseGrammar( grammar );
-    console.log( grammar );
-    var parser = new Parser( grammar, { 
+    var parser = new Parser( parseGrammar( grammar ), { 
         // default return code for skipped or not-styled tokens
         // 'null' should be used in most cases
         DEFAULT: DEFAULT || DEFAULTSTYLE,

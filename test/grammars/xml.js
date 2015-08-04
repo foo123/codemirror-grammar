@@ -136,7 +136,7 @@ var xml_grammar = {
         "cdataBlock",
         "metaBlock",
         [ "openTag", "tagAttribute*", "closeOpenTag" ],
-        [ "endTag" ]
+        [ "endTag" ],
         "atom"
     ]
 };

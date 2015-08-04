@@ -1,12 +1,345 @@
 
 //
+// matcher factories
+var getChar = function( stream, eat ) {
+        var self = this, matchedResult;    
+        if ( matchedResult = stream.chr( self.tp, eat ) ) return [ self.tk, matchedResult ];
+        return false;
+    },
+    
+    getCharList = function( stream, eat ) {
+        var self = this, matchedResult;    
+        if ( matchedResult = stream.chl( self.tp, eat ) ) return [ self.tk, matchedResult ];
+        return false;
+    },
+    
+    getStr = function( stream, eat ) {
+        var self = this, matchedResult;    
+        if ( matchedResult = stream.str( self.tp, self.p, eat ) ) return [ self.tk, matchedResult ];
+        return false;
+    },
+    
+    getRegex = function( stream, eat ) {
+        var self = this, matchedResult;    
+        if ( matchedResult = stream.rex( self.tp, self.p, self.np, self.tg, eat ) ) return [ self.tk, matchedResult ];
+        return false;
+    },
+    
+    getNull = function( stream, eat ) {
+        var self = this;
+        // matches end-of-line
+        (false !== eat) && stream.end( ); // skipToEnd
+        return [ self.tk, "" ];
+    }
+;
+    
+function Matcher( type, name, pattern, key ) 
+{
+    var self = this;
+    self.$class = Matcher;
+    self.mt = T_SIMPLEMATCHER;
+    self.tt = type || T_CHAR;
+    self.tn = name;
+    self.tk = key || 0;
+    self.tg = 0;
+    self.tp = null;
+    self.p = null;
+    self.np = null;
+    
+    // get a fast customized matcher for < pattern >
+    switch ( self.tt )
+    {
+        case T_CHAR: case T_CHARLIST:
+            self.tp = pattern;
+            self.get = T_CHARLIST === self.tt ? getCharList : getChar;
+            break;
+        case T_STR:
+            self.tp = pattern;
+            self.p = {};
+            self.p[ '' + pattern.charAt(0) ] = 1;
+            self.get = getStr;
+            break;
+        case T_REGEX:
+            self.tp = pattern[ 0 ];
+            self.p = pattern[ 1 ].peek || null;
+            self.np = pattern[ 1 ].negativepeek || null;
+            self.tg = pattern[ 2 ] || 0;
+            self.get = getRegex;
+            break;
+        case T_NULL:
+            self.tp = null;
+            self.get = getNull;
+            break;
+    }
+}
+Matcher[PROTO] = {
+     constructor: Matcher
+    
+    ,$class: null
+    // matcher type
+    ,mt: null
+    // token type
+    ,tt: null
+    // token name
+    ,tn: null
+    // token pattern
+    ,tp: null
+    // token pattern group
+    ,tg: 0
+    // token key
+    ,tk: 0
+    // pattern peek chars
+    ,p: null
+    // pattern negative peek chars
+    ,np: null
+    
+    ,get: function( stream, eat ) {
+        return false;
+    }
+    
+    ,toString: function() {
+        var self = this;
+        return [
+            '[', 'Matcher: ', 
+            self.tn, 
+            ', Pattern: ', 
+            (self.tp ? self.tp.toString() : null), 
+            ']'
+        ].join('');
+    }
+};
+    
+function CompositeMatcher( name, matchers, useOwnKey ) 
+{
+    var self = this;
+    self.$class = CompositeMatcher;
+    self.mt = T_COMPOSITEMATCHER;
+    self.tn = name;
+    self.ms = matchers;
+    self.ownKey = (false!==useOwnKey);
+}
+// extends Matcher
+CompositeMatcher[PROTO] = Merge(Extend(Matcher[PROTO]), {
+     constructor: CompositeMatcher
+    
+    // group of matchers
+    ,ms: null
+    ,ownKey: true
+    
+    ,get: function( stream, eat ) {
+        var self = this, i, m, matchers = self.ms, l = matchers.length, useOwnKey = self.ownKey;
+        for (i=0; i<l; i++)
+        {
+            // each one is a matcher in its own
+            m = matchers[ i ].get( stream, eat );
+            if ( m ) return useOwnKey ? [ i, m[1] ] : m;
+        }
+        return false;
+    }
+});
+    
+function BlockMatcher(name, start, end) 
+{
+    var self = this;
+    self.$class = BlockMatcher;
+    self.mt = T_BLOCKMATCHER;
+    self.tn = name;
+    self.s = new CompositeMatcher( self.tn + '_Start', start, false );
+    self.e = end;
+}
+// extends Matcher
+BlockMatcher[PROTO] = Merge(Extend(Matcher[PROTO]), {
+     constructor: BlockMatcher
+    // start block matcher
+    ,s: null
+    // end block matcher
+    ,e: null
+    
+    ,get: function( stream, eat ) {
+        var self = this, startMatcher = self.s, endMatchers = self.e, token;
+        
+        // matches start of block using startMatcher
+        // and returns the associated endBlock matcher
+        if ( token = startMatcher.get( stream, eat ) )
+        {
+            // use the token key to get the associated endMatcher
+            var endMatcher = endMatchers[ token[0] ], m, 
+                T = get_type( endMatcher ), T0 = startMatcher.ms[ token[0] ].tt;
+            
+            if ( T_REGEX === T0 )
+            {
+                // regex group number given, get the matched group pattern for the ending of this block
+                if ( T_NUM === T )
+                {
+                    // the regex is wrapped in an additional group, 
+                    // add 1 to the requested regex group transparently
+                    m = token[1][ endMatcher+1 ];
+                    endMatcher = new Matcher( (m.length > 1) ? T_STR : T_CHAR, self.tn + '_End', m );
+                }
+                // string replacement pattern given, get the proper pattern for the ending of this block
+                else if ( T_STR === T )
+                {
+                    // the regex is wrapped in an additional group, 
+                    // add 1 to the requested regex group transparently
+                    m = groupReplace(endMatcher, token[1]);
+                    endMatcher = new Matcher( (m.length > 1) ? T_STR : T_CHAR, self.tn + '_End', m );
+                }
+            }
+            return endMatcher;
+        }
+        
+        return false;
+    }
+});
+
+function getSimpleMatcher( name, pattern, key, cachedMatchers ) 
+{
+    var T = get_type( pattern );
+    
+    if ( T_NUM === T ) return pattern;
+    
+    if ( !cachedMatchers[ name ] )
+    {
+        key = key || 0;
+        var matcher, is_char_list = 0;
+        
+        if ( pattern && pattern.isCharList )
+        {
+            is_char_list = 1;
+            delete pattern.isCharList;
+        }
+        
+        // get a fast customized matcher for < pattern >
+        if ( T_NULL & T ) matcher = new Matcher( T_NULL, name, pattern, key );
+        
+        else if ( T_CHAR === T ) matcher = new Matcher( T_CHAR, name, pattern, key );
+        
+        else if ( T_STR & T ) matcher = (is_char_list) ? new Matcher( T_CHARLIST, name, pattern, key ) : new Matcher( T_STR, name, pattern, key );
+        
+        else if ( /*T_REGEX*/T_ARRAY & T ) matcher = new Matcher( T_REGEX, name, pattern, key );
+        
+        // unknown
+        else matcher = pattern;
+        
+        cachedMatchers[ name ] = matcher;
+    }
+    
+    return cachedMatchers[ name ];
+}
+
+function getCompositeMatcher( name, tokens, RegExpID, combined, cachedRegexes, cachedMatchers ) 
+{
+    if ( !cachedMatchers[ name ] )
+    {
+        var tmp, i, l, l2, array_of_arrays = 0, 
+            has_regexs = 0, is_char_list = 1, 
+            T1, T2, matcher
+        ;
+        
+        tmp = make_array( tokens );
+        l = tmp.length;
+        
+        if ( 1 == l )
+        {
+            matcher = getSimpleMatcher( name, getRegexp( tmp[0], RegExpID, cachedRegexes ), 0, cachedMatchers );
+        }
+        else if ( 1 < l /*combined*/ )
+        {   
+            l2 = (l>>1) + 1;
+            // check if tokens can be combined in one regular expression
+            // if they do not contain sub-arrays or regular expressions
+            for (i=0; i<=l2; i++)
+            {
+                T1 = get_type( tmp[i] );
+                T2 = get_type( tmp[l-1-i] );
+                
+                if ( (T_CHAR !== T1) || (T_CHAR !== T2) ) 
+                {
+                    is_char_list = 0;
+                }
+                
+                if ( (T_ARRAY & T1) || (T_ARRAY & T2) ) 
+                {
+                    array_of_arrays = 1;
+                    //break;
+                }
+                else if ( hasPrefix( tmp[i], RegExpID ) || hasPrefix( tmp[l-1-i], RegExpID ) )
+                {
+                    has_regexs = 1;
+                    //break;
+                }
+            }
+            
+            if ( is_char_list && ( !combined || !( T_STR & get_type(combined) ) ) )
+            {
+                tmp = tmp.slice().join('');
+                tmp.isCharList = 1;
+                matcher = getSimpleMatcher( name, tmp, 0, cachedMatchers );
+            }
+            else if ( combined && !(array_of_arrays || has_regexs) )
+            {   
+                matcher = getSimpleMatcher( name, getCombinedRegexp( tmp, combined ), 0, cachedMatchers );
+            }
+            else
+            {
+                for (i=0; i<l; i++)
+                {
+                    if ( T_ARRAY & get_type( tmp[i] ) )
+                        tmp[i] = getCompositeMatcher( name + '_' + i, tmp[i], RegExpID, combined, cachedRegexes, cachedMatchers );
+                    else
+                        tmp[i] = getSimpleMatcher( name + '_' + i, getRegexp( tmp[i], RegExpID, cachedRegexes ), i, cachedMatchers );
+                }
+                
+                matcher = (l > 1) ? new CompositeMatcher( name, tmp ) : tmp[0];
+            }
+        }
+        
+        cachedMatchers[ name ] = matcher;
+    }
+    
+    return cachedMatchers[ name ];
+}
+
+function getBlockMatcher( name, tokens, RegExpID, cachedRegexes, cachedMatchers ) 
+{
+    if ( !cachedMatchers[ name ] )
+    {
+        var tmp, i, l, start, end, t1, t2;
+        
+        // build start/end mappings
+        start = []; end = [];
+        tmp = make_array_2( tokens ); // array of arrays
+        for (i=0, l=tmp.length; i<l; i++)
+        {
+            t1 = getSimpleMatcher( name + '_0_' + i, getRegexp( tmp[i][0], RegExpID, cachedRegexes ), i, cachedMatchers );
+            if (tmp[i].length>1)
+            {
+                if ( T_REGEX === t1.tt && T_STR === get_type( tmp[i][1] ) && !hasPrefix( tmp[i][1], RegExpID ) )
+                    t2 = tmp[i][1];
+                else
+                    t2 = getSimpleMatcher( name + '_1_' + i, getRegexp( tmp[i][1], RegExpID, cachedRegexes ), i, cachedMatchers );
+            }
+            else
+            {
+                t2 = t1;
+            }
+            start.push( t1 );  end.push( t2 );
+        }
+        
+        cachedMatchers[ name ] = new BlockMatcher( name, start, end );
+    }
+    
+    return cachedMatchers[ name ];
+}
+
+//
 // tokenizer factories
 var ACTION_PUSH = 1, ACTION_POP = 2/*,
     
     getEMPTY = function( stream, state ) {
         var self = this;
         
-        self.MTCH = 0;
+        self.ACT = 0;
         // match EMPTY token
         self.ERR = 0;
         self.REQ = 0;
@@ -16,7 +349,7 @@ var ACTION_PUSH = 1, ACTION_POP = 2/*,
     getEOL = function( stream, state ) {
         var self = this;
         
-        self.MTCH = 0;
+        self.ACT = 0;
         // match EOL ( with possible leading spaces )
         stream.spc( );
         if ( stream.eol( ) )  return self.id; 
@@ -26,7 +359,7 @@ var ACTION_PUSH = 1, ACTION_POP = 2/*,
     getNONSPC = function( stream, state ) {
         var self = this;
         
-        self.MTCH = 0;
+        self.ACT = 0;
         // match non-space
         self.ERR = ( self.REQ && stream.spc( ) && !stream.eol( ) ) ? 1 : 0;
         self.REQ = 0;
@@ -36,31 +369,31 @@ var ACTION_PUSH = 1, ACTION_POP = 2/*,
     getTOKEN = function( stream, state ) {
         var self = this, t = null;
         
-        self.MTCH = 0;
+        self.ACT = 0;
         // else match a simple token
         if ( t = self.tk.get( stream ) ) 
         { 
-            if ( self.ta ) self.MTCH = self.act( t, state );
+            if ( self.ta ) self.ACT = self.act( t, state );
             return self.id; 
         }
         return false;
     }*/
 ;
     
-function SimpleToken( type, name, token ) 
+function Token( type, name, token ) 
 {
     var self = this;
-    self.$class = SimpleToken;
+    self.$class = Token;
     self.tt = type || T_SIMPLE;
     self.id = name;
     self.tk = token;
     self.REQ = 0;
     self.ERR = 0;
-    self.MTCH = 0;
+    self.ACT = 0;
     self.CLONE = ['tk'];
 }
-SimpleToken[PROTO] = {
-     constructor: SimpleToken
+Token[PROTO] = {
+     constructor: Token
     
     ,$class: null
     ,sID: null
@@ -74,53 +407,44 @@ SimpleToken[PROTO] = {
     ,ta: null
     ,REQ: 0
     ,ERR: 0
-    ,MTCH: 0
+    ,ACT: 0
     ,CLONE: null
     
     // tokenizer match action (optional)
     ,act: function( token, state ) {
-        var matchAction = this.ta || null, t, T, data = state.data;
+        var action_def = this.ta || null, action, t, data = state.data;
         
-        if ( matchAction )
+        if ( action )
         {
-            t = matchAction[1];
+            action = action_def[ 0 ]; t = action_def[ 1 ];
             
-            if ( ACTION_PUSH === matchAction[0] && t )
-            {
-                if ( token )
-                {
-                    T = get_type( t );
-                    if ( T_NUM === T )  t = token[1][t];
-                    else t = groupReplace( t, token[1] );
-                }
-                data.push( t );
-            }
-            
-            else if ( ACTION_POP ===  matchAction[0] )
+            if ( ACTION_POP === action )
             {
                 if ( t )
                 {
                     if ( token )
-                    {
-                        T = get_type( t );
-                        if ( T_NUM == T )  t = token[1][t];
-                        else t = groupReplace( t, token[1] );
-                    }
+                        t = T_NUM === get_type( t ) ? token[1][ t ] : groupReplace( t, token[1] );
                     
                     if ( data.isEmpty( ) || t !== data.peek( ) ) return t;
-                    data.pop( );
                 }
-                else if ( data.length ) data.pop( );
+                data.pop( );
+            }
+            
+            else if ( (ACTION_PUSH === action) && t )
+            {
+                if ( token )
+                    t = T_NUM === get_type( t ) ? token[1][ t ] : groupReplace( t, token[1] );
+                data.push( t );
             }
         }
         return 0;
     }
     
     ,get: function( stream, state ) {
-        var self = this, matchAction = self.tm, token = self.tk, 
+        var self = this, action = self.ta, token = self.tk, 
             type = self.tt, tokenID = self.id, t = null;
         
-        self.MTCH = 0;
+        self.ACT = 0;
         // match EMPTY token
         if ( T_EMPTY === type ) 
         { 
@@ -146,7 +470,7 @@ SimpleToken[PROTO] = {
         // else match a simple token
         else if ( t = token.get(stream) ) 
         { 
-            if ( matchAction ) self.MTCH = self.act(t, state);
+            if ( action ) self.ACT = self.act(t, state);
             return tokenID; 
         }
         return false;
@@ -160,7 +484,7 @@ SimpleToken[PROTO] = {
     ,err: function( ) {
         var t = this;
         if ( t.REQ ) return 'Token "'+t.id+'" Expected';
-        else if ( t.MTCH ) return 'Token "'+t.MTCH+'" No Match'
+        else if ( t.ACT ) return 'Token "'+t.ACT+'" No Match'
         return 'Syntax Error: "'+t.id+'"';
     }
 
@@ -201,15 +525,15 @@ function BlockToken( type, name, token, allowMultiline, escChar, hasInterior )
     self.tk = token;
     self.REQ = 0;
     self.ERR = 0;
-    self.MTCH = 0;
+    self.ACT = 0;
     // a block is multiline by default
     self.mline = 'undefined' === typeof(allowMultiline) ? 1 : allowMultiline;
     self.esc = escChar || "\\";
     self.inter = hasInterior;
     self.CLONE = ['tk', 'mline', 'esc', 'inter'];
 }
-// extends SimpleToken
-BlockToken[PROTO] = Merge(Extend(SimpleToken[PROTO]), {
+// extends Token
+BlockToken[PROTO] = Merge(Extend(Token[PROTO]), {
      constructor: BlockToken
      
     ,inter: 0
@@ -352,8 +676,8 @@ function RepeatedTokens( type, name, tokens, min, max )
     self.CLONE = ['ts', 'min', 'max', 'found'];
     if ( tokens ) self.set( tokens );
 }
-// extends SimpleToken
-RepeatedTokens[PROTO] = Merge(Extend(SimpleToken[PROTO]), {
+// extends Token
+RepeatedTokens[PROTO] = Merge(Extend(Token[PROTO]), {
      constructor: RepeatedTokens
      
     ,ts: null
@@ -373,7 +697,7 @@ RepeatedTokens[PROTO] = Merge(Extend(SimpleToken[PROTO]), {
         
         self.ERR = 0;
         self.REQ = 0;
-        self.MTCH = 0;
+        self.ACT = 0;
         streamPos = stream.pos;
         stackPos = state.stack.pos( );
         stackId = self.id+'_'+getId( );
@@ -392,7 +716,7 @@ RepeatedTokens[PROTO] = Merge(Extend(SimpleToken[PROTO]), {
                     self.found = found;
                     state.stack.pushAt( stackPos, self.clone( ), 'sID', stackId );
                     self.found = 0;
-                    self.MTCH = token.MTCH;
+                    self.ACT = token.ACT;
                     return style;
                 }
                 break;
@@ -425,7 +749,7 @@ EitherTokens[PROTO] = Merge(Extend(RepeatedTokens[PROTO]), {
         
         self.REQ = 1;
         self.ERR = 0;
-        self.MTCH = 0;
+        self.ACT = 0;
         streamPos = stream.pos;
         
         for (i=0; i<n; i++)
@@ -437,7 +761,7 @@ EitherTokens[PROTO] = Merge(Extend(RepeatedTokens[PROTO]), {
             
             if ( false !== style )
             {
-                self.MTCH = token.MTCH;
+                self.ACT = token.ACT;
                 return style;
             }
             else if ( token.ERR )
@@ -468,7 +792,7 @@ AllTokens[PROTO] = Merge(Extend(RepeatedTokens[PROTO]), {
         
         self.REQ = 1;
         self.ERR = 0;
-        self.MTCH = 0;
+        self.ACT = 0;
         streamPos = stream.pos;
         stackPos = state.stack.pos();
         token = tokens[ 0 ].clone().req( 1 );
@@ -484,7 +808,7 @@ AllTokens[PROTO] = Merge(Extend(RepeatedTokens[PROTO]), {
                     state.stack.pushAt( stackPos+n-i-1, tokens[ i ].clone().req( 1 ), 'sID', stackId );
             }
                 
-            self.MTCH = token.MTCH;
+            self.ACT = token.ACT;
             return style;
         }
         else if ( token.ERR /*&& token.REQ*/ )
@@ -516,7 +840,7 @@ NGramToken[PROTO] = Merge(Extend(RepeatedTokens[PROTO]), {
         
         self.REQ = 0;
         self.ERR = 0;
-        self.MTCH = 0;
+        self.ACT = 0;
         streamPos = stream.pos;
         stackPos = state.stack.pos();
         token = tokens[ 0 ].clone().req( 0 );
@@ -532,7 +856,7 @@ NGramToken[PROTO] = Merge(Extend(RepeatedTokens[PROTO]), {
                     state.stack.pushAt( stackPos+n-i-1, tokens[ i ].clone().req( 1 ), 'sID', stackId );
             }
             
-            self.MTCH = token.MTCH;
+            self.ACT = token.ACT;
             return style;
         }
         else if ( token.ERR )
@@ -556,30 +880,33 @@ function getTokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     if ( null === tokenID )
     {
         // EOL Tokenizer
-        return new SimpleToken( T_EOL, 'EOL', tokenID );
+        return new Token( T_EOL, 'EOL', tokenID );
     }
     
     else if ( "" === tokenID )
     {
         // NONSPACE Tokenizer
-        return new SimpleToken( T_NONSPACE, 'NONSPACE', tokenID );
+        return new Token( T_NONSPACE, 'NONSPACE', tokenID );
     }
     
     else if ( false === tokenID || 0 === tokenID )
     {
         // EMPTY Tokenizer
-        return new SimpleToken( T_EMPTY, 'EMPTY', tokenID );
+        return new Token( T_EMPTY, 'EMPTY', tokenID );
     }
     
     else if ( T_ARRAY & get_type( tokenID ) )
     {
         // literal n-gram as array
-        tok = {
-            type: "ngram",
-            tokens: tokenID
-        };
-        tokenID = tokenID.join("_");
-        Syntax[ tokenID ] = tok;
+        t = tokenID;
+        tokenID = "NGRAM_" + t.join("_");
+        if ( !Syntax[ tokenID ] )
+        {
+            Syntax[ tokenID ] = {
+                type: "ngram",
+                tokens: t
+            };
+        }
     }
     
     tokenID = '' + tokenID;
@@ -760,7 +1087,7 @@ function getTokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         if ( "" === tok.tokens )
         {
             // NONSPACE Tokenizer
-            token = new SimpleToken( T_NONSPACE, tokenID, tokenID );
+            token = new Token( T_NONSPACE, tokenID, tokenID );
             // pre-cache tokenizer to handle recursive calls to same tokenizer
             cachedTokens[ tokenID ] = token;
             return token;
@@ -768,7 +1095,7 @@ function getTokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         else if ( null === tok.tokens )
         {
             // EOL Tokenizer
-            token = new SimpleToken( T_EOL, tokenID, tokenID );
+            token = new Token( T_EOL, tokenID, tokenID );
             // pre-cache tokenizer to handle recursive calls to same tokenizer
             cachedTokens[ tokenID ] = token;
             return token;
@@ -776,7 +1103,7 @@ function getTokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         else if ( false === tok.tokens || 0 === tok.tokens )
         {
             // EMPTY Tokenizer
-            token = new SimpleToken( T_EMPTY, tokenID, tokenID );
+            token = new Token( T_EMPTY, tokenID, tokenID );
             // pre-cache tokenizer to handle recursive calls to same tokenizer
             cachedTokens[ tokenID ] = token;
             return token;
@@ -801,7 +1128,7 @@ function getTokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         
         // combine by default if possible using word-boundary delimiter
         combine = ( 'undefined' === typeof(tok.combine) ) ? "\\b" : tok.combine;
-        token = new SimpleToken( T_SIMPLE, tokenID,
+        token = new Token( T_SIMPLE, tokenID,
                     getCompositeMatcher( tokenID, tok.tokens.slice(), RegExpID, combine, cachedRegexes, cachedMatchers )
                 );
         token.ta = matchAction;
