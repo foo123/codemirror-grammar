@@ -15,7 +15,6 @@ var js_grammar = {
         "comment":    "comment",
         "atom":       "atom",
         "keyword":    "keyword",
-        "this":       "keyword",
         "builtin":    "builtin",
         "operator":   "operator",
         "identifier": "variable",
@@ -46,8 +45,6 @@ var js_grammar = {
         
         // general identifiers
         "identifier" : "RegExp::/[_A-Za-z$][_A-Za-z0-9$]*/",
-        
-        "this" : "RegExp::/this\\b/",
         
         "property" : "RegExp::/[_A-Za-z$][_A-Za-z0-9$]*/",
         
@@ -102,7 +99,7 @@ var js_grammar = {
             "tokens" : [
                 "(", ")", "[", "]", "{", "}", ",", "=", ";", "?", ":",
                 "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "++", "--",
-                ">>=", "<<="
+                ">>=", "<<=", ">>>="
             ]
         },
             
@@ -111,6 +108,7 @@ var js_grammar = {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
             "tokens" : [
+                "this",
                 "true", "false", 
                 "null", "undefined", 
                 "NaN", "Infinity"
@@ -135,7 +133,7 @@ var js_grammar = {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
             "tokens" : [ 
-                "Object", "Array", "String", "Number", "RegExp", "Exception",
+                "Object", "Function", "Array", "String", "Date", "Number", "RegExp", "Exception",
                 "setTimeout", "setInterval", "alert", "console"
             ]
         }
@@ -145,52 +143,23 @@ var js_grammar = {
     // Syntax model (optional)
     "Syntax" : {
         
-        "literalObject" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ "{", "literalPropertyValues", "}" ]
-        },
-        
-        "literalArray" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ "[", "literalValues", "]" ]
-        },
-        
         "literalProperty" : "string | property",
         
-        // grammar recursion here
         "literalValue" : "atom | string | regex | number | identifier | literalArray | literalObject",
         
-        "literalValuesRest" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ ",", "literalValue" ]
-        },
+        "literalPropertyValue" : "literalProperty ':' literalValue",
         
-        "literalPropertyValue" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ "literalProperty", ":", "literalValue" ]
-        },
+        // grammar recursion here
+        "literalObject" : "'{' (literalPropertyValue (',' literalPropertyValue)*)? '}'",
         
-        "literalPropertyValuesRest" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ ",", "literalPropertyValue" ]
-        },
+        // grammar recursion here
+        "literalArray" : "'[' (literalValue (',' literalValue)*)? ']'",
         
-        "literalValues" : {
-            "type" : "ngram",
-            "tokens" : [
-                [ "literalValue", "literalValuesRest*" ]
-            ]
-        },
-        
-        "literalPropertyValues" : {
-            "type" : "ngram",
-            "tokens" : [
-                [ "literalPropertyValue", "literalPropertyValuesRest*" ]
+        "literalStatement" : {
+            "type": "ngram",
+            "tokens": [
+                ["literalObject"],
+                ["literalArray"]
             ]
         }
     },
@@ -204,7 +173,6 @@ var js_grammar = {
         "keyword",
         "operator",
         "atom",
-        ["literalObject"],
-        ["literalArray"]
+        "literalStatement"
     ]
 };

@@ -1,24 +1,22 @@
 
 //
 // State Class
-function State( line, unique ) 
-{
-    var self = this;
-    // this enables unique state "names"
-    // thus forces highlight to update
-    // however updates also occur when no update necessary ??
-    self.id = unique ? uuid("state") : "state";
-    self.l = line || 0;
-    self.stack = new Stack( );
-    self.data = new Stack( );
-    self.col = 0;
-    self.indent = 0;
-    self.t = null;
-    self.inBlock = null;
-    self.endBlock = null;
-}
-State[PROTO] = {
-     constructor: State
+var State = Class({
+    constructor: function State( line, unique ) {
+        var self = this;
+        // this enables unique state "names"
+        // thus forces highlight to update
+        // however updates also occur when no update necessary ??
+        self.id = unique ? uuid("state") : "state";
+        self.l = line || 0;
+        self.stack = new Stack( );
+        self.data = new Stack( );
+        self.col = 0;
+        self.indent = 0;
+        self.t = null;
+        self.inBlock = null;
+        self.endBlock = null;
+    }
     
     // state id
     ,id: null
@@ -76,4 +74,4 @@ State[PROTO] = {
         //return ['', self.l, self.t, self.r, self.inBlock||'0', self.stack.length].join('_');
         return ['', self.id, self.l, self.t, self.inBlock||'0'].join('_');
     }
-};
+});

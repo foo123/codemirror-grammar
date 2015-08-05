@@ -167,7 +167,7 @@ example:
 * It is recommended to have only `Lex.tokens` or `Syntax.ngrams` in ther `grammar.Parser` part and not `Syntax.group` tokens which are mostly *auxilliary*
 * The `grammar.Syntax` part is quite general and flexible and can define a complete language grammar, however since this is for syntax highlighting and not for code generation, defining only necessary syntax chunks can be lighter
 
-**Syntax shorthand notations (new)**
+**Syntax shorthand BNF-like notations (new)**
 
 `Syntax` part supports *shorthand definitions* (similar to `BNF-style` definitions) for syntax sequences and groups of syntax sequences:
 
@@ -175,10 +175,7 @@ Specificaly:
 
 ```javascript
 "t": "t1 | t2 | t3"
-
-
-// is equivalent to
-
+// is equivalent to =>
 "t": {
     "type": "group",
     "match": "either",
@@ -187,32 +184,25 @@ Specificaly:
 
 
 "t": "t1*"
-
-
-// is equivalent to
-
+// is equivalent to =>
 "t": {
     "type": "group",
     "match": "zeroOrMore",
     "tokens": ["t1"]
 }
 
+
 "t": "t1+"
-
-
-// is equivalent to
-
+// is equivalent to =>
 "t": {
     "type": "group",
     "match": "oneOrMore",
     "tokens": ["t1"]
 }
 
+
 "t": "t1?"
-
-
-// is equivalent to
-
+// is equivalent to =>
 "t": {
     "type": "group",
     "match": "zeroOrOne",
@@ -220,11 +210,17 @@ Specificaly:
 }
 
 
+"t": "t1{1,3}"
+// is equivalent to =>
+"t": {
+    "type": "group",
+    "match": [1,2], // match minimum 1 times and maximum 3 times
+    "tokens": ["t1"]
+}
+
+
 "t": "t1* | t2 | t3"
-
-
-// is equivalent to
-
+// is equivalent to =>
 "t1*": {
     "type": "group",
     "match": "zeroOrMore",
@@ -235,7 +231,64 @@ Specificaly:
     "match": "either",
     "tokens": ["t1*", "t2", "t3"]
 }
+
+"t": "t1* t2 | t3"
+// is equivalent to =>
+"t1*": {
+    "type": "group",
+    "match": "zeroOrMore",
+    "tokens": ["t1"]
+},
+"t1* t2": {
+    "type": "group",
+    "match": "all",
+    "tokens": ["t1*", "t2"]
+},
+"t": {
+    "type": "group",
+    "match": "either",
+    "tokens": ["t1* t2", "t3"]
+}
+
+// a literal tokens wrapped in quotes (' or ")
+// are equivalent to their literal value
+// empty literal token (i.e '') matches empty production
+// NOTE: unlike NON-Space token definition described previously
+"t": "t1 '=' t2"
+// is equivalent to =>
+"t_equal": {
+    "type": "simple",
+    "tokens": "="
+},
+"t": {
+    "type": "group",
+    "match": "all",
+    "tokens": ["t1", "t_equal", "t2"]
+}
+
+
+// tokens can be grouped using parentheses
+"t": "(t1 t2)* | t3"
+// is equivalent to =>
+"t1 t2": {
+    "type": "group",
+    "match": "all",
+    "tokens": ["t1", "t2"]
+}
+"(t1 t2)*": {
+    "type": "group",
+    "match": "zeroOrMore",
+    "tokens": ["t1 t2"]
+}
+"t": {
+    "type": "group",
+    "match": "either",
+    "tokens": ["(t1 t2)*", "t3"]
+}
+
+
 // and so on..
+// ..
 ```
 
 ###Parser

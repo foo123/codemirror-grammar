@@ -14,30 +14,30 @@ var _CodeMirror = CodeMirror || { Pass : { toString: function(){return "CodeMirr
 
 //
 // parser factories
-function Parser( grammar, LOC ) 
-{
-    var self = this;
-    
-    // support extra functionality
-    self.Extra = grammar.Extra || {};
-    
-    // support comments toggle functionality
-    self.LC = (grammar.Comments.line) ? grammar.Comments.line[0] : null,
-    self.BCS = (grammar.Comments.block) ? grammar.Comments.block[0][0] : null,
-    self.BCE = (grammar.Comments.block) ? grammar.Comments.block[0][1] : null,
-    self.BCC = self.BCL = (grammar.Comments.block) ? grammar.Comments.block[0][2] : null,
-    self.DEF = LOC.DEFAULT;
-    self.ERR = grammar.Style.error || LOC.ERROR;
-    
-    // support keyword autocompletion
-    self.Keywords = grammar.Keywords.autocomplete || null;
-    
-    self.Tokens = grammar.Parser || [];
-    self.cTokens = grammar.cTokens.length ? grammar.cTokens : null;
-    self.Style = grammar.Style;
-}
-Parser[PROTO] = {
-     constructor: Parser
+DEFAULTSTYLE = null;
+DEFAULTERROR = "error";
+var Parser = Class({
+    constructor: function Parser( grammar, LOC ) {
+        var self = this;
+        
+        // support extra functionality
+        self.Extra = grammar.Extra || {};
+        
+        // support comments toggle functionality
+        self.LC = (grammar.Comments.line) ? grammar.Comments.line[0] : null,
+        self.BCS = (grammar.Comments.block) ? grammar.Comments.block[0][0] : null,
+        self.BCE = (grammar.Comments.block) ? grammar.Comments.block[0][1] : null,
+        self.BCC = self.BCL = (grammar.Comments.block) ? grammar.Comments.block[0][2] : null,
+        self.DEF = LOC.DEFAULT;
+        self.ERR = grammar.Style.error || LOC.ERROR;
+        
+        // support keyword autocompletion
+        self.Keywords = grammar.Keywords.autocomplete || null;
+        
+        self.Tokens = grammar.Parser || [];
+        self.cTokens = grammar.cTokens.length ? grammar.cTokens : null;
+        self.Style = grammar.Style;
+    }
     
     ,Extra: null
     ,LC: null
@@ -176,7 +176,7 @@ Parser[PROTO] = {
             {
                 type = Style[type] || DEFAULT;
                 // action error
-                if ( tokenizer.ACT )
+                if ( tokenizer.ACTER )
                 {
                     // empty the stack
                     stack.empty('sID', tokenizer.sID);
@@ -221,7 +221,7 @@ Parser[PROTO] = {
             {
                 type = Style[type] || DEFAULT;
                 // action error
-                if ( tokenizer.ACT )
+                if ( tokenizer.ACTER )
                 {
                     // empty the stack
                     stack.empty('sID', tokenizer.sID);
@@ -246,11 +246,11 @@ Parser[PROTO] = {
         var indentUnit = conf.indentUnit || 4, Pass = _CodeMirror.Pass;
         return Pass;
     }
-};
+});
 
-function getMode( grammar, DEFAULT ) 
+function get_mode( grammar, DEFAULT ) 
 {
-    var parser = new Parser( parseGrammar( grammar ), { 
+    var parser = new Parser( parse_grammar( grammar ), { 
         // default return code for skipped or not-styled tokens
         // 'null' should be used in most cases
         DEFAULT: DEFAULT || DEFAULTSTYLE,
@@ -261,7 +261,7 @@ function getMode( grammar, DEFAULT )
     var cm_mode = function cm_mode( conf, parserConf ) {
         
         // return the (codemirror) parser mode for the grammar
-        var mode = {
+        return {
             /*
             // maybe needed in later versions..
             
@@ -284,21 +284,19 @@ function getMode( grammar, DEFAULT )
             
             indent: function( state, textAfter, fullLine ) { 
                 return parser.indent( state, textAfter, fullLine, conf, parserConf ); 
-            }
+            },
+            
+            // support comments toggle functionality
+            lineComment: parser.LC,
+            blockCommentStart: parser.BCS,
+            blockCommentEnd: parser.BCE,
+            blockCommentContinue: parser.BCC,
+            blockCommentLead: parser.BCL,
+            // support extra functionality defined in grammar
+            // eg. code folding, electriChars etc..
+            electricChars: parser.Extra.electricChars || false,
+            fold: parser.Extra.fold || false
         };
-        
-        // support comments toggle functionality
-        mode.lineComment = parser.LC,
-        mode.blockCommentStart = parser.BCS,
-        mode.blockCommentEnd = parser.BCE,
-        mode.blockCommentContinue = parser.BCC,
-        mode.blockCommentLead = parser.BCL
-        // support extra functionality defined in grammar
-        // eg. code folding, electriChars etc..
-        mode.electricChars = parser.Extra.electricChars || false;
-        mode.fold = parser.Extra.fold || false;
-        
-        return mode;
     };
     cm_mode.supportGrammarAnnotations = false;
     // syntax, lint-like validator generated from grammar
@@ -358,8 +356,6 @@ function getMode( grammar, DEFAULT )
 * ```
 *
 [/DOC_MARKDOWN]**/
-DEFAULTSTYLE = null;
-DEFAULTERROR = "error";
 var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
     
     VERSION: "@@VERSION@@",
@@ -391,7 +387,7 @@ var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
     * However user can use this method to cache a parsedgrammar to be used later.
     * Already parsed grammars are NOT re-parsed when passed through the parse method again
     [/DOC_MARKDOWN]**/
-    parse: parseGrammar,
+    parse: parse_grammar,
     
     // get a codemirror syntax-highlight mode from a grammar
     /**[DOC_MARKDOWN]
@@ -405,5 +401,5 @@ var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
     * DEFAULT is the default return value (null by default) for things that are skipped or not styled
     * In general there is no need to set this value, unless you need to return something else
     [/DOC_MARKDOWN]**/
-    getMode: getMode
+    getMode: get_mode
 };

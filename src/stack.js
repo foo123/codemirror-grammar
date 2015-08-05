@@ -1,12 +1,10 @@
 
 //
 // Stack Class
-function Stack( array ) 
-{
-    this._ = array || [];
-}
-Stack[PROTO] = {
-     constructor: Stack
+var Stack = Class({
+    constructor: function Stack( array ) {
+        this._ = array || [];
+    }
     
     // abbreviations used for optimal minification
     ,_: null
@@ -90,4 +88,4 @@ Stack[PROTO] = {
         else stack.length = 0;
         return self;
     }
-};
+});

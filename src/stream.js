@@ -4,47 +4,16 @@
 var Max = Math.max, spcRegex = /^[\s\u00a0]+/, spc = /[^\s\u00a0]/;
 
 // a wrapper-class to manipulate a string as a stream, based on Codemirror's StringStream
-function Stream( line ) 
-{
-    var self = this;
-    self._ = null;
-    self.s = line ? ''+line : '';
-    self.start = self.pos = 0;
-    self.lCP = self.lCV = 0;
-    self.lS = 0;
-}
-
-// Counts the column offset in a string, taking tabs into account.
-// Used mostly to find indentation.
-// adapted from CodeMirror
-Stream.col = function( string, end, tabSize, startIndex, startValue ) {
-    var i, n;
-    if ( null === end ) 
-    {
-        end = string.search( spc );
-        if ( -1 == end ) end = string.length;
+var Stream = Class({
+    constructor: function Stream( line ) {
+        var self = this;
+        self._ = null;
+        self.s = line ? ''+line : '';
+        self.start = self.pos = 0;
+        self.lCP = self.lCV = 0;
+        self.lS = 0;
     }
-    for (i = startIndex || 0, n = startValue || 0; i < end; ++i) 
-        n += ( "\t" == string.charAt(i) ) ? (tabSize - (n % tabSize)) : 1;
-    return n;
-};
-    
-// new Stream from another stream
-Stream._ = function( _ ) {
-    var stream = new Stream( );
-    stream._ = _;
-    stream.s = ''+_.string;
-    stream.start = _.start;
-    stream.pos = _.pos;
-    stream.lCP = _.lastColumnPos;
-    stream.lCV = _.lastColumnValue;
-    stream.lS = _.lineStart;
-    return stream;
-};
 
-Stream[PROTO] = {
-     constructor: Stream
-    
     // abbreviations used for optimal minification
     ,_: null
     ,s: ''
@@ -238,4 +207,32 @@ Stream[PROTO] = {
         this.start = this.pos;
         return this;
     }
+});
+
+// Counts the column offset in a string, taking tabs into account.
+// Used mostly to find indentation.
+// adapted from CodeMirror
+Stream.col = function( string, end, tabSize, startIndex, startValue ) {
+    var i, n;
+    if ( null === end ) 
+    {
+        end = string.search( spc );
+        if ( -1 == end ) end = string.length;
+    }
+    for (i = startIndex || 0, n = startValue || 0; i < end; ++i) 
+        n += ( "\t" == string.charAt(i) ) ? (tabSize - (n % tabSize)) : 1;
+    return n;
+};
+    
+// new Stream from another stream
+Stream._ = function( _ ) {
+    var stream = new Stream( );
+    stream._ = _;
+    stream.s = ''+_.string;
+    stream.start = _.start;
+    stream.pos = _.pos;
+    stream.lCP = _.lastColumnPos;
+    stream.lCV = _.lastColumnValue;
+    stream.lS = _.lineStart;
+    return stream;
 };

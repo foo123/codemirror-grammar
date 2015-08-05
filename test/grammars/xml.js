@@ -4,10 +4,8 @@ var xml_grammar = {
     // prefix ID for regular expressions used in the grammar
     "RegExpID" : "RegExp::",
 
-    //
-    // Fold model
-    "Fold" : {
-        "xml" : ["RegExp::/<([_a-zA-Z][_a-zA-Z0-9\\-]*)[^>]*?[^/]>/", "</$1>"]
+    "Extra" : {
+        "fold" : "xml"
     },
     
     //
@@ -24,7 +22,6 @@ var xml_grammar = {
         "endTag":               "tag",
         "attribute":            "attribute",
         "number":               "number",
-        "hexnumber":            "number",
         "string":               "string"
     },
 
@@ -59,21 +56,6 @@ var xml_grammar = {
             ]
         },
         
-        // numbers, in order of matching
-        "number" : [
-            // floats
-            "RegExp::/\\d+\\.\\d*/",
-            "RegExp::/\\.\\d+/",
-            // integers
-            // decimal
-            "RegExp::/[1-9]\\d*(e[\\+\\-]?\\d+)?/",
-            // just zero
-            "RegExp::/0(?![\\dx])/"
-        ],
-        
-        // hex colors
-        "hexnumber" : "RegExp::/#[0-9a-fA-F]+/",
-
         // strings
         "string" : {
             "type" : "block",
@@ -83,6 +65,17 @@ var xml_grammar = {
                 [ "\"" ], [ "'" ] 
             ]
         },
+        
+        // numbers, in order of matching
+        "number" : [
+            // integers
+            // decimal
+            "RegExp::/[1-9]\\d*(e[\\+\\-]?\\d+)?/",
+            // just zero
+            "RegExp::/0(?![\\dx])/",
+            // hex colors
+            "RegExp::/#[0-9a-fA-F]+/"
+        ],
         
         // atoms
         "atom" : [
@@ -96,37 +89,42 @@ var xml_grammar = {
         
         // tags
         "closeTag" : ">",
+        
         "openTag" : {
             // allow to match start/end tags
             "push" : "TAG<$1>",
             "tokens" : "RegExp::/<([_a-zA-Z][_a-zA-Z0-9\\-]*)/"
         },
+        
         "autoCloseTag" : {
             // allow to match start/end tags
             "pop" : null,
             "tokens" : "/>"
         },
+        
         "endTag" : {
             // allow to match start/end tags
             "pop" : "TAG<$1>",
-            "tokens" : "RegExp::#</([_a-zA-Z][_a-zA-Z0-9\\-]*)>#"
+            "tokens" : "RegExp::/<\\/([_a-zA-Z][_a-zA-Z0-9\\-]*)>/"
         }
     },
     
     //
     // Syntax model (optional)
     "Syntax" : {
+        // NEW feature
+        // using BNF-like shorthands, instead of multiple grammar configuration objects
         
-        "tagAttribute" : { 
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ "attribute", "=", "string | number | hexnumber" ]
-        },
+        "tagAttribute": "attribute '=' (string | number)",
         
-        "closeOpenTag" : { 
-            "type" : "group",
-            "match" : "either",
-            "tokens" : [ "closeTag",  "autoCloseTag"]
+        "startTag": "openTag tagAttribute* (closeTag | autoCloseTag)",
+        
+        "tags": {
+            "type": "ngram",
+            "tokens": [
+                ["startTag"], 
+                ["endTag"]
+            ]
         }
     },
     
@@ -135,8 +133,7 @@ var xml_grammar = {
         "commentBlock",
         "cdataBlock",
         "metaBlock",
-        [ "openTag", "tagAttribute*", "closeOpenTag" ],
-        [ "endTag" ],
+        "tags",
         "atom"
     ]
 };

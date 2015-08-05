@@ -43,7 +43,6 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
         return T_UNKNOWN;
     },
     
-    Extend = Object.create,
     Merge = function(/* var args here.. */) { 
         var args = arguments, argslen, 
             o1, o2, v, p, i, T;
@@ -56,40 +55,64 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
             {
                 for (p in o2)
                 {            
-                    if ( o2[HAS](p) && o2[IS_ENUM](p) ) 
-                    {
-                        v = o2[p];
-                        T = get_type( v );
-                        
-                        if ( T_NUM & T )
-                            // shallow copy for numbers, better ??
-                            o1[p] = 0 + v;  
-                        
-                        else if ( T_STR_OR_ARRAY & T )
-                            // shallow copy for arrays or strings, better ??
-                            o1[p] = v.slice(0);  
-                        
-                        else
-                            // just reference copy
-                            o1[p] = v;  
-                    }
+                    if ( !o2[HAS](p) || !o2[IS_ENUM](p) ) continue;
+                    
+                    v = o2[p]; T = get_type( v );
+                    
+                    if ( T_NUM & T )
+                        // shallow copy for numbers, better ??
+                        o1[p] = 0 + v;  
+                    
+                    else if ( T_STR_OR_ARRAY & T )
+                        // shallow copy for arrays or strings, better ??
+                        o1[p] = v.slice();  
+                    
+                    else
+                        // just reference copy
+                        o1[p] = v;  
                 }
             }
         }
         return o1; 
     },
     
-    make_array = function(a, force) {
+    Extend = Object.create,
+    
+    Class = function( O, C ) {
+        var argslen = arguments.length, ctor, CTOR = 'constructor';
+        if ( 0 === argslen ) 
+        {
+            O = Object;
+            C = { };
+        }
+        else if ( 1 === argslen ) 
+        {
+            C = O || { };
+            O = Object;
+        }
+        else
+        {
+            O = O || Object;
+            C = C || { };
+        }
+        if ( !C[HAS](CTOR) ) C[CTOR] = function( ){ };
+        ctor = C[CTOR]; delete C[CTOR];
+        ctor[PROTO] = Merge( Extend(O[PROTO]), C );
+        ctor[PROTO][CTOR] = ctor;
+        return ctor;
+    },
+    
+    make_array = function( a, force ) {
         return ( force || T_ARRAY !== get_type( a ) ) ? [ a ] : a;
     },
     
-    make_array_2 = function(a, force) {
+    make_array_2 = function( a, force ) {
         a = make_array( a, force );
         if ( force || T_ARRAY !== get_type( a[0] ) ) a = [ a ]; // array of arrays
         return a;
     },
     
-    clone = function(o) {
+    clone = function( o ) {
         var T = get_type( o ), T2;
         
         if ( !(T_OBJ_OR_ARRAY & T) ) return o;
@@ -97,21 +120,19 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
         var co = {}, k;
         for (k in o) 
         {
-            if ( o[HAS](k) && o[IS_ENUM](k) ) 
-            { 
-                T2 = get_type( o[k] );
-                
-                if (T_OBJ & T2)  co[k] = clone(o[k]);
-                
-                else if (T_STR_OR_ARRAY & T2)  co[k] = o[k].slice();
-                
-                else  co[k] = o[k]; 
-            }
+            if ( !o[HAS](k) || !o[IS_ENUM](k) ) continue;
+            T2 = get_type( o[k] );
+            
+            if (T_OBJ & T2)  co[k] = clone(o[k]);
+            
+            else if (T_STR_OR_ARRAY & T2)  co[k] = o[k].slice();
+            
+            else  co[k] = o[k]; 
         }
         return co;
     },
     
-    extend = function() {
+    extend = function( ) {
         var args = arguments, argslen = args.length;
         
         if ( argslen<1 ) return null;
@@ -150,12 +171,12 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
     },
     
     escaped_re = /([.*+?^${}()|[\]\/\\\-])/g,
-    escRegexp = function(str) {
-        return str.replace(escaped_re, '\\$1');
+    esc_re = function( s ) {
+        return s.replace(escaped_re, '\\$1');
     },
     
     replacement_re = /\$(\d{1,2})/g,
-    groupReplace = function(pattern, token) {
+    group_replace = function( pattern, token ) {
         var parts, i, l, replacer;
         replacer = function(m, d){
             // the regex is wrapped in an additional group, 
@@ -173,18 +194,22 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
         ? function( s ){ return s.trim(); }
         : function( s ){ return s.replace(trim_re, ''); },
         
-    byLength = function(a, b) { return b.length - a.length },
+    by_length = function( a, b ) { 
+        return b.length - a.length 
+    },
     
-    newline_re = /\r\n|\r|\n/g,
-    hasPrefix = function(s, id) {
+    newline_re = /\r\n|\r|\n/g, dashes_re = /[\-_]/g, 
+    bnf_special_re = /^([{}()*+?|'"]|\s)/,
+    
+    has_prefix = function(s, id) {
         return (
             (T_STR & get_type(id)) && (T_STR & get_type(s)) && id.length &&
             id.length <= s.length && id == s.substr(0, id.length)
         );
     },
     
-    getRegexp = function(r, rid, cachedRegexes)  {
-        if ( !r || (T_NUM == get_type(r)) ) return r;
+    get_re = function(r, rid, cachedRegexes)  {
+        if ( !r || (T_NUM === get_type(r)) ) return r;
         
         var l = (rid) ? (rid.length||0) : 0, i;
         
@@ -230,55 +255,25 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
         }
     },
     
-    getCombinedRegexp = function(tokens, boundary)  {
+    get_combined_re = function(tokens, boundary)  {
         var peek = { }, i, l, b = "", bT = get_type(boundary);
-        if ( T_STR == bT || T_CHAR == bT ) b = boundary;
+        if ( T_STR === bT || T_CHAR === bT ) b = boundary;
         var combined = tokens
-                    .sort( byLength )
-                    .map( function(t) {
+                    .sort(by_length)
+                    .map(function( t ) {
                         peek[ t.charAt(0) ] = 1;
-                        return escRegexp( t );
+                        return esc_re( t );
                     })
-                    .join( "|" )
+                    .join("|")
                 ;
         return [ new RegExp("^(" + combined + ")"+b), { peek: peek, negativepeek: null }, 1 ];
     },
     
     _id_ = 0, 
-    getId = function( ) { return ++_id_; },
+    get_id = function( ) { return ++_id_; },
     uuid = function( ns ) { return [ns||'uuid', ++_id_, new Date().getTime()].join('_'); },
     
-    isNode = (typeof global !== "undefined" && toString.call(global) == '[object global]') ? 1 : 0,
-    isBrowser = (!isNode && typeof navigator !== "undefined") ? 1 : 0, 
-    isWorker = (typeof importScripts === "function" && navigator instanceof WorkerNavigator) ? 1 : 0,
-    
-    // Get current filename/path
-    getCurrentPath = function() {
-        var file = null, path, base, scripts;
-        if ( isNode ) 
-        {
-            // http://nodejs.org/docs/latest/api/globals.html#globals_filename
-            // this should hold the current file in node
-            file = __filename;
-            return { path: __dirname, file: __filename, base: __dirname };
-        }
-        else if ( isWorker )
-        {
-            // https://developer.mozilla.org/en-US/docs/Web/API/WorkerLocation
-            // this should hold the current url in a web worker
-            file = self.location.href;
-        }
-        else if ( isBrowser )
-        {
-            // get last script (should be the current one) in browser
-            base = document.location.href.split('#')[0].split('?')[0].split('/').slice(0, -1).join('/');
-            if ((scripts = document.getElementsByTagName('script')) && scripts.length) 
-                file = scripts[scripts.length - 1].src;
-        }
-        
-        if ( file )
-            return { path: file.split('/').slice(0, -1).join('/'), file: file, base: base };
-        return { path: null, file: null, base: null };
-    },
-    thisPath = getCurrentPath()
+    isNode = !!(("undefined" !== typeof global) && ("[object global]" === toString.call(global))),
+    isBrowser = !!(!isNode && ("undefined" !== typeof navigator)),
+    isWorker = !!(isBrowser && ("function" === typeof importScripts) && (navigator instanceof WorkerNavigator))
 ;

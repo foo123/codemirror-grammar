@@ -6,6 +6,8 @@ var
     DEFAULTSTYLE,
     DEFAULTERROR,
     
+    ACTION_PUSH = 1, ACTION_POP = 2,
+    
     //
     // javascript variable types
     INF = Infinity,
@@ -29,19 +31,21 @@ var
     T_COMMENT = 34,
     T_EITHER = 64,
     T_ALL = 128,
+    T_SEQUENCE = T_ALL,
     T_REPEATED = 256,
     T_ZEROORONE = 257,
     T_ZEROORMORE = 258,
     T_ONEORMORE = 259,
     T_GROUP = 512,
     T_NGRAM = 1024,
+    T_SEQUENCE_OR_NGRAM = T_SEQUENCE | T_NGRAM,
     T_INDENT = 2048,
     T_DEDENT = 4096,
     
     //
     // tokenizer types
     groupTypes = {
-        EITHER: T_EITHER, ALL: T_ALL, 
+        EITHER: T_EITHER, ALL: T_ALL, SEQUENCE: T_SEQUENCE,
         ZEROORONE: T_ZEROORONE, ZEROORMORE: T_ZEROORMORE, ONEORMORE: T_ONEORMORE, 
         REPEATED: T_REPEATED
     },
