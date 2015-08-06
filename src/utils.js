@@ -199,7 +199,7 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
     },
     
     newline_re = /\r\n|\r|\n/g, dashes_re = /[\-_]/g, 
-    bnf_special_re = /^([{}()*+?|'"]|\s)/,
+    peg_bnf_notation_re = /^([{}()*+?|'"]|\s)/,
     
     has_prefix = function(s, id) {
         return (

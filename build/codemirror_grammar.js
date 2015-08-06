@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 1.0
+*   @version: 1.0.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -292,7 +292,7 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
     },
     
     newline_re = /\r\n|\r|\n/g, dashes_re = /[\-_]/g, 
-    bnf_special_re = /^([{}()*+?|'"]|\s)/,
+    peg_bnf_notation_re = /^([{}()*+?|'"]|\s)/,
     
     has_prefix = function(s, id) {
         return (
@@ -1546,20 +1546,13 @@ CompositeToken = Class(Token, {
     }
 });
 
-function parse_bnf_shorthand( tok, Lex, Syntax, sub_seq )
+function parse_peg_bnf_notation( tok, Lex, Syntax )
 {
     var alternation, sequence, token, literal, repeat, 
-        t, q, c, prev_token, curr_token;
+        t, q, c, prev_token, curr_token, stack, tmp;
     
-    if ( 'undefined' === typeof tok.pos )
-    {
-        t = new String( trim(tok) );
-        t.pos = 0;
-    }
-    else
-    {
-        t = tok;
-    }
+    t = new String( trim(tok) );
+    t.pos = 0;
     
     if ( 1 === t.length )
     {
@@ -1569,15 +1562,16 @@ function parse_bnf_shorthand( tok, Lex, Syntax, sub_seq )
     }
     else
     {
+        // parse PEG/BNF-like shorthand notations for syntax groups
         alternation = [ ];
         sequence = [ ];
         token = '';
+        stack = [];
         while ( t.pos < t.length )
         {
-            // parse BNF-like shorthand notations for syntax groups
             c = t.charAt( t.pos++ );
             
-            if ( bnf_special_re.test( c ) )
+            if ( peg_bnf_notation_re.test( c ) )
             {
                 if ( token.length )
                 {
@@ -1591,7 +1585,7 @@ function parse_bnf_shorthand( tok, Lex, Syntax, sub_seq )
                     sequence.push( token );
                     token = '';
                 }
-                
+            
                 if ( '"' === c || "'" === c )
                 {
                     // literal token, quoted
@@ -1705,24 +1699,57 @@ function parse_bnf_shorthand( tok, Lex, Syntax, sub_seq )
                 else if ( '(' === c )
                 {
                     // start of grouped sub-sequence
-                    prev_token = parse_bnf_shorthand( t, Lex, Syntax, true );
-                    curr_token = '(' + prev_token + ')';
-                    if ( !Syntax[curr_token] ) Syntax[curr_token] = clone( Lex[prev_token] || Syntax[prev_token] );
-                    sequence.push( curr_token );
+                    stack.push([sequence, alternation, token]);
+                    sequence = []; alternation = []; token = '';
                 }
                 
                 else if ( ')' === c )
                 {
                     // end of grouped sub-sequence
-                    if ( sub_seq )
+                    if ( sequence.length > 1 )
                     {
-                        //t.pos++;
-                        break;
+                        curr_token = '' + sequence.join( " " );
+                        if ( !Syntax[curr_token] )
+                        {
+                            Syntax[curr_token] = {
+                                type: 'group',
+                                match: 'sequence',
+                                tokens: sequence
+                            };
+                        }
+                        alternation.push( curr_token );
                     }
-                    else
+                    else if ( sequence.length )
                     {
-                        continue;
+                        alternation.push( sequence[0] );
                     }
+                    sequence = [];
+                    
+                    if ( alternation.length > 1 )
+                    {
+                        curr_token = '' + alternation.join( " | " );
+                        if ( !Syntax[curr_token] )
+                        {
+                            Syntax[curr_token] = {
+                                type: 'group',
+                                match: 'either',
+                                tokens: alternation
+                            };
+                        }
+                    }
+                    else if ( alternation.length )
+                    {
+                        curr_token = alternation[ 0 ];
+                    }
+                    alternation = [];
+                    
+                    tmp = stack.pop( );
+                    sequence = tmp[0]; alternation = tmp[1]; token = tmp[2];
+                    
+                    prev_token = curr_token;
+                    curr_token = '(' + prev_token + ')';
+                    if ( !Syntax[curr_token] ) Syntax[curr_token] = clone( Lex[prev_token] || Syntax[prev_token] );
+                    sequence.push( curr_token );
                 }
                 
                 else // space
@@ -1861,7 +1888,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     
     if ( T_STR & get_type( tok ) ) 
     {
-        tok = parse_bnf_shorthand( tok, Lex, Syntax );
+        tok = parse_peg_bnf_notation( tok, Lex, Syntax );
         tok = Lex[ tok ] || Syntax[ tok ];
     }
     
@@ -1884,23 +1911,23 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         // loop and get all references
     }
     
-    // provide some defaults
     if ( 'undefined' === typeof tok.type )
     {
-        if ( tok['either'] )
-        {
-            tok.type = "group";
-            tok.match = "either";
-            tok.tokens = tok['either'];
-            delete tok['either'];
-        }
-        else if ( tok['all'] || tok['sequence'] )
+        // provide some defaults
+        if ( tok['all'] || tok['sequence'] )
         {
             tok.type = "group";
             tok.match = "sequence";
             tok.tokens = tok['all'] || tok['sequence'];
             if ( tok['all'] ) delete tok['all'];
             else delete tok['sequence'];
+        }
+        else if ( tok['either'] )
+        {
+            tok.type = "group";
+            tok.match = "either";
+            tok.tokens = tok['either'];
+            delete tok['either'];
         }
         else if ( tok['zeroOrMore'] )
         {
@@ -1922,6 +1949,30 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
             tok.match = "zeroOrOne";
             tok.tokens = tok['zeroOrOne'];
             delete tok['zeroOrOne'];
+        }
+        else if ( tok['comment'] )
+        {
+            tok.type = "comment";
+            tok.tokens = tok['comment'];
+            delete tok['comment'];
+        }
+        else if ( tok['block'] )
+        {
+            tok.type = "block";
+            tok.tokens = tok['block'];
+            delete tok['block'];
+        }
+        else if ( tok['escaped-block'] )
+        {
+            tok.type = "escaped-block";
+            tok.tokens = tok['escaped-block'];
+            delete tok['escaped-block'];
+        }
+        else if ( tok['simple'] )
+        {
+            tok.type = "simple";
+            tok.tokens = tok['simple'];
+            delete tok['simple'];
         }
         else
         {
@@ -2179,7 +2230,7 @@ function parse_grammar( grammar )
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 1.0
+*   @version: 1.0.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2536,7 +2587,7 @@ function get_mode( grammar, DEFAULT )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     
-    VERSION: "1.0",
+    VERSION: "1.0.1",
     
     // extend a grammar using another base grammar
     /**[DOC_MARKDOWN]
@@ -2546,9 +2597,9 @@ var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     * extendedgrammar = CodeMirrorGrammar.extend( grammar, basegrammar1 [, basegrammar2, ..] );
     * ```
     *
-    * Extend a grammar with basegrammar1, basegrammar2, etc..
+    * Extend a `grammar` with `basegrammar1`, `basegrammar2`, etc..
     *
-    * This way arbitrary dialects and variations can be handled more easily
+    * This way arbitrary `dialects` and `variations` can be handled more easily
     [/DOC_MARKDOWN]**/
     extend: extend,
     
@@ -2560,9 +2611,9 @@ var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     * parsedgrammar = CodeMirrorGrammar.parse( grammar );
     * ```
     *
-    * This is used internally by the CodeMirrorGrammar Class
-    * In order to parse a JSON grammar to a form suitable to be used by the syntax-highlight parser.
-    * However user can use this method to cache a parsedgrammar to be used later.
+    * This is used internally by the `CodeMirrorGrammar` Class
+    * In order to parse a `JSON grammar` to a form suitable to be used by the syntax-highlight parser.
+    * However user can use this method to cache a `parsedgrammar` to be used later.
     * Already parsed grammars are NOT re-parsed when passed through the parse method again
     [/DOC_MARKDOWN]**/
     parse: parse_grammar,
@@ -2575,8 +2626,8 @@ var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     * mode = CodeMirrorGrammar.getMode( grammar [, DEFAULT] );
     * ```
     *
-    * This is the main method which transforms a JSON grammar into a CodeMirror syntax-highlight parser.
-    * DEFAULT is the default return value (null by default) for things that are skipped or not styled
+    * This is the main method which transforms a `JSON grammar` into a `CodeMirror` syntax-highlight parser.
+    * `DEFAULT` is the default return value (`null` by default) for things that are skipped or not styled
     * In general there is no need to set this value, unless you need to return something else
     [/DOC_MARKDOWN]**/
     getMode: get_mode

@@ -171,7 +171,7 @@ example:
 
 **Syntax shorthand BNF-like notations (new)**
 
-`Syntax` part supports *shorthand definitions* (similar to `BNF-style` definitions) for syntax sequences and groups of syntax sequences:
+`Syntax` part supports *shorthand definitions* (similar to `PEG / BNF-style` definitions) for syntax sequences and groups of syntax sequences:
 
 Specificaly:
 
@@ -252,7 +252,7 @@ Specificaly:
     "tokens": ["t1* t2", "t3"]
 }
 
-// a literal tokens wrapped in quotes (' or ")
+// literal tokens wrapped in quotes (' or ")
 // are equivalent to their literal value
 // empty literal token (i.e '') matches empty production
 // NOTE: unlike NON-Space token definition described previously
