@@ -1,53 +1,44 @@
 
-var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'propertyIsEnumerable',
+var undef = undefined, 
+    PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'propertyIsEnumerable',
     Keys = Object.keys, AP = Array[PROTO], OP = Object[PROTO], FP = Function[PROTO],
     toString = OP.toString,
     
     // types
-    //T_INF = 5,
-    T_NUM = 4, T_NAN = 5,  T_BOOL = 8,
+    T_NUM = 4, T_INF = 5, T_NAN = 6, T_BOOL = 8,
     T_STR = 16, T_CHAR = 17, T_CHARLIST = 18,
     T_ARRAY = 32, T_OBJ = 64, T_FUNC = 128,  T_REGEX = 256, T_DATE = 512,
     T_NULL = 1024, T_UNDEF = 2048, T_UNKNOWN = 4096,
     T_STR_OR_ARRAY = T_STR|T_ARRAY, T_OBJ_OR_ARRAY = T_OBJ|T_ARRAY,
-    TO_STRING = {
+    STRING_TYPE = {
+        "[object Number]"   : T_NUM,
+        "[object String]"   : T_STR,
         "[object Array]"    : T_ARRAY,
         "[object RegExp]"   : T_REGEX,
         "[object Date]"     : T_DATE,
-        "[object Number]"   : T_NUM,
-        "[object String]"   : T_STR,
         "[object Function]" : T_FUNC,
         "[object Object]"   : T_OBJ
     },
     get_type = function( v ) {
-        var /*type_of,*/ to_string;
-        
-        if (null === v)  return T_NULL;
-        else if (true === v || false === v)  return T_BOOL;
-        else if (undef === v /*|| "undefined" === type_of*/)  return T_UNDEF;
-        
-        //type_of = typeOf(v);
-        to_string = toString.call( v );
-        //to_string = TO_STRING[HAS](to_string) ? TO_STRING[to_string] : T_UNKNOWN;
-        to_string = TO_STRING[to_string] || T_UNKNOWN;
-        
-        //if (undef === v /*|| "undefined" === type_of*/)  return T_UNDEF;
-        if (T_NUM === to_string || v instanceof Number)  return isNaN(v) ? T_NAN : T_NUM;
-        else if (T_STR === to_string || v instanceof String) return (1 === v.length) ? T_CHAR : T_STR;
-        else if (T_ARRAY === to_string || v instanceof Array)  return T_ARRAY;
-        else if (T_REGEX === to_string || v instanceof RegExp)  return T_REGEX;
-        else if (T_DATE === to_string || v instanceof Date)  return T_DATE;
-        else if (T_FUNC === to_string || v instanceof Function)  return T_FUNC;
-        else if (T_OBJ === to_string)  return T_OBJ;
-        // unkown type
-        return T_UNKNOWN;
+        if      ( null === v )                return T_NULL;
+        else if ( true === v || false === v || 
+                       v instanceof Boolean ) return T_BOOL;
+        else if ( undef === v )               return T_UNDEF;
+        var TYPE = STRING_TYPE[ toString.call( v ) ] || T_UNKNOWN;
+        if      ( T_NUM === TYPE   || v instanceof Number )   return isNaN(v) ? T_NAN : (isFinite(v) ? T_NUM : T_INF);
+        else if ( T_STR === TYPE   || v instanceof String )   return 1 === v.length ? T_CHAR : T_STR;
+        else if ( T_ARRAY === TYPE || v instanceof Array )    return T_ARRAY;
+        else if ( T_REGEX === TYPE || v instanceof RegExp )   return T_REGEX;
+        else if ( T_DATE === TYPE  || v instanceof Date )     return T_DATE;
+        else if ( T_FUNC === TYPE  || v instanceof Function ) return T_FUNC;
+        else if ( T_OBJ === TYPE )                            return T_OBJ;
+                                                              return T_UNKNOWN;
     },
     
     Merge = function(/* var args here.. */) { 
-        var args = arguments, argslen, 
-            o1, o2, v, p, i, T;
-        o1 = args[0] || {}; 
-        argslen = args.length;
+        var args = arguments, argslen = args.length, 
+            o, o2, v, p, i, T;
+        o = args[0] || {}; 
         for (i=1; i<argslen; i++)
         {
             o2 = args[ i ];
@@ -59,21 +50,18 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
                     
                     v = o2[p]; T = get_type( v );
                     
-                    if ( T_NUM & T )
-                        // shallow copy for numbers, better ??
-                        o1[p] = 0 + v;  
+                    // shallow copy for numbers, better ??
+                    if ( T_NUM & T ) o[p] = 0 + v;  
                     
-                    else if ( T_STR_OR_ARRAY & T )
-                        // shallow copy for arrays or strings, better ??
-                        o1[p] = v.slice();  
+                    // shallow copy for arrays or strings, better ??
+                    else if ( T_STR_OR_ARRAY & T ) o[p] = v.slice();  
                     
-                    else
-                        // just reference copy
-                        o1[p] = v;  
+                    // just reference copy
+                    else o[p] = v;  
                 }
             }
         }
-        return o1; 
+        return o;
     },
     
     Extend = Object.create,
@@ -107,39 +95,67 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
     },
     
     make_array_2 = function( a, force ) {
-        a = make_array( a, force );
+        a = make_array( a );
         if ( force || T_ARRAY !== get_type( a[0] ) ) a = [ a ]; // array of arrays
         return a;
     },
     
-    clone = function( o ) {
-        var T = get_type( o ), T2;
+    clone = function( o, deep ) {
+        var T = get_type( o ), T2, co, k, l;
+        deep = false !== deep;
         
-        if ( !(T_OBJ_OR_ARRAY & T) ) return o;
-        
-        var co = {}, k;
-        for (k in o) 
+        if ( T_OBJ === T )
         {
-            if ( !o[HAS](k) || !o[IS_ENUM](k) ) continue;
-            T2 = get_type( o[k] );
-            
-            if (T_OBJ & T2)  co[k] = clone(o[k]);
-            
-            else if (T_STR_OR_ARRAY & T2)  co[k] = o[k].slice();
-            
-            else  co[k] = o[k]; 
+            co = { };
+            for (k in o) 
+            {
+                if ( !o[HAS](k) || !o[IS_ENUM](k) ) continue;
+                T2 = get_type( o[k] );
+                
+                if ( T_OBJ === T2 )         co[k] = deep ? clone( o[k], deep ) : o[k];
+                else if ( T_ARRAY === T2 )  co[k] = deep ? clone( o[k], deep ) : o[k].slice();
+                else if ( T_STR & T2 )      co[k] = o[k].slice();
+                else if ( T_NUM & T2 )      co[k] = 0 + o[k];
+                else                        co[k] = o[k]; 
+            }
+        }
+        else if ( T_ARRAY === T )
+        {
+            l = o.length;
+            co = new Array(l);
+            for (k=0; k<l; k++)
+            {
+                T2 = get_type( o[k] );
+                
+                if ( T_OBJ === T2 )         co[k] = deep ? clone( o[k], deep ) : o[k];
+                else if ( T_ARRAY === T2 )  co[k] = deep ? clone( o[k], deep ) : o[k].slice();
+                else if ( T_STR & T2 )      co[k] = o[k].slice();
+                else if ( T_NUM & T2 )      co[k] = 0 + o[k];
+                else                        co[k] = o[k]; 
+            }
+        }
+        else if ( T_STR & T )
+        {
+            co = o.slice();
+        }
+        else if ( T_NUM & T )
+        {
+            co = 0 + o;
+        }
+        else
+        {
+            co = o;
         }
         return co;
     },
     
     extend = function( ) {
-        var args = arguments, argslen = args.length;
+        var args = arguments, argslen = args.length, 
+            o2, o, i, k, j, l, a, a2, T, T2;
         
-        if ( argslen<1 ) return null;
-        else if ( argslen<2 ) return clone( args[0] );
+        if ( argslen < 1 ) return null;
         
-        var o1 = args[0], o2, o = clone(o1), i, k, T; 
-        argslen--;            
+        o = clone( args[0] ); 
         
         for (i=1; i<argslen; i++)
         {
@@ -148,22 +164,35 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
             
             for (k in o2) 
             { 
-                if ( o2[HAS](k) && o2[IS_ENUM](k) )
-                {
-                    if ( o1[HAS](k) && o1[IS_ENUM](k) ) 
-                    { 
-                        T = get_type( o1[k] );
-                        
-                        if ( (T_OBJ & ~T_STR) & T)  o[k] = extend( o1[k], o2[k] );
-                        
-                        //else if (T_ARRAY == T)  o[k] = o1[k].slice();
-                        
-                        //else  o[k] = o1[k];
-                    }
-                    else
+                if ( !o2[HAS](k) || !o2[IS_ENUM](k) ) continue;
+                if ( o[HAS](k) && o[IS_ENUM](k) ) 
+                { 
+                    T = get_type( o[k] ); T2 = get_type( o2[k] );
+                    if ( T_OBJ === T && T_OBJ === T2 )
                     {
-                        o[k] = clone( o2[k] );
+                        o[k] = extend( o[k], o2[k] );
                     }
+                    else if ( T_ARRAY === T && T_ARRAY === T2 )
+                    {
+                        a = o[k]; a2 = o2[k]; l = a2.length;
+                        if ( !l ) continue;
+                        else if ( !a.length )
+                        {
+                            o[k] = a2.slice();
+                        }
+                        else
+                        {
+                            for (j=0; j<l; j++)
+                            {
+                                if ( 0 > a.indexOf( a2[j] ) ) 
+                                    a.push( a2[j] );
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    o[k] = clone( o2[k] );
                 }
             }
         }
@@ -271,9 +300,5 @@ var undef = undefined, PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'p
     
     _id_ = 0, 
     get_id = function( ) { return ++_id_; },
-    uuid = function( ns ) { return [ns||'uuid', ++_id_, new Date().getTime()].join('_'); },
-    
-    isNode = !!(("undefined" !== typeof global) && ("[object global]" === toString.call(global))),
-    isBrowser = !!(!isNode && ("undefined" !== typeof navigator)),
-    isWorker = !!(isBrowser && ("function" === typeof importScripts) && (navigator instanceof WorkerNavigator))
+    uuid = function( ns ) { return [ns||'uuid', ++_id_, new Date().getTime()].join('_'); }
 ;

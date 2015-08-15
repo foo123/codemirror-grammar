@@ -17,6 +17,18 @@ __For browser:__
 
 
 
+__Method__: `clone`
+
+```javascript
+cloned = CodeMirrorGrammar.clone( grammar [, deep=true] );
+```
+
+Clone (deep) a `grammar`
+
+Utility to clone objects efficiently
+    
+
+
 __Method__: `extend`
 
 ```javascript

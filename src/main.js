@@ -360,6 +360,20 @@ var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
     
     VERSION: "@@VERSION@@",
     
+    // clone a grammar
+    /**[DOC_MARKDOWN]
+    * __Method__: `clone`
+    *
+    * ```javascript
+    * cloned = CodeMirrorGrammar.clone( grammar [, deep=true] );
+    * ```
+    *
+    * Clone (deep) a `grammar`
+    *
+    * Utility to clone objects efficiently
+    [/DOC_MARKDOWN]**/
+    clone: clone,
+    
     // extend a grammar using another base grammar
     /**[DOC_MARKDOWN]
     * __Method__: `extend`
