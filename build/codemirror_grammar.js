@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 1.0.2
+*   @version: 1.0.3
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -321,7 +321,7 @@ var undef = undefined,
     },
     
     newline_re = /\r\n|\r|\n/g, dashes_re = /[\-_]/g, 
-    peg_bnf_notation_re = /^([{}()*+?|'"]|\s)/,
+    peg_bnf_notation_re = /^([\[\]{}()*+?|'"]|\s)/,
     
     has_prefix = function(s, id) {
         return (
@@ -1694,6 +1694,29 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     continue;
                 }
                 
+                else if ( '[' === c )
+                {
+                    // start of character select
+                    literal = '';
+                    while ( t.pos < t.length && ']' !== (c=t.charAt(t.pos++)) ) literal += c;
+                    curr_token = '[' + literal + ']';
+                    if ( !Lex[curr_token] )
+                    {
+                        Lex[curr_token] = {
+                            type: 'simple',
+                            tokens: literal.split('')
+                        };
+                    }
+                    sequence.push( curr_token );
+                }
+                
+                else if ( ']' === c )
+                {
+                    // end of character select, should be handled in previous case
+                    // added here just for completeness
+                    continue;
+                }
+                
                 else if ( '|' === c )
                 {
                     // alternation
@@ -2255,7 +2278,7 @@ function parse_grammar( grammar )
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 1.0.2
+*   @version: 1.0.3
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2612,7 +2635,7 @@ function get_mode( grammar, DEFAULT )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     
-    VERSION: "1.0.2",
+    VERSION: "1.0.3",
     
     // clone a grammar
     /**[DOC_MARKDOWN]

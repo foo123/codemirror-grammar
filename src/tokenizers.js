@@ -891,6 +891,29 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     continue;
                 }
                 
+                else if ( '[' === c )
+                {
+                    // start of character select
+                    literal = '';
+                    while ( t.pos < t.length && ']' !== (c=t.charAt(t.pos++)) ) literal += c;
+                    curr_token = '[' + literal + ']';
+                    if ( !Lex[curr_token] )
+                    {
+                        Lex[curr_token] = {
+                            type: 'simple',
+                            tokens: literal.split('')
+                        };
+                    }
+                    sequence.push( curr_token );
+                }
+                
+                else if ( ']' === c )
+                {
+                    // end of character select, should be handled in previous case
+                    // added here just for completeness
+                    continue;
+                }
+                
                 else if ( '|' === c )
                 {
                     // alternation

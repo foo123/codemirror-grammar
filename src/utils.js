@@ -228,7 +228,7 @@ var undef = undefined,
     },
     
     newline_re = /\r\n|\r|\n/g, dashes_re = /[\-_]/g, 
-    peg_bnf_notation_re = /^([{}()*+?|'"]|\s)/,
+    peg_bnf_notation_re = /^([\[\]{}()*+?|'"]|\s)/,
     
     has_prefix = function(s, id) {
         return (
