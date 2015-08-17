@@ -1671,9 +1671,9 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     prev_token = sequence.pop( );
                     curr_token = '' + prev_token + [
                         '{',
-                        repeat[0] || '',
+                        repeat[0],
                         ',',
-                        isFinite(repeat[1]) ? (repeat[1]||'') : '',
+                        isFinite(repeat[1]) ? repeat[1] : '',
                         '}'
                     ].join('');
                     if ( !Syntax[ curr_token ] )
