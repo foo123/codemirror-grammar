@@ -2,7 +2,7 @@
 var css_grammar = {
     
     // prefix ID for regular expressions used in the grammar
-    "RegExpID" : "RegExp::",
+    "RegExpID" : "RE::",
 
     //
     // Style model
@@ -63,31 +63,31 @@ var css_grammar = {
         },
         
         // css ids
-        "cssID" : "RegExp::/#[_A-Za-z][_A-Za-z0-9]*/",
+        "cssID" : "RE::/#[_A-Za-z][_A-Za-z0-9]*/",
         
         // css classes
-        "cssClass" : "RegExp::/\\.[_A-Za-z][_A-Za-z0-9]*/",
+        "cssClass" : "RE::/\\.[_A-Za-z][_A-Za-z0-9]*/",
         
-        "cssPseudoElement" : "RegExp::/::?[_A-Za-z][_A-Za-z0-9]*/",
+        "cssPseudoElement" : "RE::/::?[_A-Za-z][_A-Za-z0-9]*/",
         
         // general identifiers
-        "identifier" : "RegExp::/[_A-Za-z][_A-Za-z0-9]*/",
+        "identifier" : "RE::/[_A-Za-z][_A-Za-z0-9]*/",
         
         // numbers, in order of matching
         "number" : [
             // floats
-            "RegExp::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?(em|px|%|pt)?/",
-            "RegExp::/\\d+\\.\\d*(em|px|%|pt)?/",
-            "RegExp::/\\.\\d+(em|px|%|pt)?/",
+            "RE::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?(em|px|%|pt)?/",
+            "RE::/\\d+\\.\\d*(em|px|%|pt)?/",
+            "RE::/\\.\\d+(em|px|%|pt)?/",
             // integers
             // decimal
-            "RegExp::/[1-9]\\d*(e[\\+\\-]?\\d+)?(em|px|%|pt)?/",
+            "RE::/[1-9]\\d*(e[\\+\\-]?\\d+)?(em|px|%|pt)?/",
             // just zero
-            "RegExp::/0(?![\\dx])(em|px|%|pt)?/"
+            "RE::/0(?![\\dx])(em|px|%|pt)?/"
         ],
         
         // hex colors
-        "hexcolor" : "RegExp::/#[0-9a-fA-F]+/",
+        "hexcolor" : "RE::/#[0-9a-fA-F]+/",
 
         // strings
         "string" : {
@@ -95,11 +95,11 @@ var css_grammar = {
             "escape" : "\\",
             "tokens" : [
                 //  start,           end of string (can be the matched regex group ie. 1 )
-                [ "RegExp::/([`'\"])/", 1 ]
+                [ "RE::/([`'\"])/", 1 ]
             ]
         },
         
-        "text" : "RegExp::/[^\\(\\)\\[\\]\\{\\}'\"]+/",
+        "text" : "RE::/[^\\(\\)\\[\\]\\{\\}'\"]+/",
         
         // operators
         "operator" : {
@@ -128,7 +128,7 @@ var css_grammar = {
         },
 
         // defs
-        "meta2" : "RegExp::/@[_A-Za-z][_A-Za-z0-9]*/",
+        "meta2" : "RE::/@[_A-Za-z][_A-Za-z0-9]*/",
 
         // css properties
         "property" : {
@@ -164,7 +164,7 @@ var css_grammar = {
             ]
         },
         
-        "url" : "RegExp::/url\\b/"
+        "url" : "RE::/url\\b/"
     },
 
     //

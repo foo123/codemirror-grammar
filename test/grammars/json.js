@@ -2,7 +2,7 @@
 var json_grammar = {
         
     // prefix ID for regular expressions used in the grammar
-    "RegExpID" : "RegExp::",
+    "RegExpID" : "RE::",
     
     "Extra" : {
         "fold" : "brace"
@@ -40,20 +40,20 @@ var json_grammar = {
         // numbers, in order of matching
         "number" : [
             // floats
-            "RegExp::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?/",
-            "RegExp::/\\d+\\.\\d*/",
-            "RegExp::/\\.\\d+/",
+            "RE::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?/",
+            "RE::/\\d+\\.\\d*/",
+            "RE::/\\.\\d+/",
             // integers
             // hex
-            "RegExp::/0x[0-9a-fA-F]+L?/",
+            "RE::/0x[0-9a-fA-F]+L?/",
             // binary
-            "RegExp::/0b[01]+L?/",
+            "RE::/0b[01]+L?/",
             // octal
-            "RegExp::/0o[0-7]+L?/",
+            "RE::/0o[0-7]+L?/",
             // decimal
-            "RegExp::/[1-9]\\d*(e[\\+\\-]?\\d+)?L?/",
+            "RE::/[1-9]\\d*(e[\\+\\-]?\\d+)?L?/",
             // just zero
-            "RegExp::/0(?![\\dx])/"
+            "RE::/0(?![\\dx])/"
         ],
 
         // usual strings
@@ -75,67 +75,18 @@ var json_grammar = {
     //
     // Syntax model (optional)
     "Syntax" : {
-        
-        "literalObject" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ "{", "literalPropertyValues", "}" ]
-        },
-        
-        "literalArray" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ "[", "literalValues", "]" ]
-        },
-        
+        "literalObject" : "'{' (literalPropertyValue (',' literalPropertyValue)*)? '}'",
+        "literalArray" : "'[' (literalValue (',' literalValue)*)? ']'",
         // grammar recursion here
         "literalValue" : "atom | string | number | literalArray | literalObject",
-        
-        "literalValuesRest" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ ",", "literalValue" ]
-        },
-        
-        "literalPropertyValue" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ "string", ":", "literalValue" ]
-        },
-        
-        "literalPropertyValuesRest" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ ",", "literalPropertyValue" ]
-        },
-        
-        "literalValuesRestOptional" : "literalValuesRest*",
-        
-        "literalPropertyValuesRestOptional" : "literalPropertyValuesRest*",
-        
-        "literalValues" : {
+        "literalPropertyValue" : "string ':' literalValue",
+        "json" : {
             "type" : "ngram",
-            "tokens" : [
-                [ "literalValue", "literalValuesRestOptional" ]
-            ]
-        },
-        
-        "literalPropertyValues" : {
-            "type" : "ngram",
-            "tokens" : [
-                [ "literalPropertyValue", "literalPropertyValuesRestOptional" ]
-            ]
+            "tokens" : ["literalValue"]
         }
     },
 
     // what to parse and in what order
-    "Parser" : [
-        // allow comments in json ;)
-        "comment",
-        "number",
-        "string",
-        "atom",
-        ["literalObject"],
-        ["literalArray"]
-    ]
+    // allow comments in json ;)
+    "Parser" : [ "comment", "json" ]
 };

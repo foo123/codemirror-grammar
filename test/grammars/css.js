@@ -1,6 +1,6 @@
 // 1. a partial css grammar in simple JSON format
 var css_grammar = {
-    "RegExpID" : "RegExp::",
+    "RegExpID" : "RE::",
 
     "Extra" : {
         "fold" : "brace"
@@ -49,13 +49,13 @@ var css_grammar = {
         "number" : [
             // integers
             // decimal
-            "RegExp::/[0-9]\\d*(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
+            "RE::/[0-9]\\d*(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
             // floats
-            "RegExp::/\\.\\d+(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
-            "RegExp::/\\d+\\.\\d*(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
-            "RegExp::/\\d*\\.\\d+(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
+            "RE::/\\.\\d+(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
+            "RE::/\\d+\\.\\d*(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
+            "RE::/\\d*\\.\\d+(rad|grad|deg|turn|vh|vw|vmin|vmax|px|rem|em|%|in|cm|mm|pc|pt|ex|s|ms)?/i",
             // hex color
-            "RegExp::/#[0-9a-f]{3,6}/i"
+            "RE::/#[0-9a-f]{3,6}/i"
         ],
         
         // strings
@@ -64,42 +64,42 @@ var css_grammar = {
             "multiline": false,
             "tokens" : [
                 //  start,           end of string (can be the matched regex group ie. 1 )
-                [ "RegExp::/(['\"])/", 1 ]
+                [ "RE::/(['\"])/", 1 ]
             ]
         },
         
-        "text" : "RegExp::/[^\\(\\)\\[\\]\\{\\}'\"]+/",
+        "text" : "RE::/[^\\(\\)\\[\\]\\{\\}'\"]+/",
         
         // css identifier
-        "identifier" : "RegExp::/[a-z_\\-][a-z0-9_\\-]*/i",
+        "identifier" : "RE::/[a-z_\\-][a-z0-9_\\-]*/i",
         
         // css ids
-        "CssID" : "RegExp::/#[a-z_\\-][a-z0-9_\\-]*/i",
+        "CssID" : "RE::/#[a-z_\\-][a-z0-9_\\-]*/i",
         
         // css classes
-        "CssClass" : "RegExp::/\\.[a-z_\\-][a-z0-9_\\-]*/i",
+        "CssClass" : "RE::/\\.[a-z_\\-][a-z0-9_\\-]*/i",
         
         // css pseudo classes / pseudo elements
-        "PseudoElement" : "RegExp::/::?[a-z_\\-][a-z0-9_\\-]*/i",
+        "PseudoElement" : "RE::/::?[a-z_\\-][a-z0-9_\\-]*/i",
         
         // css properties
-        "CssProperty" : "RegExp::/[a-z_\\-][a-z0-9_\\-]*/i",
+        "CssProperty" : "RE::/[a-z_\\-][a-z0-9_\\-]*/i",
                               
         // css atoms / values
-        "url" : "RegExp::/url\\b/i",
-        "format" : "RegExp::/format\\b/i",
-        "CssAtom" : "RegExp::/[a-z_\\-][a-z_\\-]*/i",
+        "url" : "RE::/url\\b/i",
+        "format" : "RE::/format\\b/i",
+        "CssAtom" : "RE::/[a-z_\\-][a-z_\\-]*/i",
         
         // css @atrules
-        "@import" : "RegExp::/@import\\b/i",
-        "@keyframes" : "RegExp::/@[a-z\\-]*keyframes\\b/i",
-        "@media" : "RegExp::/@media\\b/i",
-        "@atrule" : "RegExp::/@[a-z_\\-][a-z0-9_\\-]*/i",
+        "@import" : "RE::/@import\\b/i",
+        "@keyframes" : "RE::/@[a-z\\-]*keyframes\\b/i",
+        "@media" : "RE::/@media\\b/i",
+        "@atrule" : "RE::/@[a-z_\\-][a-z0-9_\\-]*/i",
         
-        "!important" : "RegExp::/!important\\b/i",
+        "!important" : "RE::/!important\\b/i",
         
         // css html element
-        "HtmlElement" : "RegExp::/[a-z_\\-][a-z0-9_\\-]*/i"
+        "HtmlElement" : "RE::/[a-z_\\-][a-z0-9_\\-]*/i"
     },
 
     //

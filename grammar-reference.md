@@ -55,7 +55,7 @@ example:
     2. `"tokens" :` `pattern` or `array of patterns` for this token
     3. `properties` depending on `token type` (see below)
 
-* a token type can be `"simple"` (default), `"comment"` , `"block"` , `"escaped-block"`
+* a token type can be `"simple"` (default), `"comment"` , `"block"` , `"escaped-block"` , `"action"`
 * a token can *extend / reference* another token using the `extend` property; this way 2 tokens that share common configuration but different styles (depending on context) can be defined only once. Examples are tokens for `identifiers` and `properties` While both have similar tokenizers, the styles (and probably other properties) can be different.
 
 ```javascript
@@ -98,22 +98,32 @@ example:
 * a token can be defined using just the `tokenID` and the token pattern(s); token type is assumed `"simple"`
 * multiple `"simple"` tokens (which are NOT regular expresions) are grouped into one regular expression by default using `"\\b"` (word-boundary) delimiter; this is usefull for speed fine-tuning the parser, adding the `"combine"` property in the token configuration, can alter this option, or use a different delimiter
 * `"simple"` tokens can also be used to enable *keyword autocomplete functionality* (`"autocomplete" : true`, option )
-* `"simple"` tokens can `push` or `pop` string `IDs` onto the data stack generated from the matched token ( *experimental feature* ), for example *associated tag mathing* can be done this way, (see `test/grammars/xml.js` for an example)
+
+**Action Tokens (new)**
+
+`Action Tokens` enable the grammar parser to perform some extra context-specific parsing functionality on tokens.
+An `action` token in a grammar **applies only and directly to the token preceding it**. It performs an **action on that token only**.
+
+* `"action"` tokens can `push` or `pop` string `IDs` onto the data stack generated from the (preceding) matched token, for example *associated tag mathing* can be done this way, (see `test/grammars/xml.js` for an example)
+
+* `"action"` tokens can `check` the (preceding) matched token is unique, for example *unique identifiers checking* can be done this way, (see `test/grammars/xml.js` for an example)
+
+* .. more actions to be added like `indent`/`dedent` etc..
 
 **Example:**
 ```javascript
 
 // stuff here..
 
-"openTag" : {
+"match" : {
     // this will push a token ID generated from the matched token
     // it pushes the matched tag name (as regex group 1)
     // string replacement codes are similar to javascript's replace function
-    "push" : "<$1>",
-    "tokens" : "RegExp::#<([a-z]+)>#i"
+    "type" : "action",
+    "push" : "<$1>"
 },
 
-"closeTag" : {
+"matched" : {
     // this will pop a token ID from the stack
     // and try to match it to the ID generated from this matched token
     // it pops and matches the tag name (as regex group 1)
@@ -124,9 +134,17 @@ example:
     
     // note 2: a "pop" : null or with no value, pops the data unconditionally (can be useful sometimes)
     
+    "type" : "action",
     "pop" : "<$1>", 
-    "tokens" : "RegExp::#</([a-z]+)>#i"
+    "msg" : "Tag \"$1\" does not match!"
 }
+
+// other stuff here..
+
+// syntax part
+
+"start_tag": "open_tag match tag_attribute* close_open_tag",
+"end_tag": "close_tag matched",
 
 // other stuff here..
 
@@ -169,7 +187,7 @@ example:
 * It is recommended to have only `Lex.tokens` or `Syntax.ngrams` in ther `grammar.Parser` part and not `Syntax.group` tokens which are mostly *auxilliary*
 * The `grammar.Syntax` part is quite general and flexible and can define a complete language grammar, however since this is for syntax highlighting and not for code generation, defining only necessary syntax chunks can be lighter
 
-**Syntax shorthand BNF-like notations (new)**
+**Syntax shorthand PEG/BNF-like notations (new)**
 
 `Syntax` part supports *shorthand definitions* (similar to `PEG / BNF-style` definitions) for syntax sequences and groups of syntax sequences:
 
@@ -216,7 +234,7 @@ Specificaly:
 // is equivalent to =>
 "t": {
     "type": "group",
-    "match": [1,2], // match minimum 1 times and maximum 3 times
+    "match": [1,3], // match minimum 1 times and maximum 3 times
     "tokens": ["t1"]
 }
 

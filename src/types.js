@@ -6,20 +6,30 @@ var
     DEFAULTSTYLE,
     DEFAULTERROR,
     
-    ACTION_PUSH = 1, ACTION_POP = 2,
-    
     //
     // javascript variable types
     INF = Infinity,
     
     //
-    // matcher types
-    T_SIMPLEMATCHER = 2,
-    T_COMPOSITEMATCHER = 4,
-    T_BLOCKMATCHER = 8,
+    // action types
+    A_ERROR = 4,
+    A_UNIQUE = 8,
+    A_PUSH = 16,
+    A_POP = 32,
+    A_EMPTY = 64,
+    A_INDENT = 128,
+    A_DEDENT = 256,
+    A_BLOCKINDENT = 512,
+    
+    //
+    // pattern types
+    P_SIMPLE = 2,
+    P_COMPOSITE = 4,
+    P_BLOCK = 8,
     
     //
     // token types
+    T_SPACE = 0,
     T_ERROR = 4,
     T_DEFAULT = 8,
     T_SIMPLE = 16,
@@ -30,8 +40,8 @@ var
     T_ESCBLOCK = 33,
     T_COMMENT = 34,
     T_EITHER = 64,
-    T_ALL = 128,
-    T_SEQUENCE = T_ALL,
+    T_SEQUENCE = 128,
+    T_ALL = T_SEQUENCE,
     T_REPEATED = 256,
     T_ZEROORONE = 257,
     T_ZEROORMORE = 258,
@@ -39,20 +49,38 @@ var
     T_GROUP = 512,
     T_NGRAM = 1024,
     T_SEQUENCE_OR_NGRAM = T_SEQUENCE | T_NGRAM,
-    T_INDENT = 2048,
-    T_DEDENT = 4096,
+    T_ACTION = 2048,
     
     //
     // tokenizer types
     groupTypes = {
-        EITHER: T_EITHER, ALL: T_ALL, SEQUENCE: T_SEQUENCE,
-        ZEROORONE: T_ZEROORONE, ZEROORMORE: T_ZEROORMORE, ONEORMORE: T_ONEORMORE, 
-        REPEATED: T_REPEATED
+    EITHER: T_EITHER,
+    ALL: T_ALL,
+    SEQUENCE: T_SEQUENCE,
+    ZEROORONE: T_ZEROORONE,
+    ZEROORMORE: T_ZEROORMORE,
+    ONEORMORE: T_ONEORMORE,
+    REPEATED: T_REPEATED
     },
     
     tokenTypes = {
-        INDENT: T_INDENT, DEDENT: T_DEDENT,
-        BLOCK: T_BLOCK, COMMENT: T_COMMENT, ESCAPEDBLOCK: T_ESCBLOCK, 
-        SIMPLE: T_SIMPLE, GROUP: T_GROUP, NGRAM: T_NGRAM
+    ACTION: T_ACTION,
+    BLOCK: T_BLOCK,
+    COMMENT: T_COMMENT,
+    ESCAPEDBLOCK: T_ESCBLOCK,
+    SIMPLE: T_SIMPLE,
+    GROUP: T_GROUP,
+    NGRAM: T_NGRAM
+    },
+    
+    actionTypes = {
+    ERROR: A_ERROR,
+    UNIQUE: A_UNIQUE,
+    PUSH: A_PUSH,
+    POP: A_POP,
+    EMPTY: A_EMPTY,
+    INDENT: A_INDENT,
+    DEDENT: A_DEDENT,
+    BLOCKINDENT: A_BLOCKINDENT
     }
 ;

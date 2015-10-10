@@ -72,20 +72,12 @@ var Stack = Class({
         return self;
     }
     
-    ,empty: function( idProp, id ) {
-        var self = this, stack = self._, l = stack.length;
-        if ( idProp && id )
-        {
-            //while (l && stack[l-1] && stack[l-1][idProp] == id) 
-            while ( stack.length && stack[stack.length-1] && stack[stack.length-1][idProp] === id ) 
-            {
-                //console.log([id, stack[l-1][idProp]]);
-                //--l;
-                stack.pop();
-            }
-            //stack.length = l;
-        }
-        else stack.length = 0;
+    ,empty: function( $id, id ) {
+        var self = this, stack = self._;
+        if ( $id && id )
+            while ( stack.length && stack[stack.length-1] && stack[stack.length-1][$id] === id ) stack.pop();
+        else
+            stack.length = 0;
         return self;
     }
 });

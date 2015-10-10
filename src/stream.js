@@ -52,121 +52,71 @@ var Stream = Class({
         return this.pos >= this.s.length; 
     }
     
-    // char match
-    ,chr: function( pattern, eat ) {
-        var self = this, ch = self.s.charAt(self.pos) || null;
-        if (ch && pattern === ch) 
-        {
-            if (false !== eat) 
-            {
-                self.pos += 1;
-                if ( self._ ) self._.pos = self.pos;
-            }
-            return ch;
-        }
-        return false;
-    }
-    
-    // char list match
-    ,chl: function( pattern, eat ) {
-        var self = this, ch = self.s.charAt(self.pos) || null;
-        if ( ch && (-1 < pattern.indexOf( ch )) ) 
-        {
-            if (false !== eat) 
-            {
-                self.pos += 1;
-                if ( self._ ) self._.pos = self.pos;
-            }
-            return ch;
-        }
-        return false;
-    }
-    
-    // string match
-    ,str: function( pattern, startsWith, eat ) {
-        var self = this, len, pos = self.pos, str = self.s, ch = str.charAt(pos) || null;
-        if ( ch && startsWith[ ch ] )
-        {
-            len = pattern.length; 
-            if ( pattern === str.substr(pos, len) ) 
-            {
-                if (false !== eat) 
-                {
-                    self.pos += len;
-                    if ( self._ ) self._.pos = self.pos;
-                }
-                return pattern;
-            }
-        }
-        return false;
-    }
-    
-    // regex match
-    ,rex: function( pattern, startsWith, notStartsWith, group, eat ) {
-        var self = this, match, pos = self.pos, str = self.s, ch = str.charAt(pos) || null;
-        // remove RegexAnalyzer dependency
-        /*if ( ch && ( startsWith && startsWith[ ch ] ) || ( notStartsWith && !notStartsWith[ ch ] ) )
-        {*/
-            match = str.slice( pos ).match( pattern );
-            if (!match || match.index > 0) return false;
-            if ( false !== eat ) 
-            {
-                self.pos += match[group||0].length;
-                if ( self._ ) self._.pos = self.pos;
-            }
-            return match;
-        /*}
-        return false;*/
+    // skip to end
+    ,end: function( ) {
+        var self = this;
+        self.pos = self.s.length;
+        //if ( self._ ) self._.pos = self.pos;
+        return self;
     }
 
+    // move pointer forward/backward n steps
+    ,mov: function( n ) {
+        var self = this;
+        if ( 0 > n ) self.pos = Max(0, self.pos - n);
+        else self.pos += n;
+        //if ( self._ ) self._.pos = self.pos;
+        return self;
+    }
+    
+    // move pointer back to pos
+    ,bck: function( pos ) {
+        var self = this;
+        self.pos = Max(0, pos);
+        //if ( self._ ) self._.pos = self.pos;
+        return self;
+    }
+    
+    // move/shift stream
+    ,sft: function( ) {
+        var self = this;
+        self.start = self.pos;
+        return self;
+    }
+    
+    // next char
+    ,nxt: function( ) {
+        var self = this, c, s = self.s;
+        if ( self.pos < s.length )
+        {
+            c = s.charAt(self.pos++) || null;
+            //if ( self._ ) self._.pos = self.pos;
+            return c;
+        }
+    }
+    
+    // current stream selection
+    ,cur: function( shift ) {
+        var self = this, ret = self.s.slice(self.start, self.pos);
+        if ( shift ) self.start = self.pos;
+        return ret;
+    }
+    
+    ,upd: function( ) {
+        var self = this;
+        if ( self._ ) self._.pos = self.pos;
+        return self;
+    }
+    
     // eat space
     ,spc: function( eat ) {
         var self = this, m, start = self.pos, s = self.s.slice(start);
         if ( m = s.match( spcRegex ) ) 
         {
-            if ( false !== eat )
-            {
-                self.pos += m[0].length;
-                if ( self._ ) self._.pos = self.pos;
-            }
+            if ( false !== eat ) self.mov( m[0].length );
             return 1;
         }
         return 0;
-    }
-    
-    // skip to end
-    ,end: function( ) {
-        var self = this;
-        self.pos = self.s.length;
-        if ( self._ ) self._.pos = self.pos;
-        return self;
-    }
-
-    // get next char
-    ,nxt: function( ) {
-        var self = this, ch, s = self.s;
-        if (self.pos < s.length)
-        {
-            ch = s.charAt(self.pos++) || null;
-            if ( self._ ) self._.pos = self.pos;
-            return ch;
-        }
-    }
-    
-    // back-up n steps
-    ,bck: function( n ) {
-        var self = this;
-        self.pos = Max(0, self.pos - n);
-        if ( self._ ) self._.pos = self.pos;
-        return self;
-    }
-    
-    // back-track to pos
-    ,bck2: function( pos ) {
-        var self = this;
-        self.pos = Max(0, pos);
-        if ( self._ ) self._.pos = self.pos;
-        return self;
     }
     
     // get current column including tabs
@@ -193,19 +143,6 @@ var Stream = Class({
         var self = this;
         tabSize = tabSize || 1;
         return Stream.col(self.s, null, tabSize) - (self.lS ? Stream.col(self.s, self.lS, tabSize) : 0);
-    }
-    
-    // current stream selection
-    ,cur: function( andShiftStream ) {
-        var self = this, ret = self.s.slice(self.start, self.pos);
-        if ( andShiftStream ) self.start = self.pos;
-        return ret;
-    }
-    
-    // move/shift stream
-    ,sft: function( ) {
-        this.start = this.pos;
-        return this;
     }
 });
 

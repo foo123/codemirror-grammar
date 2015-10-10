@@ -51,7 +51,10 @@ var undef = undefined,
                     v = o2[p]; T = get_type( v );
                     
                     // shallow copy for numbers, better ??
-                    if ( T_NUM & T ) o[p] = 0 + v;  
+                    if ( T_NUM & T ) o[p] = 0 + v;
+                    
+                    // shallow copy for dates, better ??
+                    else if ( T_DATE & T ) o[p] = new Date(v);
                     
                     // shallow copy for arrays or strings, better ??
                     else if ( T_STR_OR_ARRAY & T ) o[p] = v.slice();  
@@ -114,6 +117,7 @@ var undef = undefined,
                 
                 if ( T_OBJ === T2 )         co[k] = deep ? clone( o[k], deep ) : o[k];
                 else if ( T_ARRAY === T2 )  co[k] = deep ? clone( o[k], deep ) : o[k].slice();
+                else if ( T_DATE & T2 )     co[k] = new Date(o[k]);
                 else if ( T_STR & T2 )      co[k] = o[k].slice();
                 else if ( T_NUM & T2 )      co[k] = 0 + o[k];
                 else                        co[k] = o[k]; 
@@ -129,10 +133,15 @@ var undef = undefined,
                 
                 if ( T_OBJ === T2 )         co[k] = deep ? clone( o[k], deep ) : o[k];
                 else if ( T_ARRAY === T2 )  co[k] = deep ? clone( o[k], deep ) : o[k].slice();
+                else if ( T_DATE & T2 )     co[k] = new Date(o[k]);
                 else if ( T_STR & T2 )      co[k] = o[k].slice();
                 else if ( T_NUM & T2 )      co[k] = 0 + o[k];
                 else                        co[k] = o[k]; 
             }
+        }
+        else if ( T_DATE & T )
+        {
+            co = new Date(o);
         }
         else if ( T_STR & T )
         {
@@ -205,12 +214,13 @@ var undef = undefined,
     },
     
     replacement_re = /\$(\d{1,2})/g,
-    group_replace = function( pattern, token ) {
-        var parts, i, l, replacer;
+    group_replace = function( pattern, token, raw ) {
+        var parts, i, l, replacer, offset = true === raw ? 0 : 1;
+        if ( T_STR & get_type(token) ) { token = [token, token]; offset = 0; }
         replacer = function(m, d){
             // the regex is wrapped in an additional group, 
             // add 1 to the requested regex group transparently
-            return token[ 1 + parseInt(d, 10) ];
+            return token[ offset + parseInt(d, 10) ];
         };
         parts = pattern.split('$$');
         l = parts.length;
@@ -240,12 +250,12 @@ var undef = undefined,
     get_re = function(r, rid, cachedRegexes)  {
         if ( !r || (T_NUM === get_type(r)) ) return r;
         
-        var l = (rid) ? (rid.length||0) : 0, i;
+        var l = rid ? (rid.length||0) : 0, i;
         
-        if ( l && rid == r.substr(0, l) ) 
+        if ( l && rid === r.substr(0, l) ) 
         {
-            var regexSource = r.substr(l), delim = regexSource[0], flags = '',
-                regexBody, regexID, regex, chars, i, ch
+            var regexSource = r.substr(l), delim = regexSource.charAt(0), flags = '',
+                regexBody, regexID, regex, i, ch
             ;
             
             // allow regex to have delimiters and flags
@@ -253,27 +263,19 @@ var undef = undefined,
             i = regexSource.length;
             while ( i-- )
             {
-                ch = regexSource[i];
-                if (delim == ch) 
-                    break;
-                else if ('i' == ch.toLowerCase() ) 
-                    flags = 'i';
+                ch = regexSource.charAt(i);
+                if ( delim === ch ) break;
+                else if ('i' === ch.toLowerCase() ) flags = 'i';
             }
             regexBody = regexSource.substring(1, i);
             regexID = "^(" + regexBody + ")";
-            //console.log([regexBody, flags]);
             
             if ( !cachedRegexes[ regexID ] )
             {
                 regex = new RegExp( regexID, flags );
-                /*chars = new RegexAnalyzer( regex ).peek();
-                if ( null !== chars.peek && !Keys(chars.peek).length )  chars.peek = null;
-                if ( null !== chars.negativepeek && !Keys(chars.negativepeek).length )  chars.negativepeek = null;*/
-                // remove RegexAnalyzer dependency
-                chars = {peek:null,negativepeek:null};
                 
                 // shared, light-weight
-                cachedRegexes[ regexID ] = [ regex, chars ];
+                cachedRegexes[ regexID ] = regex;
             }
             
             return cachedRegexes[ regexID ];
@@ -285,17 +287,10 @@ var undef = undefined,
     },
     
     get_combined_re = function(tokens, boundary)  {
-        var peek = { }, i, l, b = "", bT = get_type(boundary);
-        if ( T_STR === bT || T_CHAR === bT ) b = boundary;
-        var combined = tokens
-                    .sort(by_length)
-                    .map(function( t ) {
-                        peek[ t.charAt(0) ] = 1;
-                        return esc_re( t );
-                    })
-                    .join("|")
-                ;
-        return [ new RegExp("^(" + combined + ")"+b), { peek: peek, negativepeek: null }, 1 ];
+        var b = "", combined;
+        if ( T_STR & get_type(boundary) ) b = boundary;
+        combined = tokens.sort( by_length ).map( esc_re ).join( "|" );
+        return [ new RegExp("^(" + combined + ")"+b), 1 ];
     },
     
     _id_ = 0, 
