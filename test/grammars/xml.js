@@ -99,7 +99,7 @@ var xml_grammar = {
         // allow to find duplicate xml identifiers, with action tokens
         "unique": {
             "unique": ["xml", "$1"],
-            "msg": "Duplicate ID \"$0\""
+            "msg": "Duplicate id attribute \"$0\""
         },
         
         // allow to match start/end tags, with action tokens
@@ -123,11 +123,11 @@ var xml_grammar = {
         // NEW feature
         // using PEG/BNF-like shorthands, instead of multiple grammar configuration objects
         
-        "id_attribute": "'id' '=' string unique",
+        "id_att": "'id' '=' string unique",
         
-        "tag_attribute": "attribute '=' (string | number)",
+        "tag_att": "attribute '=' (string | number)",
         
-        "start_tag": "open_tag match (id_attribute | tag_attribute)* (close_open_tag | auto_close_open_tag nomatch)",
+        "start_tag": "open_tag match (id_att | tag_att)* (close_open_tag | auto_close_open_tag nomatch)",
         "end_tag": "close_tag matched",
         
         "tags": {

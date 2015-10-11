@@ -56,7 +56,6 @@ var Stream = Class({
     ,end: function( ) {
         var self = this;
         self.pos = self.s.length;
-        //if ( self._ ) self._.pos = self.pos;
         return self;
     }
 
@@ -65,7 +64,6 @@ var Stream = Class({
         var self = this;
         if ( 0 > n ) self.pos = Max(0, self.pos - n);
         else self.pos += n;
-        //if ( self._ ) self._.pos = self.pos;
         return self;
     }
     
@@ -73,7 +71,6 @@ var Stream = Class({
     ,bck: function( pos ) {
         var self = this;
         self.pos = Max(0, pos);
-        //if ( self._ ) self._.pos = self.pos;
         return self;
     }
     
@@ -90,7 +87,6 @@ var Stream = Class({
         if ( self.pos < s.length )
         {
             c = s.charAt(self.pos++) || null;
-            //if ( self._ ) self._.pos = self.pos;
             return c;
         }
     }

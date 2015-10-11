@@ -69,44 +69,50 @@ var Parser = Class({
         return self;
     }
     
-    ,parse: function( code, with_errors ) {
+    ,parse: function( code, parse_type ) {
         code = code || "";
         var self = this, lines = code.split(newline_re), l = lines.length, i,
-            linetokens = [], tokens, state, stream, errors, ret;
-        with_errors = true === with_errors;
-        state = new State( 0, 0, with_errors );
+            linetokens, tokens, state, stream, ret, parse_errors, parse_tokens;
+        
+        parse_type = parse_type || TOKENS;
+        parse_errors = !!(parse_type&ERRORS);
+        parse_tokens = !!(parse_type&TOKENS);
+        
+        state = new State( 0, 0, parse_errors );
         state.parseAll = 1;
-        for (i=0; i<l; i++)
+        
+        if ( parse_tokens )
         {
-            state.line = i;
-            stream = new Stream( lines[i] );
-            tokens = [];
-            while ( !stream.eol() )
+            linetokens = [];
+            for (i=0; i<l; i++)
             {
-                tokens.push( self.getToken( stream, state ) );
-                //stream.sft();
+                state.line = i; stream = new Stream( lines[i] );
+                tokens = [];
+                while ( !stream.eol() ) tokens.push( self.getToken( stream, state ) );
+                linetokens.push( tokens );
             }
-            linetokens.push( tokens );
         }
-        if ( with_errors )
+        else //if ( parse_errors )
         {
-            ret = [linetokens, state.err];
+            for (i=0; i<l; i++)
+            {
+                state.line = i; stream = new Stream( lines[i] );
+                while ( !stream.eol() ) self.getToken( stream, state );
+            }
         }
-        else
-        {
-            ret = linetokens;
-        }
-        stream.dispose();
-        state.dispose();
+        if ( parse_tokens && parse_errors ) ret = {tokens:linetokens, errors:state.err};
+        else if ( parse_tokens ) ret = linetokens;
+        else ret = state.err;
+        stream.dispose(); state.dispose();
         return ret;
     }
     
     // Codemirror Tokenizer compatible
     ,getToken: function( stream, state ) {
-        var self = this, i, ci, tokenizer, type, val, action,
+        var self = this, i, ci, type, tokenizer, action,
             interleavedCommentTokens = self.cTokens, tokens = self.Tokens, numTokens = tokens.length, 
-            parseAll = !!state.parseAll, stack, pos, line, error,
-            Style = self.Style, DEFAULT = self.DEF, ERROR = self.ERR, ret
+            parseAll = !!state.parseAll, stack, pos, line,
+            Style = self.Style, DEFAULT = self.DEF, ERR = self.ERR
         ;
         
         stream = parseAll ? stream : Stream._( stream );
@@ -121,13 +127,13 @@ var Parser = Class({
         // check for non-space tokenizer before parsing space
         if ( (stack.isEmpty() || (T_NONSPACE !== stack.peek().type)) && stream.spc() )
         {
-            return parseAll ? {value: stream.cur(1), type: DEFAULT} : (stream.upd()&&DEFAULT);
+            return parseAll ? {value:stream.cur(1), type:DEFAULT} : (stream.upd()&&DEFAULT);
         }
         
         line = state.line;
         while ( !stack.isEmpty() && !stream.eol() )
         {
-            if (interleavedCommentTokens)
+            if ( interleavedCommentTokens )
             {
                 ci = 0;
                 while ( ci < interleavedCommentTokens.length )
@@ -137,7 +143,7 @@ var Parser = Class({
                     if ( false !== type )
                     {
                         type = Style[type] || DEFAULT;
-                        return parseAll ? {value: stream.cur(1), type: type} : (stream.upd()&&type);
+                        return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
                     }
                 }
             }
@@ -150,16 +156,16 @@ var Parser = Class({
             if ( false === type )
             {
                 // error
-                if ( tokenizer.ERR || tokenizer.REQ )
+                if ( tokenizer.status&REQUIRED_OR_ERROR )
                 {
                     // empty the stack
                     stack.empty('$id', tokenizer.$id);
                     // skip this character
                     stream.nxt();
                     // generate error
-                    type = ERROR;
+                    type = ERR;
                     tokenizer.err(state, line, pos, line, stream.pos);
-                    return parseAll ? {value: stream.cur(1), type: ERROR} : (stream.upd()&&ERROR);
+                    return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
                 }
                 // optional
                 else
@@ -177,17 +183,17 @@ var Parser = Class({
                     action = stack.pop();
                     action.get(stream, state);
                     // action error
-                    if ( action.ERR )
+                    if ( action.status&ERROR )
                     {
                         // empty the stack
                         stack.empty('$id', /*action*/tokenizer.$id);
                         // generate error
-                        type = ERROR;
+                        //type = ERR;
                         //action.err(state, line, pos, line, stream.pos);
-                        return parseAll ? {value: stream.cur(1), type: ERROR} : (stream.upd()&&ERROR);
+                        return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
                     }
                 }
-                return parseAll ? {value: stream.cur(1), type: type} : (stream.upd()&&type);
+                return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
             }
         }
         
@@ -201,16 +207,16 @@ var Parser = Class({
             if ( false === type )
             {
                 // error
-                if ( tokenizer.ERR || tokenizer.REQ )
+                if ( tokenizer.status&REQUIRED_OR_ERROR )
                 {
                     // empty the stack
                     stack.empty('$id', tokenizer.$id);
                     // skip this character
                     stream.nxt();
                     // generate error
-                    type = ERROR;
+                    type = ERR;
                     tokenizer.err(state, line, pos, line, stream.pos);
-                    return parseAll ? {value: stream.cur(1), type: ERROR} : (stream.upd()&&ERROR);
+                    return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
                 }
                 // optional
                 else
@@ -228,14 +234,14 @@ var Parser = Class({
                     action = stack.pop();
                     action.get(stream, state);
                     // action error
-                    if ( action.ERR )
+                    if ( action.status&ERROR )
                     {
                         // empty the stack
                         stack.empty('$id', tokenizer.$id);
                         // generate error
-                        type = ERROR;
+                        //type = ERR;
                         //action.err(state, line, pos, line, stream.pos);
-                        return parseAll ? {value: stream.cur(1), type: ERROR} : (stream.upd()&&ERROR);
+                        return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
                     }
                 }
                 return parseAll ? {value: stream.cur(1), type: type} : (stream.upd()&&type);
@@ -244,20 +250,12 @@ var Parser = Class({
         
         // unknown, bypass
         stream.nxt();
-        return parseAll ? {value: stream.cur(1), type: DEFAULT} : (stream.upd()&&DEFAULT);
+        return parseAll ? {value:stream.cur(1), type:DEFAULT} : (stream.upd()&&DEFAULT);
     }
     
     ,indent: function(state, textAfter, fullLine, conf, parserConf) {
         var indentUnit = conf.indentUnit || 4, Pass = _CodeMirror.Pass;
         return Pass;
-        /*if ( textAfter && state.indent.length && state.indent[0][1] && 
-            state.indent[0][1] === textAfter.slice(0,state.indent[0][1].length)
-        )
-        {
-            state.indent.shift();
-        }
-        if ( !state.indent.length ) state.indent = [[0]];
-        return state.indent[0][0]*indentUnit;*/
     }
 });
 
@@ -288,8 +286,7 @@ function get_mode( grammar, DEFAULT )
             },
             
             copyState: function( state ) { 
-                state = state.clone( );
-                state.line ++;
+                state = state.clone( ); state.line++;
                 return state;
             },
             
@@ -320,9 +317,10 @@ function get_mode( grammar, DEFAULT )
         if ( !cm_mode.supportGrammarAnnotations || !code || !code.length ) return [];
         
         var errors = [], err, msg, error,
-            code_errors = parser.parse( code, true )[1] || {};
+            code_errors = parser.parse( code, ERRORS );
+        if ( !code_errors ) return errors;
         
-        for (err in code_errors) 
+        for (err in code_errors)
         {
             if ( !code_errors.hasOwnProperty(err) ) continue;
             error = code_errors[err];

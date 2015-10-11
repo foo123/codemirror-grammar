@@ -6,6 +6,11 @@ var
     DEFAULTSTYLE,
     DEFAULTERROR,
     
+    TOKENS = 1, ERRORS = 2,
+    REQUIRED = 4, ERROR = 8,
+    CLEAR_REQUIRED = ~REQUIRED, CLEAR_ERROR = ~ERROR,
+    REQUIRED_OR_ERROR = REQUIRED | ERROR,
+    
     //
     // javascript variable types
     INF = Infinity,
@@ -18,7 +23,7 @@ var
     A_POP = 32,
     A_EMPTY = 64,
     A_INDENT = 128,
-    A_DEDENT = 256,
+    A_OUTDENT = 256,
     A_BLOCKINDENT = 512,
     
     //
@@ -80,7 +85,7 @@ var
     POP: A_POP,
     EMPTY: A_EMPTY,
     INDENT: A_INDENT,
-    DEDENT: A_DEDENT,
+    OUTDENT: A_OUTDENT,
     BLOCKINDENT: A_BLOCKINDENT
     }
 ;

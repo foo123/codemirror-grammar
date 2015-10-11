@@ -104,8 +104,23 @@ var undef = undefined,
     },
     
     clone = function( o, deep ) {
-        var T = get_type( o ), T2, co, k, l;
-        deep = false !== deep;
+        var T = get_type( o ), T2, co, k, l, level = 0;
+        if ( T_NUM === get_type(deep) )
+        {
+            if ( 0 < deep )
+            {
+                level = deep;
+                deep = true; 
+            }
+            else
+            {
+                deep = false;
+            }
+        }
+        else
+        {
+            deep = false !== deep;
+        }
         
         if ( T_OBJ === T )
         {
@@ -115,8 +130,8 @@ var undef = undefined,
                 if ( !o[HAS](k) || !o[IS_ENUM](k) ) continue;
                 T2 = get_type( o[k] );
                 
-                if ( T_OBJ === T2 )         co[k] = deep ? clone( o[k], deep ) : o[k];
-                else if ( T_ARRAY === T2 )  co[k] = deep ? clone( o[k], deep ) : o[k].slice();
+                if ( T_OBJ === T2 )         co[k] = deep ? clone( o[k], level>0 ? level-1 : deep ) : o[k];
+                else if ( T_ARRAY === T2 )  co[k] = deep ? clone( o[k], level>0 ? level-1 : deep ) : o[k].slice();
                 else if ( T_DATE & T2 )     co[k] = new Date(o[k]);
                 else if ( T_STR & T2 )      co[k] = o[k].slice();
                 else if ( T_NUM & T2 )      co[k] = 0 + o[k];
@@ -131,8 +146,8 @@ var undef = undefined,
             {
                 T2 = get_type( o[k] );
                 
-                if ( T_OBJ === T2 )         co[k] = deep ? clone( o[k], deep ) : o[k];
-                else if ( T_ARRAY === T2 )  co[k] = deep ? clone( o[k], deep ) : o[k].slice();
+                if ( T_OBJ === T2 )         co[k] = deep ? clone( o[k], level>0 ? level-1 : deep ) : o[k];
+                else if ( T_ARRAY === T2 )  co[k] = deep ? clone( o[k], level>0 ? level-1 : deep ) : o[k].slice();
                 else if ( T_DATE & T2 )     co[k] = new Date(o[k]);
                 else if ( T_STR & T2 )      co[k] = o[k].slice();
                 else if ( T_NUM & T2 )      co[k] = 0 + o[k];
@@ -213,19 +228,39 @@ var undef = undefined,
         return s.replace(escaped_re, '\\$1');
     },
     
-    replacement_re = /\$(\d{1,2})/g,
     group_replace = function( pattern, token, raw ) {
-        var parts, i, l, replacer, offset = true === raw ? 0 : 1;
+        var i, l, c, g, replaced, offset = true === raw ? 0 : 1;
         if ( T_STR & get_type(token) ) { token = [token, token]; offset = 0; }
-        replacer = function(m, d){
-            // the regex is wrapped in an additional group, 
-            // add 1 to the requested regex group transparently
-            return token[ offset + parseInt(d, 10) ];
-        };
-        parts = pattern.split('$$');
-        l = parts.length;
-        for (i=0; i<l; i++) parts[i] = parts[i].replace(replacement_re, replacer);
-        return parts.join('$');
+        l = pattern.length; replaced = ''; i = 0;
+        while ( i<l )
+        {
+            c = pattern.charAt(i);
+            if ( (i+1<l) && '$' === c )
+            {
+                g = pattern.charCodeAt(i+1);
+                if ( 36 === g ) // escaped $ character
+                {
+                    replaced += '$';
+                    i += 2;
+                }
+                else if ( 48 <= g && g <= 57 ) // group between 0 and 9
+                {
+                    replaced += token[ offset + g - 48 ] || '';
+                    i += 2;
+                }
+                else
+                {
+                    replaced += c;
+                    i += 1;
+                }
+            }
+            else
+            {
+                replaced += c;
+                i += 1;
+            }
+        }
+        return replaced;
     },
     
     trim_re = /^\s+|\s+$/g,
