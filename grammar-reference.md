@@ -12,7 +12,7 @@
     2. [Block Tokens](#block-tokens)
     3. [Action Tokens **(new)**](#action-tokens)
 * [Syntax Model **(optional)**](#syntax-model)
-    1. [Syntax PEG/BNF-like notations **(new)**](#syntax-peg-bnf-like-notations)
+    1. [Syntax PEG/BNF-like notations **(new)**](#syntax-pegbnf-like-notations)
 * [Parser](#parser)
 
 
