@@ -17,6 +17,7 @@ var State = Class({
             self.stack = s.stack.clone();
             self.queu = s.queu.slice();
             self.symb = clone( s.symb, 1 );
+            self.ctx = s.ctx.slice();
             self.token = s.token;
             self.block = s.block;
             self.errors = s.errors;
@@ -32,6 +33,7 @@ var State = Class({
             self.stack = new Stack();
             self.queu = [];
             self.symb = {};
+            self.ctx = [];
             self.errors = !!with_errors;
             self.err = self.errors ? {} : null;
         }
@@ -44,6 +46,7 @@ var State = Class({
     ,stack: null
     ,queu: null
     ,symb: null
+    ,ctx: null
     ,err: null
     ,errors: false
     ,token: null
@@ -58,6 +61,7 @@ var State = Class({
         self.token = null;
         self.block = null;
         self.symb = null;
+        self.ctx = null;
         self.errors = null;
         self.err = null;
         self.queu = null;

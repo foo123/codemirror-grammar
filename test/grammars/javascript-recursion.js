@@ -136,6 +136,26 @@ var js_grammar = {
                 "Object", "Function", "Array", "String", "Date", "Number", "RegExp", "Exception",
                 "setTimeout", "setInterval", "alert", "console"
             ]
+        },
+        
+        "ctx_start": {
+            "context-start": true
+        },
+        
+        "ctx_end": {
+            "context-end": true
+        },
+        
+        "unique": {
+            "unique": ["prop", "$0"],
+            "msg": "Duplicate object property \"$0\"",
+            "in-context": true
+        },
+        
+        "unique_prop": {
+            "unique": ["prop", "$1"],
+            "msg": "Duplicate object property \"$0\"",
+            "in-context": true
         }
     },
     
@@ -143,14 +163,14 @@ var js_grammar = {
     // Syntax model (optional)
     "Syntax" : {
         
-        "literalProperty" : "string | property",
+        "literalProperty" : "string unique_prop | property unique",
         
         "literalValue" : "atom | string | regex | number | identifier | literalArray | literalObject",
         
         "literalPropertyValue" : "literalProperty ':' literalValue",
         
         // grammar recursion here
-        "literalObject" : "'{' (literalPropertyValue (',' literalPropertyValue)*)? '}'",
+        "literalObject" : "'{' ctx_start (literalPropertyValue (',' literalPropertyValue)*)? '}' ctx_end",
         
         // grammar recursion here
         "literalArray" : "'[' (literalValue (',' literalValue)*)? ']'",

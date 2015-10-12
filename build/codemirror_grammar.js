@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 2.0.0
+*   @version: 2.1.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -59,6 +59,8 @@ var
     A_INDENT = 128,
     A_OUTDENT = 256,
     A_BLOCKINDENT = 512,
+    A_CTX_START = 1024,
+    A_CTX_END = 2048,
     
     //
     // pattern types
@@ -68,7 +70,7 @@ var
     
     //
     // token types
-    T_SPACE = 0,
+    //T_SPACE = 0,
     T_ERROR = 4,
     T_DEFAULT = 8,
     T_SIMPLE = 16,
@@ -120,7 +122,9 @@ var
     EMPTY: A_EMPTY,
     INDENT: A_INDENT,
     OUTDENT: A_OUTDENT,
-    BLOCKINDENT: A_BLOCKINDENT
+    BLOCKINDENT: A_BLOCKINDENT,
+    CONTEXT_START: A_CTX_START,
+    CONTEXT_END: A_CTX_END
     }
 ;
 
@@ -730,6 +734,7 @@ var State = Class({
             self.stack = s.stack.clone();
             self.queu = s.queu.slice();
             self.symb = clone( s.symb, 1 );
+            self.ctx = s.ctx.slice();
             self.token = s.token;
             self.block = s.block;
             self.errors = s.errors;
@@ -745,6 +750,7 @@ var State = Class({
             self.stack = new Stack();
             self.queu = [];
             self.symb = {};
+            self.ctx = [];
             self.errors = !!with_errors;
             self.err = self.errors ? {} : null;
         }
@@ -757,6 +763,7 @@ var State = Class({
     ,stack: null
     ,queu: null
     ,symb: null
+    ,ctx: null
     ,err: null
     ,errors: false
     ,token: null
@@ -771,6 +778,7 @@ var State = Class({
         self.token = null;
         self.block = null;
         self.symb = null;
+        self.ctx = null;
         self.errors = null;
         self.err = null;
         self.queu = null;
@@ -1241,7 +1249,7 @@ Token = Class({
         var self = this;
         return [
             '[', 'Token: ',self.name, ', ',
-            self.token ? self.tok.toString() : null,
+            self.token ? self.token.toString() : null,
             ']'
         ].join('');
     }
@@ -1263,15 +1271,15 @@ ActionToken = Class(Token, {
      
     ,get: function( stream, state ) {
         var self = this, action_def = self.token || null, action, 
-        t, t0, ns, msg, queu = state.queu, symb = state.symb, token = state.token,
-        lin, col1, col2, err = state.err, error, emsg, with_errors = state.errors;
+        t, t0, ns, msg, queu = state.queu, symb = state.symb, ctx = state.ctx, token = state.token,
+        lin, col1, col2, in_ctx, err = state.err, error, emsg, with_errors = state.errors;
         
         self.status = 0;
         self.$msg = null;
         if ( action_def )
         {
             msg = self.msg;
-            action = action_def[ 0 ]; t = action_def[ 1 ];
+            action = action_def[ 0 ]; t = action_def[ 1 ]; in_ctx = !!action_def[ 2 ];
             lin = state.line; col2 = stream.pos; col1 = token&&token.value ? col2-token.value.length : col1-1;
             
             if ( A_ERROR === action )
@@ -1289,7 +1297,25 @@ ActionToken = Class(Token, {
             
             else if ( A_EMPTY === action )
             {
-                queu.length = 0;
+                if ( in_ctx )
+                {
+                    if ( ctx.length ) ctx[0].queu.length = 0;
+                }
+                else
+                {
+                    queu.length = 0;
+                }
+            }
+            
+            else if ( A_CTX_START === action )
+            {
+                //ns = uuid('ctx');
+                ctx.unshift({symb:{},queu:[]});
+            }
+            
+            else if ( A_CTX_END === action )
+            {
+                if ( ctx.length ) ctx.shift();
             }
             
             /*else if ( A_BLOCKINDENT === action )
@@ -1309,6 +1335,11 @@ ActionToken = Class(Token, {
             
             else if ( A_UNIQUE === action )
             {
+                if ( in_ctx )
+                {
+                    if ( ctx.length ) symb = ctx[0].symb;
+                    else return true;
+                }
                 if ( token )
                 {
                     t0 = t[1]; ns = t[0];
@@ -1339,6 +1370,11 @@ ActionToken = Class(Token, {
             
             else if ( A_POP === action )
             {
+                if ( in_ctx )
+                {
+                    if ( ctx.length ) queu = ctx[0].queu;
+                    else return true;
+                }
                 if ( t )
                 {
                     if ( token )
@@ -1386,6 +1422,11 @@ ActionToken = Class(Token, {
             
             else if ( (A_PUSH === action) && t )
             {
+                if ( in_ctx )
+                {
+                    if ( ctx.length ) queu = ctx[0].queu;
+                    else return true;
+                }
                 if ( token )
                     t = T_NUM === get_type( t ) ? token.token[ t ] : group_replace( t, token.token );
                 queu.unshift( [t, lin, col1, lin, col2] );
@@ -1747,14 +1788,22 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
             {
                 if ( token.length )
                 {
-                    if ( !Lex[token] && !Syntax[token] )
+                    if ( '0' === token )
                     {
-                        Lex[ token ] = {
-                            type: 'simple',
-                            tokens: token
-                        };
+                        // interpret as empty tokenizer
+                        sequence.push( 0 );
                     }
-                    sequence.push( token );
+                    else
+                    {
+                        if ( !Lex[token] && !Syntax[token] )
+                        {
+                            Lex[ token ] = {
+                                type: 'simple',
+                                tokens: token
+                            };
+                        }
+                        sequence.push( token );
+                    }
                     token = '';
                 }
             
@@ -1777,8 +1826,8 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     }
                     else
                     {
-                        // interpret as empty tokenizer
-                        sequence.push( 0 );
+                        // interpret as non-space tokenizer
+                        sequence.push( '' );
                     }
                 }
                 
@@ -2114,49 +2163,61 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         if ( tok[HAS]('error') )
         {
             tok.type = "action";
-            tok.action = [ 'error', tok.error ];
+            tok.action = [ 'error', tok.error, !!tok['in-context'] ];
             delete tok.error;
+        }
+        else if ( tok[HAS]('context-start') )
+        {
+            tok.type = "action";
+            tok.action = [ 'context-start', tok['context-start'], !!tok['in-context'] ];
+            delete tok['context-start'];
+        }
+        else if ( tok[HAS]('context-end') )
+        {
+            tok.type = "action";
+            tok.action = [ 'context-end', tok['context-end'], !!tok['in-context'] ];
+            delete tok['context-end'];
         }
         else if ( tok[HAS]('empty') )
         {
             tok.type = "action";
-            tok.action = [ 'empty', tok.empty ];
+            tok.action = [ 'empty', tok.empty, !!tok['in-context'] ];
             delete tok.empty;
         }
         else if ( tok[HAS]('block-indent') )
         {
             tok.type = "action";
-            tok.action = [ 'block-indent', tok['block-indent'] ];
+            tok.action = [ 'block-indent', tok['block-indent'], !!tok['in-context'] ];
             delete tok['block-indent'];
         }
         else if ( tok[HAS]('indent') )
         {
             tok.type = "action";
-            tok.action = [ 'indent', tok.indent ];
+            tok.action = [ 'indent', tok.indent, !!tok['in-context'] ];
             delete tok.indent;
         }
         else if ( tok[HAS]('outdent') )
         {
             tok.type = "action";
-            tok.action = [ 'outdent', tok.outdent ];
+            tok.action = [ 'outdent', tok.outdent, !!tok['in-context'] ];
             delete tok.outdent;
         }
         else if ( tok[HAS]('unique') )
         {
             tok.type = "action";
-            tok.action = [ 'unique', T_STR&get_type(tok.unique) ? ['_DEFAULT_', tok.unique] : tok.unique ];
+            tok.action = [ 'unique', T_STR&get_type(tok.unique) ? ['_DEFAULT_', tok.unique] : tok.unique, !!tok['in-context'] ];
             delete tok.unique;
         }
         else if ( tok[HAS]('push') )
         {
             tok.type = "action";
-            tok.action = [ 'push', tok.push ];
+            tok.action = [ 'push', tok.push, !!tok['in-context'] ];
             delete tok.push;
         }
         else if ( tok[HAS]('pop') )
         {
             tok.type = "action";
-            tok.action = [ 'pop', tok.pop ];
+            tok.action = [ 'pop', tok.pop, !!tok['in-context'] ];
             delete tok.pop;
         }
         else if ( tok['sequence'] || tok['all']  )
@@ -2262,18 +2323,22 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     {
         if ( !tok[HAS]('action') )
         {
-            if ( tok[HAS]('error') ) tok.action = [A_ERROR, tok.error];
-            else if ( tok[HAS]('empty') ) tok.action = [A_EMPTY, tok.empty];
-            else if ( tok[HAS]('block-indent') ) tok.action = [A_BLOCKINDENT, tok['block-indent']];
-            else if ( tok[HAS]('indent') ) tok.action = [A_INDENT, tok.indent];
-            else if ( tok[HAS]('outdent') ) tok.action = [A_OUTDENT, tok.outdent];
-            else if ( tok[HAS]('unique') ) tok.action = [A_UNIQUE, T_STR&get_type(tok.unique)?['_DEFAULT_',tok.unique]:tok.unique];
-            else if ( tok[HAS]('push') ) tok.action = [A_PUSH, tok.push];
-            else if ( tok[HAS]('pop') ) tok.action = [A_POP, tok.pop];
+            if ( tok[HAS]('error') ) tok.action = [A_ERROR, tok.error, !!tok['in-context']];
+            else if ( tok[HAS]('context-start') ) tok.action = [A_CTX_START, tok['context-start'], !!tok['in-context']];
+            else if ( tok[HAS]('context-end') ) tok.action = [A_CTX_END, tok['context-end'], !!tok['in-context']];
+            else if ( tok[HAS]('empty') ) tok.action = [A_EMPTY, tok.empty, !!tok['in-context']];
+            else if ( tok[HAS]('block-indent') ) tok.action = [A_BLOCKINDENT, tok['block-indent'], !!tok['in-context']];
+            else if ( tok[HAS]('indent') ) tok.action = [A_INDENT, tok.indent, !!tok['in-context']];
+            else if ( tok[HAS]('outdent') ) tok.action = [A_OUTDENT, tok.outdent, !!tok['in-context']];
+            else if ( tok[HAS]('unique') ) tok.action = [A_UNIQUE, T_STR&get_type(tok.unique)?['_DEFAULT_',tok.unique]:tok.unique, !!tok['in-context']];
+            else if ( tok[HAS]('push') ) tok.action = [A_PUSH, tok.push, !!tok['in-context']];
+            else if ( tok[HAS]('pop') ) tok.action = [A_POP, tok.pop, !!tok['in-context']];
         }
         else
         {
             if ( 'error' === tok.action[0] ) tok.action[0] = A_ERROR;
+            else if ( 'context-start' === tok.action[0] ) tok.action[0] = A_CTX_START;
+            else if ( 'context-end' === tok.action[0] ) tok.action[0] = A_CTX_END;
             else if ( 'empty' === tok.action[0] ) tok.action[0] = A_EMPTY;
             else if ( 'block-indent' === tok.action[0] ) tok.action[0] = A_BLOCKINDENT;
             else if ( 'indent' === tok.action[0] ) tok.action[0] = A_INDENT;
@@ -2484,7 +2549,7 @@ function parse_grammar( grammar )
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 2.0.0
+*   @version: 2.1.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2659,22 +2724,22 @@ var Parser = Class({
             // found token (not empty)
             else if ( true !== type )
             {
-                type = T_SPACE === type ? DEFAULT : Style[type] || DEFAULT;
+                type = /*T_SPACE === type ? DEFAULT :*/ Style[type] || DEFAULT;
                 // action token follows, execute action on current token
                 while ( !stack.isEmpty() && T_ACTION === stack.peek().type )
                 {
                     action = stack.pop();
                     action.get(stream, state);
                     // action error
-                    if ( action.status&ERROR )
+                    /*if ( action.status&ERROR )
                     {
                         // empty the stack
-                        //stack.empty('$id', /*action*/tokenizer.$id);
+                        //stack.empty('$id', /*action* /tokenizer.$id);
                         // generate error
                         //type = ERR;
                         //action.err(state, line, pos, line, stream.pos);
                         return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
-                    }
+                    }*/
                 }
                 return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
             }
@@ -2710,14 +2775,14 @@ var Parser = Class({
             // found token (not empty)
             else if ( true !== type )
             {
-                type = T_SPACE === type ? DEFAULT : Style[type] || DEFAULT;
+                type = /*T_SPACE === type ? DEFAULT :*/ Style[type] || DEFAULT;
                 // action token follows, execute action on current token
                 while ( !stack.isEmpty() && T_ACTION === stack.peek().type )
                 {
                     action = stack.pop();
                     action.get(stream, state);
                     // action error
-                    if ( action.status&ERROR )
+                    /*if ( action.status&ERROR )
                     {
                         // empty the stack
                         //stack.empty('$id', tokenizer.$id);
@@ -2725,7 +2790,7 @@ var Parser = Class({
                         //type = ERR;
                         //action.err(state, line, pos, line, stream.pos);
                         return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
-                    }
+                    }*/
                 }
                 return parseAll ? {value: stream.cur(1), type: type} : (stream.upd()&&type);
             }
@@ -2840,7 +2905,7 @@ function get_mode( grammar, DEFAULT )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     
-    VERSION: "2.0.0",
+    VERSION: "2.1.0",
     
     // clone a grammar
     /**[DOC_MARKDOWN]

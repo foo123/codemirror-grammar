@@ -69,17 +69,37 @@ var json_grammar = {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
             "tokens" : [ "true", "false", "null" ]
+        },
+        
+        "ctx_start": {
+            "context-start": true
+        },
+        
+        "ctx_end": {
+            "context-end": true
+        },
+        
+        "unique": {
+            "unique": ["prop", "$0"],
+            "msg": "Duplicate object property \"$0\"",
+            "in-context": true
+        },
+        
+        "unique_prop": {
+            "unique": ["prop", "$1"],
+            "msg": "Duplicate object property \"$0\"",
+            "in-context": true
         }
     },
     
     //
     // Syntax model (optional)
     "Syntax" : {
-        "literalObject" : "'{' (literalPropertyValue (',' literalPropertyValue)*)? '}'",
+        "literalObject" : "'{' ctx_start (literalPropertyValue (',' literalPropertyValue)*)? '}' ctx_end",
         "literalArray" : "'[' (literalValue (',' literalValue)*)? ']'",
         // grammar recursion here
         "literalValue" : "atom | string | number | literalArray | literalObject",
-        "literalPropertyValue" : "string ':' literalValue",
+        "literalPropertyValue" : "string unique_prop ':' literalValue",
         "json" : {
             "type" : "ngram",
             "tokens" : ["literalValue"]

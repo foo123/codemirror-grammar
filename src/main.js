@@ -176,22 +176,22 @@ var Parser = Class({
             // found token (not empty)
             else if ( true !== type )
             {
-                type = T_SPACE === type ? DEFAULT : Style[type] || DEFAULT;
+                type = /*T_SPACE === type ? DEFAULT :*/ Style[type] || DEFAULT;
                 // action token follows, execute action on current token
                 while ( !stack.isEmpty() && T_ACTION === stack.peek().type )
                 {
                     action = stack.pop();
                     action.get(stream, state);
                     // action error
-                    if ( action.status&ERROR )
+                    /*if ( action.status&ERROR )
                     {
                         // empty the stack
-                        //stack.empty('$id', /*action*/tokenizer.$id);
+                        //stack.empty('$id', /*action* /tokenizer.$id);
                         // generate error
                         //type = ERR;
                         //action.err(state, line, pos, line, stream.pos);
                         return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
-                    }
+                    }*/
                 }
                 return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
             }
@@ -227,14 +227,14 @@ var Parser = Class({
             // found token (not empty)
             else if ( true !== type )
             {
-                type = T_SPACE === type ? DEFAULT : Style[type] || DEFAULT;
+                type = /*T_SPACE === type ? DEFAULT :*/ Style[type] || DEFAULT;
                 // action token follows, execute action on current token
                 while ( !stack.isEmpty() && T_ACTION === stack.peek().type )
                 {
                     action = stack.pop();
                     action.get(stream, state);
                     // action error
-                    if ( action.status&ERROR )
+                    /*if ( action.status&ERROR )
                     {
                         // empty the stack
                         //stack.empty('$id', tokenizer.$id);
@@ -242,7 +242,7 @@ var Parser = Class({
                         //type = ERR;
                         //action.err(state, line, pos, line, stream.pos);
                         return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
-                    }
+                    }*/
                 }
                 return parseAll ? {value: stream.cur(1), type: type} : (stream.upd()&&type);
             }

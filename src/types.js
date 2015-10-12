@@ -25,6 +25,8 @@ var
     A_INDENT = 128,
     A_OUTDENT = 256,
     A_BLOCKINDENT = 512,
+    A_CTX_START = 1024,
+    A_CTX_END = 2048,
     
     //
     // pattern types
@@ -34,7 +36,7 @@ var
     
     //
     // token types
-    T_SPACE = 0,
+    //T_SPACE = 0,
     T_ERROR = 4,
     T_DEFAULT = 8,
     T_SIMPLE = 16,
@@ -86,6 +88,8 @@ var
     EMPTY: A_EMPTY,
     INDENT: A_INDENT,
     OUTDENT: A_OUTDENT,
-    BLOCKINDENT: A_BLOCKINDENT
+    BLOCKINDENT: A_BLOCKINDENT,
+    CONTEXT_START: A_CTX_START,
+    CONTEXT_END: A_CTX_END
     }
 ;

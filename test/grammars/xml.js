@@ -96,10 +96,25 @@ var xml_grammar = {
         // action tokens to perform complex grammar functionality 
         // like associated tag matching and unique identifiers
         
+        "ctx_start": {
+            "context-start": true
+        },
+        
+        "ctx_end": {
+            "context-end": true
+        },
+        
         // allow to find duplicate xml identifiers, with action tokens
         "unique": {
-            "unique": ["xml", "$1"],
+            "unique": ["id", "$1"],
             "msg": "Duplicate id attribute \"$0\""
+        },
+        
+        // allow to find duplicate xml tag attributes, with action tokens
+        "unique_att": {
+            "unique": ["att", "$0"],
+            "in-context": true,
+            "msg": "Duplicate attribute \"$0\""
         },
         
         // allow to match start/end tags, with action tokens
@@ -123,11 +138,11 @@ var xml_grammar = {
         // NEW feature
         // using PEG/BNF-like shorthands, instead of multiple grammar configuration objects
         
-        "id_att": "'id' '=' string unique",
+        "id_att": "'id' unique_att '=' string unique",
         
-        "tag_att": "attribute '=' (string | number)",
+        "tag_att": "attribute unique_att '=' (string | number)",
         
-        "start_tag": "open_tag match (id_att | tag_att)* (close_open_tag | auto_close_open_tag nomatch)",
+        "start_tag": "open_tag match ctx_start (id_att | tag_att)* (close_open_tag | auto_close_open_tag nomatch) ctx_end",
         "end_tag": "close_tag matched",
         
         "tags": {

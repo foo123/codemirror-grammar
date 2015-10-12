@@ -160,7 +160,12 @@ An `action` token in a grammar **applies only and directly to the token precedin
 
 * `"action"` tokens can `check` the (preceding) matched token is unique, for example *unique identifiers checking* can be done this way, (see `test/grammars/xml.js` for an example)
 
+* `"action"` tokens can `start` (`"context-start"`) and `end` (`"context-end"`) a new dynamic `context` so succesive actions take place in that context, for example *unique object literal properties* and *unique xml tag attributes* can be done his way, (see `test/grammars/xml.js` for an example)
+
 * .. more actions to be added like `indent`/`outdent` etc..
+
+* multiple `"action"` tokens in sequence are applied to **the same preceding token**
+
 
 
 **Example:**
@@ -325,8 +330,8 @@ Specificaly:
 
 // literal tokens wrapped in quotes (' or ")
 // are equivalent to their literal value
-// empty literal token (i.e '') matches empty production
-// NOTE: unlike NON-Space token definition described previously
+// empty literal token (i.e '') matches NON-SPACE production
+// zero literal token (i.e 0) matches EMPTY production
 "t": "t1 '=' t2"
 // is equivalent to =>
 "t_equal": {
