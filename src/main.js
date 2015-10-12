@@ -186,7 +186,7 @@ var Parser = Class({
                     if ( action.status&ERROR )
                     {
                         // empty the stack
-                        stack.empty('$id', /*action*/tokenizer.$id);
+                        //stack.empty('$id', /*action*/tokenizer.$id);
                         // generate error
                         //type = ERR;
                         //action.err(state, line, pos, line, stream.pos);
@@ -237,7 +237,7 @@ var Parser = Class({
                     if ( action.status&ERROR )
                     {
                         // empty the stack
-                        stack.empty('$id', tokenizer.$id);
+                        //stack.empty('$id', tokenizer.$id);
                         // generate error
                         //type = ERR;
                         //action.err(state, line, pos, line, stream.pos);
