@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+    <head>
+        
+        <meta charset="utf-8">
+        
+        <link rel="stylesheet" href="codemirror/codemirror.css">
+        <link rel="stylesheet" href="codemirror/addon/lint/lint.css">
+        <link rel="stylesheet" href="codemirror/addon/fold/foldgutter.css" />
+        <style type="text/css">
+            body {
+                position: relative;
+            }
+
+            .CodeMirror {
+                margin: 0;
+                position: relative;
+                width: 100%;
+                height: 100%;
+                min-width:500px;
+                min-height:500px;
+            }
+        </style>
+        
+        <script src="codemirror/codemirror.js"></script>
+        <script src="codemirror/addon/comment/comment.js"></script>
+        <script src="codemirror/addon/lint/lint.js"></script>
+        <script src="codemirror/addon/fold/foldcode.js"></script>
+        <script src="codemirror/addon/fold/foldgutter.js"></script>
+        <script src="codemirror/addon/fold/indent-fold.js"></script>
+        <script src="codemirror/addon/fold/comment-fold.js"></script>
+        <script src="../build/codemirror_grammar.js"></script>
+        <script src="grammars/scheme.js"></script>
+        <script src="demo.js"></script>
+        
+        <title>CodeMirror: Dynamic Scheme Grammar Demo</title>
+    </head>
+    <body>
+        
+        <h3>CodeMirror (ver <span id="version">0</span>): Dynamic Scheme Grammar</h3>
+
+<textarea id="code" name="code">
+; See if the input starts with a given symbol.
+(define (match-symbol input pattern)
+  (cond ((null? (remain input)) #f)
+	((eqv? (car (remain input)) pattern) (r-cdr input))
+	(else #f)))
+
+; Allow the input to start with one of a list of patterns.
+(define (match-or input pattern)
+  (cond ((null? pattern) #f)
+	((match-pattern input (car pattern)))
+	(else (match-or input (cdr pattern)))))
+
+; Allow a sequence of patterns.
+(define (match-seq input pattern)
+  (if (null? pattern)
+      input
+      (let ((match (match-pattern input (car pattern))))
+	(if match (match-seq match (cdr pattern)) #f))))
+
+; Match with the pattern but no problem if it does not match.
+(define (match-opt input pattern)
+  (let ((match (match-pattern input (car pattern))))
+    (if match match input)))
+
+; Match anything (other than '()), until pattern is found. The rather
+; clumsy form of requiring an ending pattern is needed to decide where
+; the end of the match is. If none is given, this will match the rest
+; of the sentence.
+(define (match-any input pattern)
+  (cond ((null? (remain input)) #f)
+	((null? pattern) (f-cons (remain input) (clear-remain input)))
+	(else
+	 (let ((accum-any (collector)))
+	   (define (match-pattern-any input pattern)
+	     (cond ((null? (remain input)) #f)
+		   (else (accum-any (car (remain input)))
+			 (cond ((match-pattern (r-cdr input) pattern))
+			       (else (match-pattern-any (r-cdr input) pattern))))))
+	   (let ((retval (match-pattern-any input (car pattern))))
+	     (if retval
+		 (f-cons (accum-any) retval)
+		 #f))))))
+</textarea>
+        <p></p>
+
+        <script>
+        // <![CDATA[
+        
+        // use it!
+        codemirror_grammar_demo(document.getElementById("code"), "scheme", scheme_grammar);
+        
+        // ]]>
+        </script>
+    </body>
+</html>
