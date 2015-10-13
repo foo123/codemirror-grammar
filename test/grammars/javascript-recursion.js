@@ -12,16 +12,16 @@ var js_grammar = {
     // Style model
     "Style" : {
         // lang token type  -> Editor (style) tag
-        "comment":    "comment",
-        "atom":       "atom",
-        "keyword":    "keyword",
-        "builtin":    "builtin",
-        "operator":   "operator",
-        "identifier": "variable",
-        "property":   "attribute",
-        "number":     "number",
-        "string":     "string",
-        "regex":      "string-2"
+        "comment"    : "comment",
+        "atom"       : "atom",
+        "keyword"    : "keyword",
+        "builtin"    : "builtin",
+        "operator"   : "operator",
+        "identifier" : "variable",
+        "property"   : "attribute",
+        "number"     : "number",
+        "string"     : "string",
+        "regex"      : "string-2"
     },
 
     
@@ -30,15 +30,12 @@ var js_grammar = {
     "Lex" : {
         
         // comments
-        "comment" : {
-            "type" : "comment",
+        "comment:comment" : {
             "interleave": true,
             "tokens" : [
                 // line comment
-                // start, end delims  (null matches end-of-line)
                 [  "//",  null ],
                 // block comments
-                // start,  end    delims
                 [  "/*",   "*/" ]
             ]
         },
@@ -68,41 +65,11 @@ var js_grammar = {
         ],
 
         // usual strings
-        "string" : {
-            "type" : "escaped-block",
-            "escape" : "\\",
-            // start, end of string (can be the matched regex group ie. 1 )
-            "tokens" : [ "RE::/(['\"])/",   1 ]
-        },
+        "string:escaped-block" : [ "RE::/(['\"])/",   1 ],
         
         // literal regular expressions
-        "regex" : {
-            "type" : "escaped-block",
-            "escape" : "\\",
-            // javascript literal regular expressions can be parsed similar to strings
-            "tokens" : [ "/",    "RE::#/[gimy]{0,4}#" ]
-        },
+        "regex:escaped-block" : [ "/",    "RE::#/[gimy]{0,4}#" ],
         
-        // operators
-        "operator" : {
-            "combine" : true,
-            "tokens" : [
-                "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!",
-                "||", "&&", "==", "!=", "<=", ">=", "<>", ">>", "<<",
-                "===", "!==", "<<<", ">>>" 
-            ]
-        },
-        
-        // delimiters
-        "delimiter" : {
-            "combine" : true,
-            "tokens" : [
-                "(", ")", "[", "]", "{", "}", ",", "=", ";", "?", ":",
-                "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "++", "--",
-                ">>=", "<<=", ">>>="
-            ]
-        },
-            
         // atoms
         "atom" : {
             // enable autocompletion for these tokens, with their associated token ID
@@ -138,21 +105,33 @@ var js_grammar = {
             ]
         },
         
-        "ctx_start": {
-            "context-start": true
+        "other" : "RE::/\\S+/",
+        
+        "ctx_start:action": {"context-start":true},
+        
+        "ctx_end:action": {"context-end":true},
+        
+        "match:action": {"push": "$0"},
+        "matched_bra:action": {
+            "pop": "{",
+            "msg": "Brackets do not match"
+        },
+        "matched_paren:action": {
+            "pop": "(",
+            "msg": "Parentheses do not match"
+        },
+        "matched_paren2:action": {
+            "pop": "[",
+            "msg": "Parentheses do not match"
         },
         
-        "ctx_end": {
-            "context-end": true
-        },
-        
-        "unique": {
+        "unique:action": {
             "unique": ["prop", "$0"],
             "msg": "Duplicate object property \"$0\"",
             "in-context": true
         },
         
-        "unique_prop": {
+        "unique_prop:action": {
             "unique": ["prop", "$1"],
             "msg": "Duplicate object property \"$0\"",
             "in-context": true
@@ -170,29 +149,16 @@ var js_grammar = {
         "literalPropertyValue" : "literalProperty ':' literalValue",
         
         // grammar recursion here
-        "literalObject" : "'{' ctx_start (literalPropertyValue (',' literalPropertyValue)*)? '}' ctx_end",
+        "literalObject" : "'{' match ctx_start (literalPropertyValue (',' literalPropertyValue)*)? '}' matched_bra ctx_end",
         
         // grammar recursion here
-        "literalArray" : "'[' (literalValue (',' literalValue)*)? ']'",
+        "literalArray" : "'[' match (literalValue (',' literalValue)*)? ']' matched_paren2",
         
-        "literalStatement" : {
-            "type": "ngram",
-            "tokens": [
-                ["literalObject"],
-                ["literalArray"]
-            ]
-        }
+        "brackets" : "'{' match | '}' matched_bra | '(' match | ')' matched_paren | '[' match | ']' matched_paren2",
+        
+        "js" : "comment | number | string | regex | keyword | operator | atom | literalObject | literalArray | brackets | other"
     },
 
     // what to parse and in what order
-    "Parser" : [
-        "comment",
-        "number",
-        "string",
-        "regex",
-        "keyword",
-        "operator",
-        "atom",
-        "literalStatement"
-    ]
+    "Parser" : [ ["js"] ]
 };

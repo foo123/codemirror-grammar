@@ -78,9 +78,8 @@ var Parser = Class({
         parse_errors = !!(parse_type&ERRORS);
         parse_tokens = !!(parse_type&TOKENS);
         
-        state = new State( 0, 0, parse_errors );
+        state = new State( 0, 0, parse_type );
         state.parseAll = 1;
-        
         if ( parse_tokens )
         {
             linetokens = [];
@@ -116,12 +115,22 @@ var Parser = Class({
         ;
         
         stream = parseAll ? stream : Stream._( stream );
+        if ( parseAll )
+        {
+            if ( 0 === state.line ) state.status |= T_SOF;
+            else state.status &= ~T_SOF;
+        }
+        else
+        {
+            if ( stream.sol() ) state.status |= T_SOF;
+            else state.status &= ~T_SOF;
+        }
         stack = state.stack;
         
-        // if EOL tokenizer is left on stack, pop it now
-        if ( stream.sol() && !stack.isEmpty() && T_EOL === stack.peek().type ) 
+        if ( stream.sol() ) 
         {
-            stack.pop();
+            // if EOL tokenizer is left on stack, pop it now
+            while( !stack.isEmpty() && T_EOL === stack.peek().type ) stack.pop();
         }
         
         // check for non-space tokenizer before parsing space
@@ -176,7 +185,7 @@ var Parser = Class({
             // found token (not empty)
             else if ( true !== type )
             {
-                type = /*T_SPACE === type ? DEFAULT :*/ Style[type] || DEFAULT;
+                type = Style[type] || DEFAULT;
                 // action token follows, execute action on current token
                 while ( !stack.isEmpty() && T_ACTION === stack.peek().type )
                 {
@@ -186,11 +195,9 @@ var Parser = Class({
                     /*if ( action.status&ERROR )
                     {
                         // empty the stack
-                        //stack.empty('$id', /*action* /tokenizer.$id);
+                        //stack.empty('$id', tokenizer.$id);
                         // generate error
-                        //type = ERR;
                         //action.err(state, line, pos, line, stream.pos);
-                        return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
                     }*/
                 }
                 return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
@@ -227,7 +234,7 @@ var Parser = Class({
             // found token (not empty)
             else if ( true !== type )
             {
-                type = /*T_SPACE === type ? DEFAULT :*/ Style[type] || DEFAULT;
+                type = Style[type] || DEFAULT;
                 // action token follows, execute action on current token
                 while ( !stack.isEmpty() && T_ACTION === stack.peek().type )
                 {
@@ -239,9 +246,7 @@ var Parser = Class({
                         // empty the stack
                         //stack.empty('$id', tokenizer.$id);
                         // generate error
-                        //type = ERR;
                         //action.err(state, line, pos, line, stream.pos);
-                        return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
                     }*/
                 }
                 return parseAll ? {value: stream.cur(1), type: type} : (stream.upd()&&type);
@@ -282,12 +287,13 @@ function get_mode( grammar, DEFAULT )
             */
             
             startState: function( ) { 
-                return new State( ); 
+                var state = new State( );
+                return state;
             },
             
             copyState: function( state ) { 
-                state = state.clone( ); state.line++;
-                return state;
+                var statec = state.clone( );
+                return statec;
             },
             
             token: function( stream, state ) { 

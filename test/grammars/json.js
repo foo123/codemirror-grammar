@@ -12,10 +12,10 @@ var json_grammar = {
     // Style model
     "Style" : {
         // lang token type  -> Editor (style) tag
-        "comment":    "comment",
-        "atom":       "atom",
-        "number":     "number",
-        "string":     "string"
+        "comment"    : "comment",
+        "atom"       : "atom",
+        "number"     : "number",
+        "string"     : "string"
     },
 
     
@@ -24,8 +24,7 @@ var json_grammar = {
     "Lex" : {
         
         // comments
-        "comment" : {
-            "type" : "comment",
+        "comment:comment" : {
             "interleave": true,
             "tokens" : [
                 // line comment
@@ -57,12 +56,7 @@ var json_grammar = {
         ],
 
         // usual strings
-        "string" : {
-            "type" : "escaped-block",
-            "escape" : "\\",
-            // start, end of string (can be the matched regex group ie. 1 )
-            "tokens" : [ "\"",   "\"" ]
-        },
+        "string:escaped-block" : [ "\"",   "\"" ],
         
         // atoms
         "atom" : {
@@ -71,21 +65,21 @@ var json_grammar = {
             "tokens" : [ "true", "false", "null" ]
         },
         
-        "ctx_start": {
-            "context-start": true
-        },
+        "other": "RE::/\\S+/",
         
-        "ctx_end": {
-            "context-end": true
-        },
+        "ctx_start:action": {"context-start":true},
         
-        "unique": {
+        "ctx_end:action": {"context-end":true},
+        
+        "error:action":{"error":true,"msg":"Invalid JSON"},
+        
+        "unique:action": {
             "unique": ["prop", "$0"],
             "msg": "Duplicate object property \"$0\"",
             "in-context": true
         },
         
-        "unique_prop": {
+        "unique_prop:action": {
             "unique": ["prop", "$1"],
             "msg": "Duplicate object property \"$0\"",
             "in-context": true
@@ -100,10 +94,7 @@ var json_grammar = {
         // grammar recursion here
         "literalValue" : "atom | string | number | literalArray | literalObject",
         "literalPropertyValue" : "string unique_prop ':' literalValue",
-        "json" : {
-            "type" : "ngram",
-            "tokens" : ["literalValue"]
-        }
+        "json:ngram" : ["literalValue | other error"]
     },
 
     // what to parse and in what order

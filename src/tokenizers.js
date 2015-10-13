@@ -43,8 +43,8 @@ function match_re( stream, eat )
     var self = this, p = self.pattern, s = stream.s, m;
     m = s.slice( stream.pos ).match( p[0] );
     if ( !m || m.index > 0 ) return false;
-    if ( false !== eat ) stream.mov( m[ 0 ].length );
-    return [ self.key, m ];
+    if ( false !== eat ) stream.mov( m[ p[1]||0 ].length );
+    return [ self.key, p[1] > 0 ? m[p[1]] : m ];
 }
 
 function match_null( stream, eat ) 
@@ -242,7 +242,7 @@ function get_compositematcher( name, tokens, RegExpID, combined, cachedRegexes, 
     }
     else if ( 1 < l /*combined*/ )
     {   
-        l2 = (l>>1) + 1;
+        l2 = (l>>>1) + 1;
         // check if tokens can be combined in one regular expression
         // if they do not contain sub-arrays or regular expressions
         for (i=0; i<=l2; i++)
@@ -277,7 +277,7 @@ function get_compositematcher( name, tokens, RegExpID, combined, cachedRegexes, 
         {   
             matcher = get_simplematcher( name, get_combined_re( tmp, combined ), 0, cachedMatchers );
         }
-        else
+        else if ( array_of_arrays || has_regexs )
         {
             for (i=0; i<l; i++)
             {
@@ -285,6 +285,16 @@ function get_compositematcher( name, tokens, RegExpID, combined, cachedRegexes, 
                     tmp[i] = get_compositematcher( name + '_' + i, tmp[i], RegExpID, combined, cachedRegexes, cachedMatchers );
                 else
                     tmp[i] = get_simplematcher( name + '_' + i, get_re( tmp[i], RegExpID, cachedRegexes ), i, cachedMatchers );
+            }
+            
+            matcher = (l > 1) ? new CompositePattern( name, tmp ) : tmp[0];
+        }
+        else /* strings */
+        {
+            tmp = tmp.sort( by_length );
+            for (i=0; i<l; i++)
+            {
+                tmp[i] = get_simplematcher( name + '_' + i, get_re( tmp[i], RegExpID, cachedRegexes ), i, cachedMatchers );
             }
             
             matcher = (l > 1) ? new CompositePattern( name, tmp ) : tmp[0];
@@ -335,6 +345,12 @@ Token = Class({
         self.msg = msg || null;
         self.$msg = null;
         self.$clone = null;
+        if ( T_SOF === self.name ) self.name = '<start-of-file>';
+        else if ( T_SOL === self.name ) self.name = '<start-of-line>';
+        else if ( T_EOL === self.name ) self.name = '<end-of-line>';
+        else if ( T_EOF === self.name ) self.name = '<end-of-file>';
+        else if ( T_EMPTY === self.name ) self.name = '<empty>';
+        else if ( T_NONSPACE === self.name ) self.name = '<nonspace>';
     }
     
     // tokenizer/token name/id
@@ -388,41 +404,50 @@ Token = Class({
         var self = this, token = self.token, 
             type = self.type, tokenID = self.name, t = null;
         
-        self.$msg = null;
+        self.$msg = self.msg || null;
         state.token = null;
         //self.pos = null;
-        //lin = state.line; col = stream.pos;
-        // match EMPTY token
-        if ( T_EMPTY === type ) 
+        // match SOF (start-of-file)
+        if ( T_SOF === type ) 
         { 
-            self.status = 0;
-            //self.pos = [[lin, col], [lin, col]];
-            return true;
+            if ( (T_SOF&state.status) && stream.sol() ) return true;
         }
-        // match EOL ( with possible leading spaces )
+        // match SOL (start-of-line)
+        else if ( T_SOL === type ) 
+        { 
+            if ( stream.sol() ) return true;
+        }
+        // match EOL (end-of-line) ( with possible leading spaces )
         else if ( T_EOL === type ) 
         { 
             stream.spc();
-            if ( stream.eol() )
-            {
-                //self.pos = [[lin, col], [lin, stream.pos]];
-                return tokenID;
-            }
+            if ( stream.eol() ) return tokenID;
+        }
+        // match EOF (end-of-file) ( with possible leading spaces )
+        /*else if ( T_EOF === type ) 
+        { 
+            stream.spc();
+            if ( stream.eol() ) return true;
+        }*/
+        // match EMPTY token
+        else if ( T_EMPTY === type ) 
+        { 
+            self.status = 0;
+            return true;
         }
         // match non-space
         else if ( T_NONSPACE === type ) 
         { 
             if ( (self.status&REQUIRED) && stream.spc() && !stream.eol() ) self.status |= ERROR;
             self.status &= CLEAR_REQUIRED;
-            //self.pos = [[lin, col], [lin, col]];
         }
         // else match a simple token
         else if ( t = token.match(stream) ) 
         { 
             state.token = {name:tokenID, value:stream.cur(), token:t[1]};
-            //self.pos = [[lin, col], [lin, stream.pos]];
             return tokenID; 
         }
+        if ( self.status && self.$msg ) self.$msg = group_replace( self.$msg, tokenID, true );
         return false;
     }
     
@@ -434,13 +459,13 @@ Token = Class({
     }
     
     ,err: function( state, l1, c1, l2, c2 ) {
-        var t = this, m, tok = t.name;
+        var t = this, m, token = t.name;
         if ( t.$msg ) m = t.$msg;
-        else if ( t.status&REQUIRED ) m = 'Token "'+tok+'" Expected';
-        else m = 'Syntax Error: "'+tok+'"';
-        if ( state && state.errors )
+        else if ( t.status&REQUIRED ) m = 'Token "'+token+'" Expected';
+        else m = 'Syntax Error: "'+token+'"';
+        if ( state && (state.status&ERRORS) )
         {
-            state.err[l1+'_'+c1+'_'+l2+'_'+c2+'_'+tok] = [l1, c1, l2, c2, m];
+            state.err[l1+'_'+c1+'_'+l2+'_'+c2+'_'+token] = [l1, c1, l2, c2, m];
         }
         return m;
     }
@@ -472,7 +497,7 @@ ActionToken = Class(Token, {
     ,get: function( stream, state ) {
         var self = this, action_def = self.token || null, action, 
         t, t0, ns, msg, queu = state.queu, symb = state.symb, ctx = state.ctx, token = state.token,
-        lin, col1, col2, in_ctx, err = state.err, error, emsg, with_errors = state.errors;
+        lin, col1, col2, in_ctx, err = state.err, error, emsg, with_errors = !!(state.status&ERRORS);
         
         self.status = 0;
         self.$msg = null;
@@ -495,6 +520,16 @@ ActionToken = Class(Token, {
                 return false;
             }
             
+            else if ( A_CTXSTART === action )
+            {
+                ctx.unshift({symb:{},queu:[]});
+            }
+            
+            else if ( A_CTXEND === action )
+            {
+                if ( ctx.length ) ctx.shift();
+            }
+            
             else if ( A_EMPTY === action )
             {
                 if ( in_ctx )
@@ -507,23 +542,7 @@ ActionToken = Class(Token, {
                 }
             }
             
-            else if ( A_CTX_START === action )
-            {
-                //ns = uuid('ctx');
-                ctx.unshift({symb:{},queu:[]});
-            }
-            
-            else if ( A_CTX_END === action )
-            {
-                if ( ctx.length ) ctx.shift();
-            }
-            
-            /*else if ( A_BLOCKINDENT === action )
-            {
-                // TODO
-            }
-            
-            else if ( A_INDENT === action )
+            /*else if ( A_INDENT === action )
             {
                 // TODO
             }
@@ -685,7 +704,6 @@ BlockToken = Class(Token, {
         {
             found = 1;
             endBlock = state.block.end;
-            //self.pos = state.block.pos;
             alreadyIn = 1;
             ret = thisBlockInterior;
             b_s = state.block.s;
@@ -698,7 +716,6 @@ BlockToken = Class(Token, {
         else if ( !state.block && (endBlock = startBlock.match(stream)) )
         {
             found = 1;
-            //self.pos = [[lin, col],[lin, stream.pos]];
             b_s = [lin,col];
             b_i = [[lin,stream.pos],[lin,stream.pos]];
             b_e = [lin,stream.pos];
@@ -788,22 +805,19 @@ BlockToken = Class(Token, {
             if ( ended || (!continueToNextLine && !continueBlock) )
             {
                 state.block = null;
-                //self.pos[1] = [lin, stream.pos];
             }
             else
             {
-                //self.pos[1] = [lin, stream.pos];
-                //state.block.pos = self.pos;
                 state.block.i = b_i;
                 state.block.e = b_e;
                 state.block._i += b_21;
                 state.block._e = b_3;
                 state.stack.pushAt( stackPos, self.clone( ), '$id', thisBlock );
             }
-            state.token = {name:thisBlock, value:stream.cur(), token:[b_1+b_2+b_21+b_3, b_2+b_21]};
+            state.token = {name:thisBlock, value:stream.cur(), token:[b_1+b_2+b_21+b_3, b_2+b_21, b_1, b_3]};
             return ret;
         }
-        
+        if ( self.status && self.$msg ) self.$msg = group_replace( self.$msg, thisBlock, true );
         return false;
     }
 });
@@ -885,16 +899,37 @@ CompositeToken = Class(Token, {
             if ( match_all ) self.status |= REQUIRED;
             else self.status &= CLEAR_REQUIRED;
             stackPos = stack.pos();
-            token = tokens[ 0 ].clone().req( match_all );
-            style = token.get(stream, state);
             stackId = self.name+'_'+get_id();
+            i0 = 0;
+            do{
+            token = tokens[ i0 ].clone().req( match_all );
+            style = token.get(stream, state);
+            i0++;
+            // handle SOF,SOL tokens here
+            }while ( i0<n && true === style && (T_SOF_OR_SOL&token.type) );
+            
+            if ( i0 >= n )
+            {
+                if ( token.status&ERROR /*&& token.REQ*/ )
+                {
+                    if ( match_all ) self.status |= ERROR;
+                    else self.status &= CLEAR_ERROR;
+                    stream.bck( streamPos );
+                }
+                else if ( match_all && (token.status&REQUIRED) )
+                {
+                    self.status |= ERROR;
+                }
+                if ( self.status && !self.$msg ) self.$msg = token.err();
+                return style;
+            }
             
             if ( false !== style )
             {
                 // not empty token
-                if ( true !== style )
+                if ( true !== style)
                 {
-                    for (i=n-1; i>0; i--)
+                    for (i=n-1; i>=i0; i--)
                         stack.pushAt( stackPos+n-i-1, tokens[ i ].clone().req( 1 ), '$id', stackId );
                 }
                     
@@ -991,8 +1026,28 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     if ( '0' === token )
                     {
                         // interpret as empty tokenizer
-                        sequence.push( 0 );
+                        sequence.push( T_EMPTY );
                     }
+                    else if ( '^^' === token )
+                    {
+                        // interpret as SOF tokenizer
+                        sequence.push( T_SOF );
+                    }
+                    else if ( '^' === token )
+                    {
+                        // interpret as SOL tokenizer
+                        sequence.push( T_SOL );
+                    }
+                    else if ( '$' === token )
+                    {
+                        // interpret as EOL tokenizer
+                        sequence.push( T_EOL );
+                    }
+                    /*else if ( '$$' === token )
+                    {
+                        // interpret as EOF tokenizer
+                        sequence.push( T_EOF );
+                    }*/
                     else
                     {
                         if ( !Lex[token] && !Syntax[token] )
@@ -1279,10 +1334,22 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     
     MSG = null;
     
-    if ( null === tokenID )
+    if ( T_SOF === tokenID )
+    {
+        // SOF Token
+        return new Token( T_SOF, T_SOF, tokenID, MSG );
+    }
+    
+    else if ( T_SOL === tokenID )
+    {
+        // SOL Token
+        return new Token( T_SOL, T_SOL, tokenID, MSG );
+    }
+    
+    else if ( T_EOL === tokenID || null === tokenID )
     {
         // EOL Token
-        return new Token( T_EOL, 'EOL', tokenID, MSG );
+        return new Token( T_EOL, T_EOL, tokenID, MSG );
     }
     
     else if ( "" === tokenID )
@@ -1383,12 +1450,6 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
             tok.type = "action";
             tok.action = [ 'empty', tok.empty, !!tok['in-context'] ];
             delete tok.empty;
-        }
-        else if ( tok[HAS]('block-indent') )
-        {
-            tok.type = "action";
-            tok.action = [ 'block-indent', tok['block-indent'], !!tok['in-context'] ];
-            delete tok['block-indent'];
         }
         else if ( tok[HAS]('indent') )
         {
@@ -1491,15 +1552,25 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     
     if ( T_SIMPLE & type )
     {
-        if ( "" === tok.tokens )
+        if ( T_SOF === tok.tokens )
         {
-            // NONSPACE Token
-            token = new Token( T_NONSPACE, tokenID, tokenID, MSG );
+            // SOF Token
+            token = new Token( T_SOF, tokenID, tokenID, MSG );
             // pre-cache tokenizer to handle recursive calls to same tokenizer
             cachedTokens[ tokenID ] = token;
             return token;
         }
-        else if ( null === tok.tokens )
+        
+        else if ( T_SOL === tok.tokens )
+        {
+            // SOL Token
+            token = new Token( T_SOL, tokenID, tokenID, MSG );
+            // pre-cache tokenizer to handle recursive calls to same tokenizer
+            cachedTokens[ tokenID ] = token;
+            return token;
+        }
+        
+        else if ( T_EOL === tok.tokens || null === tok.tokens )
         {
             // EOL Token
             token = new Token( T_EOL, tokenID, tokenID, MSG );
@@ -1507,6 +1578,16 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
             cachedTokens[ tokenID ] = token;
             return token;
         }
+        
+        else if ( "" === tok.tokens )
+        {
+            // NONSPACE Token
+            token = new Token( T_NONSPACE, tokenID, tokenID, MSG );
+            // pre-cache tokenizer to handle recursive calls to same tokenizer
+            cachedTokens[ tokenID ] = token;
+            return token;
+        }
+        
         else if ( false === tok.tokens || 0 === tok.tokens )
         {
             // EMPTY Token
@@ -1524,10 +1605,9 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         if ( !tok[HAS]('action') )
         {
             if ( tok[HAS]('error') ) tok.action = [A_ERROR, tok.error, !!tok['in-context']];
-            else if ( tok[HAS]('context-start') ) tok.action = [A_CTX_START, tok['context-start'], !!tok['in-context']];
-            else if ( tok[HAS]('context-end') ) tok.action = [A_CTX_END, tok['context-end'], !!tok['in-context']];
+            else if ( tok[HAS]('context-start') ) tok.action = [A_CTXSTART, tok['context-start'], !!tok['in-context']];
+            else if ( tok[HAS]('context-end') ) tok.action = [A_CTXEND, tok['context-end'], !!tok['in-context']];
             else if ( tok[HAS]('empty') ) tok.action = [A_EMPTY, tok.empty, !!tok['in-context']];
-            else if ( tok[HAS]('block-indent') ) tok.action = [A_BLOCKINDENT, tok['block-indent'], !!tok['in-context']];
             else if ( tok[HAS]('indent') ) tok.action = [A_INDENT, tok.indent, !!tok['in-context']];
             else if ( tok[HAS]('outdent') ) tok.action = [A_OUTDENT, tok.outdent, !!tok['in-context']];
             else if ( tok[HAS]('unique') ) tok.action = [A_UNIQUE, T_STR&get_type(tok.unique)?['_DEFAULT_',tok.unique]:tok.unique, !!tok['in-context']];
@@ -1537,10 +1617,9 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         else
         {
             if ( 'error' === tok.action[0] ) tok.action[0] = A_ERROR;
-            else if ( 'context-start' === tok.action[0] ) tok.action[0] = A_CTX_START;
-            else if ( 'context-end' === tok.action[0] ) tok.action[0] = A_CTX_END;
+            else if ( 'context-start' === tok.action[0] ) tok.action[0] = A_CTXSTART;
+            else if ( 'context-end' === tok.action[0] ) tok.action[0] = A_CTXEND;
             else if ( 'empty' === tok.action[0] ) tok.action[0] = A_EMPTY;
-            else if ( 'block-indent' === tok.action[0] ) tok.action[0] = A_BLOCKINDENT;
             else if ( 'indent' === tok.action[0] ) tok.action[0] = A_INDENT;
             else if ( 'outdent' === tok.action[0] ) tok.action[0] = A_OUTDENT;
             else if ( 'unique' === tok.action[0] ) tok.action[0] = A_UNIQUE;
@@ -1558,7 +1637,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         if ( tok.autocomplete ) get_autocomplete( tok, tokenID, keywords );
         
         // combine by default if possible using word-boundary delimiter
-        combine = ( 'undefined' === typeof(tok.combine) ) ? "\\b" : tok.combine;
+        combine = 'undefined' === typeof(tok.combine) ? "\\b" : tok.combine;
         token = new Token( T_SIMPLE, tokenID,
                     get_compositematcher( tokenID, tok.tokens.slice(), RegExpID, combine, cachedRegexes, cachedMatchers ), 
                     MSG
@@ -1690,7 +1769,7 @@ function get_autocomplete( tok, type, keywords )
 function parse_grammar( grammar ) 
 {
     var RegExpID, tokens, numTokens, _tokens, 
-        Style, Lex, Syntax, t, tokenID, token, tok,
+        Style, Lex, Syntax, t, tokenID, token, tok, tt, tID, tT,
         cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords;
     
     // grammar is parsed, return it
@@ -1714,6 +1793,66 @@ function parse_grammar( grammar )
     delete grammar.Syntax;
     
     Style = grammar.Style || { };
+    
+    // shorthand token-type annotation in token_ID
+    for (tt in Lex)
+    {
+        if ( !Lex[HAS](tt) ) continue;
+        tID = tt.split(':');
+        if ( tID[1] && trim(tID[1]).length )
+        {
+            tT = trim(tID[1]).toLowerCase();
+        }
+        else
+        {
+            tT = null;
+        }
+        tID = tID[0];
+        if ( tID !== tt )
+        {
+            Lex[tID] = Lex[tt]; delete Lex[tt];
+            if ( tT )
+            {
+                if ( T_OBJ & get_type(Lex[tID]) )
+                {
+                    if ( !Lex[tID].type ) Lex[tID].type = tT;
+                }
+                else
+                {
+                    Lex[tID] = {type:tT, tokens:Lex[tID]};
+                }
+            }
+        }
+    }
+    for (tt in Syntax)
+    {
+        if ( !Syntax[HAS](tt) ) continue;
+        tID = tt.split(':');
+        if ( tID[1] && trim(tID[1]).length )
+        {
+            tT = trim(tID[1]).toLowerCase();
+        }
+        else
+        {
+            tT = null;
+        }
+        tID = tID[0];
+        if ( tID !== tt )
+        {
+            Syntax[tID] = Syntax[tt]; delete Syntax[tt];
+            if ( tT )
+            {
+                if ( T_OBJ & get_type(Syntax[tID]) )
+                {
+                    if ( !Syntax[tID].type ) Syntax[tID].type = tT;
+                }
+                else
+                {
+                    Syntax[tID] = {type:tT, tokens:Syntax[tID]};
+                }
+            }
+        }
+    }
     
     _tokens = grammar.Parser || [ ];
     numTokens = _tokens.length;

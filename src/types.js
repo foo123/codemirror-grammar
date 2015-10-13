@@ -24,9 +24,8 @@ var
     A_EMPTY = 64,
     A_INDENT = 128,
     A_OUTDENT = 256,
-    A_BLOCKINDENT = 512,
-    A_CTX_START = 1024,
-    A_CTX_END = 2048,
+    A_CTXSTART = 512,
+    A_CTXEND = 1024,
     
     //
     // pattern types
@@ -37,26 +36,27 @@ var
     //
     // token types
     //T_SPACE = 0,
-    T_ERROR = 4,
-    T_DEFAULT = 8,
-    T_SIMPLE = 16,
-    T_EOL = 17,
-    T_NONSPACE = 18,
-    T_EMPTY = 20,
-    T_BLOCK = 32,
-    T_ESCBLOCK = 33,
-    T_COMMENT = 34,
-    T_EITHER = 64,
-    T_SEQUENCE = 128,
+    T_SOF = 4, T_EOF = 8, T_SOL = 16, T_EOL = 32,
+    T_SOF_OR_SOL = T_SOF|T_SOL,
+    T_EMPTY = 64, T_NONSPACE = 128,
+    //T_EMPTY_OR_NONSPACE = T_EMPTY|T_NONSPACE,
+    //T_NOT_EMPTY_NOR_NONSPACE = ~T_EMPTY_OR_NONSPACE,
+    T_SIMPLE = 256,
+    T_BLOCK = 512,
+    T_ESCBLOCK = 513,
+    T_COMMENT = 514,
+    T_EITHER = 1024,
+    T_SEQUENCE = 2048,
     T_ALL = T_SEQUENCE,
-    T_REPEATED = 256,
-    T_ZEROORONE = 257,
-    T_ZEROORMORE = 258,
-    T_ONEORMORE = 259,
-    T_GROUP = 512,
-    T_NGRAM = 1024,
+    T_REPEATED = 4096,
+    T_ZEROORONE = 4097,
+    T_ZEROORMORE = 4098,
+    T_ONEORMORE = 4099,
+    T_GROUP = 8192,
+    T_NGRAM = 16384,
     T_SEQUENCE_OR_NGRAM = T_SEQUENCE | T_NGRAM,
-    T_ACTION = 2048,
+    T_ACTION = 32768,
+    //T_SOF_SOL_EOL_EOF_ACTION = T_SOF_SOL_EOL_EOF|T_ACTION,
     
     //
     // tokenizer types
@@ -78,18 +78,5 @@ var
     SIMPLE: T_SIMPLE,
     GROUP: T_GROUP,
     NGRAM: T_NGRAM
-    },
-    
-    actionTypes = {
-    ERROR: A_ERROR,
-    UNIQUE: A_UNIQUE,
-    PUSH: A_PUSH,
-    POP: A_POP,
-    EMPTY: A_EMPTY,
-    INDENT: A_INDENT,
-    OUTDENT: A_OUTDENT,
-    BLOCKINDENT: A_BLOCKINDENT,
-    CONTEXT_START: A_CTX_START,
-    CONTEXT_END: A_CTX_END
     }
 ;

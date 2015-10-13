@@ -9,24 +9,24 @@ var css_grammar = {
     //
     // Style model
     "Style" : {
-        "comment":         "comment",
-        "@atrule":         "def",
-        "@import":         "def",
-        "@keyframes":      "def",
-        "@media":          "def",
-        "identifier":      "variable",
-        "!important":      "builtin",
-        "CssAtom":         "atom",
-        "url":             "atom",
-        "format":          "atom",
-        "CssProperty":     "property",
-        "HtmlElement":     "tag",
-        "CssID":           "builtin",
-        "CssClass":        "qualifier",
-        "PseudoElement":   "string",
-        "number":          "number",
-        "string":          "string",
-        "text":            "string"
+        "comment"         : "comment",
+        "@atrule"         : "def",
+        "@import"         : "def",
+        "@keyframes"      : "def",
+        "@media"          : "def",
+        "identifier"      : "variable",
+        "!important"      : "builtin",
+        "CssAtom"         : "atom",
+        "url"             : "atom",
+        "format"          : "atom",
+        "CssProperty"     : "property",
+        "HtmlElement"     : "tag",
+        "CssID"           : "builtin",
+        "CssClass"        : "qualifier",
+        "PseudoElement"   : "string",
+        "number"          : "number",
+        "string"          : "string",
+        "text"            : "string"
     },
 
     
@@ -35,8 +35,7 @@ var css_grammar = {
     "Lex" : {
         
         // comments
-        "comment" : {
-            "type" : "comment",
+        "comment:comment" : {
             "interleave": true,
             "tokens" : [
                 // block comments
@@ -59,8 +58,7 @@ var css_grammar = {
         ],
         
         // strings
-        "string" : {
-            "type" : "block",
+        "string:block" : {
             "multiline": false,
             "tokens" : [
                 //  start,           end of string (can be the matched regex group ie. 1 )
@@ -99,89 +97,54 @@ var css_grammar = {
         "!important" : "RE::/!important\\b/i",
         
         // css html element
-        "HtmlElement" : "RE::/[a-z_\\-][a-z0-9_\\-]*/i"
+        "HtmlElement" : "RE::/[a-z_\\-][a-z0-9_\\-]*/i",
+        
+        "match:action" : {
+            "push": "$0"
+        },
+        "matched1:action" : {
+            "pop": "{",
+            "msg": "Token \"$0\" does not match"
+        },
+        "matched2:action" : {
+            "pop": "(",
+            "msg": "Token \"$0\" does not match"
+        }
     },
 
     //
     // Syntax model (optional)
     "Syntax" : {
         
-        "urlDeclaration" : {
-            "type" : "ngram",
-            "tokens" : [ "url", "(", "string | text", ")" ]
-        },
+        "urlDeclaration:ngram" : "url '(' match (string | text) ')' matched2",
         
-        "formatDeclaration" : {
-            "type" : "ngram",
-            "tokens" : [ "format", "(", "string | text", ")" ]
-        },
+        "formatDeclaration:ngram" : "format '(' match (string | text) ')' matched2",
         
-        "cssSelector" : {
-            "type" : "group",
-            "match" : "oneOrMore",
-            "tokens" : [ "HtmlElement", "CssID", "CssClass", "PseudoElement", "string", ",", "(", ")", "[", "]", "=", "+", "^", ">", "*", "~"]
-        },
+        "cssSelector" : "(HtmlElement | CssID | CssClass | PseudoElement | string | ',' | '(' match | ')' matched2 | '[' | ']' | '=' | '+' | '^' | '>' | '*' | '~')+",
         
-        "RHSAssignment" : {
-            "type" : "group",
-            "match" : "oneOrMore",
-            "tokens" : [ "!important", "urlDeclaration", "formatDeclaration", "string", "number", "CssAtom", ",", "(", ")" ]
-        },
+        "RHSAssignment" : "(!important | urlDeclaration | formatDeclaration | string | number | CssAtom | ',' | '(' match | ')' matched2)+",
         
-        "cssAssignment" : {
-            "type" : "group",
-            "match" : "all",
-            "tokens" : [ "CssProperty", ":", "RHSAssignment", "semicolon" ]
-        },
+        "cssAssignment" : "CssProperty ':' RHSAssignment ';'*",
         
         // syntax grammar (n-gram) for a block of css assignments
-        "cssBlock" : {
-            "type" : "n-gram",
-            "tokens" : [
-                [ "number", "{", "cssAssignment*", "}" ],
-                [ "cssSelector", "{", "cssAssignment*", "}" ]
-            ]
-        },
+        "cssBlock:ngram" : [
+            [ "number '{' match cssAssignment* '}' matched1" ],
+            [ "cssSelector '{' match cssAssignment* '}' matched1" ]
+        ],
         
-        "@importDirective" : {
-            "type" : "n-gram",
-            "tokens" : [ "@import", "urlDeclaration", ";" ]
-        },
+        "@importDirective:ngram" : "@import urlDeclaration ';'",
         
-        "@keyframesDirective" : {
-            "type" : "n-gram",
-            "tokens" : [ "@keyframes", "identifier", "{", "cssBlock*", "}" ]
-        },
+        "@keyframesDirective:ngram" : "@keyframes identifier '{' match cssBlock* '}' matched1",
         
-        "cssIdentifiers" : {
-            "type" : "group",
-            "match": "oneOrMore",
-            "tokens" : [ "identifier", "number", "string", ",", "(", ")"]
-        },
+        "cssIdentifiers" : "(identifier | number | string | ',' | '(' match | ')' matched2)+",
         
-        "@mediaDirective" : {
-            "type" : "n-gram",
-            "tokens" : [ "@media", "cssIdentifiers", "{", "cssBlock*", "}" ]
-        },
+        "@mediaDirective:ngram" : "@media cssIdentifiers '{' match cssBlock* '}' matched1",
         
-        "semicolon" : ";*",
+        "atruleLine" : "cssIdentifiers ';'*",
         
-        "atruleLine" : {
-            "type" : "group",
-            "match": "all",
-            "tokens" : [ "cssIdentifiers", "semicolon" ]
-        },
+        "atruleBlock" : "'{' match cssAssignments '}' matched1",
         
-        "atruleBlock" : {
-            "type" : "group",
-            "match": "all",
-            "tokens" : [ "{", "cssAssignments", "}" ]
-        },
-        
-        "@atruleDirective"  : {
-            "type" : "n-gram",
-            "tokens" : [ "@atrule", "atruleBlock | atruleLine" ]
-        }
+        "@atruleDirective:ngram"  : "@atrule (atruleBlock | atruleLine)"
     },
 
     // what to parse and in what order

@@ -11,6 +11,7 @@
     1. [Simple Tokens](#simple-tokens)
     2. [Block Tokens](#block-tokens)
     3. [Action Tokens **(new)**](#action-tokens)
+    4. [Lex shorthand type annotations **(new,optional)**](#lex-shorthand-type-annotations)
 * [Syntax Model **(optional)**](#syntax-model)
     1. [Syntax PEG/BNF-like notations **(new)**](#syntax-pegbnf-like-notations)
 * [Parser](#parser)
@@ -74,6 +75,7 @@ example:
     2. `"msg"`    : `token` `error message` (default `token default error message` )
     3. `"tokens"` : `pattern` or `array of patterns` for this token
     4. `properties` depending on `token type` (see below)
+    5. *optionaly*, token `"type"` can be **annotated inside** the `token_id` ([see below](#lex-shorthand-type-annotations))
 
 * a token type can be `"simple"` (default), `"block"` , `"escaped-block"` , `"comment"` , `"action"`
 * a token can *extend / reference* another token using the `extend` property; this way 2 tokens that share common configuration but different styles (depending on context) can be defined only once. Examples are tokens for `identifiers` and `properties` While both have similar tokenizers, the styles (and probably other properties) can be different.
@@ -208,7 +210,33 @@ An `action` token in a grammar **applies only and directly to the token precedin
 
 ```
 
+####Lex shorthand type annotations
+**(new, optional)**
 
+Lexical tokens can annotate their `type` in their `token_id` as `"token_id:token_type"` for *convenience*.
+
+**Example:**
+```javascript
+
+
+"a_token:comment": [["<--", "-->"]]
+// is equivalent to =>
+"a_token": {
+    "type": "comment",
+    "tokens": [["<--", "-->"]]
+}
+
+
+"a_token:action": {"push":"$1"}
+// is equivalent to =>
+"a_token": {
+    "type": "action",
+    "push": "$1"
+}
+
+// and so on..
+
+```
 
 
 ###Syntax model
@@ -328,10 +356,18 @@ Specificaly:
     "tokens": ["t1* t2", "t3"]
 }
 
-// literal tokens wrapped in quotes (' or ")
-// are equivalent to their literal value
-// empty literal token (i.e '') matches NON-SPACE production
-// zero literal token (i.e 0) matches EMPTY production
+// literal tokens wrapped in quotes (' or ") (e.g 'abc') are equivalent to their literal value (i.e abc)
+
+// empty literal token w/ quotes (i.e '') matches NON-SPACE production (i.e fails if space is encountered)
+
+// zero 0 literal token w/o quotes matches EMPTY production (i.e succeeds always)
+
+// ^ literal token w/o quotes matches SOL (i.e start-of-line, any line)
+// ^^ literal token w/o quotes matches SOF (i.e start-of-file, start of line, first line of code, NOTE in some cases behaves like ^, above)
+
+// $ literal token w/o quotes matches EOL (i.e end-of-line, along with any extra space)
+// $$ literal token w/o quotes matches EOF (i.e end-of-file, end of line of last line of code) (currently NOT supported)
+
 "t": "t1 '=' t2"
 // is equivalent to =>
 "t_equal": {
