@@ -127,10 +127,10 @@ var Parser = Class({
         }
         stack = state.stack;
         
-        if ( stream.sol() ) 
+        // if EOL tokenizer is left on stack, pop it now
+        if ( stream.sol() && !stack.isEmpty() && T_EOL === stack.peek().type )
         {
-            // if EOL tokenizer is left on stack, pop it now
-            while( !stack.isEmpty() && T_EOL === stack.peek().type ) stack.pop();
+            stack.pop();
         }
         
         // check for non-space tokenizer before parsing space

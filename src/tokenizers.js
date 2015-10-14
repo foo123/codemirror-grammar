@@ -1325,6 +1325,56 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
     return tok;
 }
 
+function fix_type_annotations( Lex, Syntax )
+{
+    var id, t, type;
+    // shorthand token-type annotation in token_ID
+    for (t in Lex)
+    {
+        if ( !Lex[HAS](t) ) continue;
+        id = t.split(':');
+        type = id[1] && trim(id[1]).length ? trim(id[1]) : null;
+        id = id[0];
+        if ( id !== t )
+        {
+            Lex[id] = Lex[t]; delete Lex[t];
+            if ( type )
+            {
+                if ( T_OBJ === get_type(Lex[id]) )
+                {
+                    if ( !Lex[id].type ) Lex[id].type = type;
+                }
+                else
+                {
+                    Lex[id] = {type:type, tokens:Lex[id]};
+                }
+            }
+        }
+    }
+    for (t in Syntax)
+    {
+        if ( !Syntax[HAS](t) ) continue;
+        id = t.split(':');
+        type = id[1] && trim(id[1]).length ? trim(id[1]) : null;
+        id = id[0];
+        if ( id !== t )
+        {
+            Syntax[id] = Syntax[t]; delete Syntax[t];
+            if ( type )
+            {
+                if ( T_OBJ === get_type(Syntax[id]) )
+                {
+                    if ( !Syntax[id].type ) Syntax[id].type = type;
+                }
+                else
+                {
+                    Syntax[id] = {type:type, tokens:Syntax[id]};
+                }
+            }
+        }
+    }
+}
+
 function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style, 
                     cachedRegexes, cachedMatchers, cachedTokens, 
                     commentTokens, comments, keywords ) 
@@ -1769,7 +1819,7 @@ function get_autocomplete( tok, type, keywords )
 function parse_grammar( grammar ) 
 {
     var RegExpID, tokens, numTokens, _tokens, 
-        Style, Lex, Syntax, t, tokenID, token, tok, tt, tID, tT,
+        Style, Lex, Syntax, t, tokenID, token, tok,
         cachedRegexes, cachedMatchers, cachedTokens, commentTokens, comments, keywords;
     
     // grammar is parsed, return it
@@ -1794,65 +1844,8 @@ function parse_grammar( grammar )
     
     Style = grammar.Style || { };
     
-    // shorthand token-type annotation in token_ID
-    for (tt in Lex)
-    {
-        if ( !Lex[HAS](tt) ) continue;
-        tID = tt.split(':');
-        if ( tID[1] && trim(tID[1]).length )
-        {
-            tT = trim(tID[1]).toLowerCase();
-        }
-        else
-        {
-            tT = null;
-        }
-        tID = tID[0];
-        if ( tID !== tt )
-        {
-            Lex[tID] = Lex[tt]; delete Lex[tt];
-            if ( tT )
-            {
-                if ( T_OBJ & get_type(Lex[tID]) )
-                {
-                    if ( !Lex[tID].type ) Lex[tID].type = tT;
-                }
-                else
-                {
-                    Lex[tID] = {type:tT, tokens:Lex[tID]};
-                }
-            }
-        }
-    }
-    for (tt in Syntax)
-    {
-        if ( !Syntax[HAS](tt) ) continue;
-        tID = tt.split(':');
-        if ( tID[1] && trim(tID[1]).length )
-        {
-            tT = trim(tID[1]).toLowerCase();
-        }
-        else
-        {
-            tT = null;
-        }
-        tID = tID[0];
-        if ( tID !== tt )
-        {
-            Syntax[tID] = Syntax[tt]; delete Syntax[tt];
-            if ( tT )
-            {
-                if ( T_OBJ & get_type(Syntax[tID]) )
-                {
-                    if ( !Syntax[tID].type ) Syntax[tID].type = tT;
-                }
-                else
-                {
-                    Syntax[tID] = {type:tT, tokens:Syntax[tID]};
-                }
-            }
-        }
-    }
+    // shorthand token-type annotation in token_IDs
+    fix_type_annotations( Lex, Syntax );
     
     _tokens = grammar.Parser || [ ];
     numTokens = _tokens.length;
