@@ -347,47 +347,65 @@ function get_mode( grammar, DEFAULT )
     cm_mode.autocomplete = function( cm, options ) {
         var keywords = parser.Keywords, list, Pos = _CodeMirror.Pos,
             cur = cm.getCursor(), curLine, start = cur.ch, end = start, 
-            token, len, maxlen = 0, word_re, renderer;
+            token, token_i, word, len, maxword = 0, maxtype = 0, word_re, renderer, 
+            i, l, w, wm, wl, pos, pos_i, case_insensitive_match, prefix_match, m1, m2;
         list = [];
         if ( keywords && keywords.length )
         {
             options = options || {};
             word_re = options.word || W;
+            case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : true;
+            prefix_match = !!options.prefixMatch;
             curLine = cm.getLine(cur.line);
             while (end < curLine.length && word_re.test(curLine.charAt(end))) ++end;
             while (start && word_re.test(curLine.charAt(start - 1))) --start;
             if ( start < end )
             {
-                token = curLine.slice(start, end); len = token.length;
                 renderer = options.renderer || function(elt, data, cmpl) {
-                    var kword = cmpl.text, type = cmpl.meta,
-                        tab = new Array(data.list.maxlen-kword.length+3).join("&nbsp;"),
-                        p1 = cmpl.pos, p2 = p1 + cmpl.match.length;
+                    var word = cmpl.text, type = cmpl.meta, 
+                        tabsize = data.list.maxlen-word.length-type.length+1+2,
+                        tab = new Array(tabsize).join("&nbsp;"),
+                        p1 = cmpl.start, p2 = cmpl.end;
                     elt.innerHTML = [
-                        kword.slice(0,p1),
-                        '<strong style="font-weight:bold;">', kword.slice(p1,p2), '</strong>',
-                        kword.slice(p2), 
+                        '<span class="cmg-autocomplete-keyword">', word.slice(0,p1),
+                        '<strong class="cmg-autocomplete-keyword-match">', word.slice(p1,p2), '</strong>',
+                        word.slice(p2), '</span>',
                         tab,
-                        '<span style="color:#f33d05;font-weight:bold;">', type, '</span>'
+                        '<strong class="cmg-autocomplete-keyword-meta">', type, '</strong>'
                     ].join('');
                 };
-                keywords.reduce(function(list, word) {
-                    var w = word.word, wm = word.meta, wl = w.length, pos;
-                    if ( (wl >= len) && ((pos = w.indexOf(token)) >= 0) )
+                token = curLine.slice(start, end); token_i = token.toLowerCase(); len = token.length;
+                for (i=0,l=keywords.length; i<l; i++)
+                {
+                    word = keywords[i];
+                    w = word.word; wm = word.meta; wl = w.length;
+                    if ( wl < len ) continue;
+                    if ( case_insensitive_match )
                     {
-                        if ( wl > maxlen ) maxlen = wl;
-                        list.push({
-                            text: w, name: w, meta: wm,
-                            pos: pos, match: token,
-                            score: 1000 - wl - 10*pos,
-                            displayText: w + "\t\t["+wm+"]",
-                            render: renderer
-                        });
+                        m1 = w.toLowerCase();
+                        m2 = token_i;
                     }
-                    return list;
-                }, list);
+                    else
+                    {
+                        m1 = w;
+                        m2 = token;
+                    }
+                    if ( ((pos_i = m1.indexOf( m2 )) < 0) || (prefix_match && (pos_i > 0)) ) continue;
+                    if ( case_insensitive_match ) pos = w.indexOf( token );
+                    //else pos = pos_i;
+                    if ( wl > maxword ) maxword = wl;
+                    if ( wm.length > maxtype ) maxtype = wm.length;
+                    list.push({
+                        text: w, name: w, meta: wm,
+                        start: pos<0?pos_i:pos, end: (pos<0?pos_i:pos) + token.length, match: token,
+                        displayText: w + "\t\t["+wm+"]",
+                        render: renderer,
+                        // longer matches or matches not at start have lower match score
+                        score: 1000 - 10*(wl-len) - 2*(pos<0?pos_i+10:pos)
+                    });
+                }
                 if ( list.length ) list = list.sort( by_score );
-                list.maxlen = maxlen;
+                list.maxlen = maxword + maxtype; 
             }
         }
         return {
