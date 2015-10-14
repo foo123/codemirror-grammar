@@ -7,8 +7,14 @@ function codemirror_grammar_demo(code, lang, grammar)
     
     // 3. register the mode with Codemirror
     CodeMirror.defineMode(lang, mode);
+    // enable syntax validation
     mode.supportGrammarAnnotations = true;
     CodeMirror.registerHelper("lint", lang, mode.validator);
+    // enable autocomplete, have a unique cmd to not interfere with any default autocompletes
+    var autocomplete_cmd = 'autocomplete_grammar_'+lang;
+    CodeMirror.commands[autocomplete_cmd] = function( cm ) {
+        CodeMirror.showHint(cm, mode.autocomplete);
+    };
 
     // use it!
     var editor = CodeMirror.fromTextArea(code, {
@@ -16,7 +22,7 @@ function codemirror_grammar_demo(code, lang, grammar)
         lineNumbers: true,
         indentUnit: 4,
         indentWithTabs: false,
-        extraKeys: {"Ctrl-Space": "autocomplete", "Ctrl-L": "toggleComment"},
+        extraKeys: {"Ctrl-Space": autocomplete_cmd, "Ctrl-L": "toggleComment"},
         gutters: ["CodeMirror-lint-markers", "CodeMirror-linenumbers", "CodeMirror-foldgutter"],
         foldGutter: true,
         // enable syntax validation

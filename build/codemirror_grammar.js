@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 2.1.0
+*   @version: 2.1.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2664,7 +2664,7 @@ function parse_grammar( grammar )
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 2.1.0
+*   @version: 2.1.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -2927,6 +2927,9 @@ var Parser = Class({
     }
 });
 
+// used for autocompletion
+var W = /[\w$]/, by_score = function( a, b ) { return b.score-a.score };
+
 function get_mode( grammar, DEFAULT ) 
 {
     var parser = new Parser( parse_grammar( grammar ), { 
@@ -3002,6 +3005,60 @@ function get_mode( grammar, DEFAULT )
         }
         return errors;
     };
+    // autocompletion helper extracted from the grammar
+    // adapted from codemirror anyword-hint helper
+    cm_mode.autocomplete = function( cm, options ) {
+        var keywords = parser.Keywords, list, Pos = _CodeMirror.Pos,
+            cur = cm.getCursor(), curLine, start = cur.ch, end = start, 
+            token, len, maxlen = 0, word_re, renderer;
+        list = [];
+        if ( keywords && keywords.length )
+        {
+            options = options || {};
+            word_re = options.word || W;
+            curLine = cm.getLine(cur.line);
+            while (end < curLine.length && word_re.test(curLine.charAt(end))) ++end;
+            while (start && word_re.test(curLine.charAt(start - 1))) --start;
+            if ( start < end )
+            {
+                token = curLine.slice(start, end); len = token.length;
+                renderer = options.renderer || function(elt, data, cmpl) {
+                    var kword = cmpl.text, type = cmpl.meta,
+                        tab = new Array(data.list.maxlen-kword.length+3).join("&nbsp;"),
+                        p1 = cmpl.pos, p2 = p1 + cmpl.match.length;
+                    elt.innerHTML = [
+                        kword.slice(0,p1),
+                        '<strong style="font-weight:bold;">', kword.slice(p1,p2), '</strong>',
+                        kword.slice(p2), 
+                        tab,
+                        '<span style="color:#f33d05;font-weight:bold;">', type, '</span>'
+                    ].join('');
+                };
+                keywords.reduce(function(list, word) {
+                    var w = word.word, wm = word.meta, wl = w.length, pos;
+                    if ( (wl >= len) && ((pos = w.indexOf(token)) >= 0) )
+                    {
+                        if ( wl > maxlen ) maxlen = wl;
+                        list.push({
+                            text: w, name: w, meta: wm,
+                            pos: pos, match: token,
+                            score: 1000 - wl - 10*pos,
+                            displayText: w + "\t\t["+wm+"]",
+                            render: renderer
+                        });
+                    }
+                    return list;
+                }, list);
+                if ( list.length ) list = list.sort( by_score );
+                list.maxlen = maxlen;
+            }
+        }
+        return {
+            list: list,
+            from: Pos( cur.line, start ),
+            to: Pos( cur.line, end )
+        };
+    };
     return cm_mode;
 }
 
@@ -3026,7 +3083,7 @@ function get_mode( grammar, DEFAULT )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     
-    VERSION: "2.1.0",
+    VERSION: "2.1.1",
     
     // clone a grammar
     /**[DOC_MARKDOWN]
