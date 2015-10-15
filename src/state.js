@@ -14,26 +14,50 @@ var State = Class({
             self.line = s.line;
             //self.indent = s.indent;
             self.status = s.status;
+            self.stack = s.stack.clone();
             self.token = s.token;
             self.block = s.block;
-            self.stack = s.stack.clone();
-            self.queu = s.queu.slice();
-            self.symb = clone( s.symb, 1 );
-            self.ctx = s.ctx.slice();
-            self.err = s.err;
+            // keep extra state only if error handling is enabled
+            if ( self.status&ERRORS )
+            {
+                self.queu = s.queu/*.slice()*/;
+                self.symb = /*clone(*/ s.symb/*, 1 )*/;
+                self.ctx = s.ctx/*.slice()*/;
+                self.err = s.err;
+            }
+            // else dont use-up more space and clutter
+            else
+            {
+                self.queu = null;
+                self.symb = null;
+                self.ctx = null;
+                self.err = null;
+            }
         }
         else
         {
             self.line = s || 0;
             //self.indent = null;
             self.status = status || 0;
+            self.stack = new Stack();
             self.token = null;
             self.block = null;
-            self.stack = new Stack();
-            self.queu = [];
-            self.symb = {};
-            self.ctx = [];
-            self.err = self.status&ERRORS ? {} : null;
+            // keep extra state only if error handling is enabled
+            if ( self.status&ERRORS )
+            {
+                self.queu = [];
+                self.symb = {};
+                self.ctx = [];
+                self.err = {};
+            }
+            // else dont use-up more space and clutter
+            else
+            {
+                self.queu = null;
+                self.symb = null;
+                self.ctx = null;
+                self.err = null;
+            }
         }
     }
     
@@ -55,10 +79,10 @@ var State = Class({
         self.line = null;
         //self.indent = null;
         self.status = null;
-        self.token = null;
-        self.block = null;
         if ( self.stack ) self.stack.dispose( );
         self.stack = null;
+        self.token = null;
+        self.block = null;
         self.queu = null;
         self.symb = null;
         self.ctx = null;

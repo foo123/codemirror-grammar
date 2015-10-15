@@ -101,7 +101,7 @@ var js_grammar = {
             "autocomplete" : true,
             "tokens" : [ 
                 "Object", "Function", "Array", "String", "Date", "Number", "RegExp", "Exception",
-                "setTimeout", "setInterval", "alert", "console"
+                "setTimeout", "setInterval", "alert", "console", 'window', 'prototype', 'constructor'
             ]
         },
         
@@ -111,18 +111,12 @@ var js_grammar = {
         
         "ctx_end:action": {"context-end":true},
         
-        "match:action": {"push": "$0"},
-        "matched_bra:action": {
-            "pop": "{",
+        "match_b:action": {"push": "}"},
+        "match_p:action": {"push": ")"},
+        "match_p2:action": {"push": "]"},
+        "matched:action": {
+            "pop": "$0",
             "msg": "Brackets do not match"
-        },
-        "matched_paren:action": {
-            "pop": "(",
-            "msg": "Parentheses do not match"
-        },
-        "matched_paren2:action": {
-            "pop": "[",
-            "msg": "Parentheses do not match"
         },
         
         "unique:action": {
@@ -149,12 +143,12 @@ var js_grammar = {
         "literalPropertyValue" : "literalProperty ':' literalValue",
         
         // grammar recursion here
-        "literalObject" : "'{' match ctx_start (literalPropertyValue (',' literalPropertyValue)*)? '}' matched_bra ctx_end",
+        "literalObject" : "'{' match_b ctx_start (literalPropertyValue (',' literalPropertyValue)*)? '}' matched ctx_end",
         
         // grammar recursion here
-        "literalArray" : "'[' match (literalValue (',' literalValue)*)? ']' matched_paren2",
+        "literalArray" : "'[' match_p2 (literalValue (',' literalValue)*)? ']' matched",
         
-        "brackets" : "'{' match | '}' matched_bra | '(' match | ')' matched_paren | '[' match | ']' matched_paren2",
+        "brackets" : "'{' match_b | '}' matched | '(' match_p | ')' matched | '[' match_p2 | ']' matched",
         
         "js" : "comment | number | string | regex | keyword | operator | atom | literalObject | literalArray | brackets | other"
     },

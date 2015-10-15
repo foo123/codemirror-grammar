@@ -99,15 +99,10 @@ var css_grammar = {
         // css html element
         "HtmlElement" : "RE::/[a-z_\\-][a-z0-9_\\-]*/i",
         
-        "match:action" : {
-            "push": "$0"
-        },
-        "matched1:action" : {
-            "pop": "{",
-            "msg": "Token \"$0\" does not match"
-        },
-        "matched2:action" : {
-            "pop": "(",
+        "match_b:action" : {"push": "}"},
+        "match_p:action" : {"push": ")"},
+        "matched:action" : {
+            "pop": "$0",
             "msg": "Token \"$0\" does not match"
         }
     },
@@ -116,33 +111,33 @@ var css_grammar = {
     // Syntax model (optional)
     "Syntax" : {
         
-        "urlDeclaration:ngram" : "url '(' match (string | text) ')' matched2",
+        "urlDeclaration:ngram" : "url '(' match_p (string | text) ')' matched",
         
-        "formatDeclaration:ngram" : "format '(' match (string | text) ')' matched2",
+        "formatDeclaration:ngram" : "format '(' match_p (string | text) ')' matched",
         
-        "cssSelector" : "(HtmlElement | CssID | CssClass | PseudoElement | string | ',' | '(' match | ')' matched2 | '[' | ']' | '=' | '+' | '^' | '>' | '*' | '~')+",
+        "cssSelector" : "(HtmlElement | CssID | CssClass | PseudoElement | string | ',' | '(' match_p | ')' matched | '[' | ']' | '=' | '+' | '^' | '>' | '*' | '~')+",
         
-        "RHSAssignment" : "(!important | urlDeclaration | formatDeclaration | string | number | CssAtom | ',' | '(' match | ')' matched2)+",
+        "RHSAssignment" : "(!important | urlDeclaration | formatDeclaration | string | number | CssAtom | ',' | '(' match_p | ')' matched)+",
         
         "cssAssignment" : "CssProperty ':' RHSAssignment ';'*",
         
         // syntax grammar (n-gram) for a block of css assignments
         "cssBlock:ngram" : [
-            [ "number '{' match cssAssignment* '}' matched1" ],
-            [ "cssSelector '{' match cssAssignment* '}' matched1" ]
+            [ "number '{' match_b cssAssignment* '}' matched" ],
+            [ "cssSelector '{' match_b cssAssignment* '}' matched" ]
         ],
         
         "@importDirective:ngram" : "@import urlDeclaration ';'",
         
-        "@keyframesDirective:ngram" : "@keyframes identifier '{' match cssBlock* '}' matched1",
+        "@keyframesDirective:ngram" : "@keyframes identifier '{' match_b cssBlock* '}' matched",
         
-        "cssIdentifiers" : "(identifier | number | string | ',' | '(' match | ')' matched2)+",
+        "cssIdentifiers" : "(identifier | number | string | ',' | '(' match_p | ')' matched)+",
         
-        "@mediaDirective:ngram" : "@media cssIdentifiers '{' match cssBlock* '}' matched1",
+        "@mediaDirective:ngram" : "@media cssIdentifiers '{' match_b cssBlock* '}' matched",
         
         "atruleLine" : "cssIdentifiers ';'*",
         
-        "atruleBlock" : "'{' match cssAssignments '}' matched1",
+        "atruleBlock" : "'{' match_b cssAssignment* '}' matched",
         
         "@atruleDirective:ngram"  : "@atrule (atruleBlock | atruleLine)"
     },

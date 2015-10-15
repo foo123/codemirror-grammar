@@ -41,6 +41,18 @@ This way arbitrary `dialects` and `variations` can be handled more easily
     
 
 
+__Method__: `pre_process`
+
+```javascript
+CodeMirrorGrammar.pre_process( grammar );
+```
+
+This is used internally by the `CodeMirrorGrammar` Class `parse` method
+In order to pre-process, in-place, a `JSON grammar` 
+to transform any shorthand configurations to full object configurations and provide defaults.
+    
+
+
 __Method__: `parse`
 
 ```javascript

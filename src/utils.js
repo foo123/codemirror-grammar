@@ -9,7 +9,7 @@ var undef = undefined,
     T_STR = 16, T_CHAR = 17, T_CHARLIST = 18,
     T_ARRAY = 32, T_OBJ = 64, T_FUNC = 128,  T_REGEX = 256, T_DATE = 512,
     T_NULL = 1024, T_UNDEF = 2048, T_UNKNOWN = 4096,
-    T_STR_OR_ARRAY = T_STR|T_ARRAY, T_OBJ_OR_ARRAY = T_OBJ|T_ARRAY,
+    T_STR_OR_ARRAY = T_STR|T_ARRAY, T_OBJ_OR_ARRAY = T_OBJ|T_ARRAY, T_STR_OR_ARRAY_OR_REGEX = T_STR|T_ARRAY|T_REGEX,
     STRING_TYPE = {
         "[object Number]"   : T_NUM,
         "[object String]"   : T_STR,
@@ -273,7 +273,7 @@ var undef = undefined,
     },
     
     newline_re = /\r\n|\r|\n/g, dashes_re = /[\-_]/g, 
-    peg_bnf_notation_re = /^([\[\]{}()*+?|'"]|\s)/,
+    peg_bnf_notation_re = /^([\[\]{}()*+?\/|'"]|\s)/,
     
     has_prefix = function(s, id) {
         return (
@@ -283,7 +283,7 @@ var undef = undefined,
     },
     
     get_re = function(r, rid, cachedRegexes)  {
-        if ( !r || (T_NUM === get_type(r)) ) return r;
+        if ( !r || ((T_NUM|T_REGEX) & get_type(r)) ) return r;
         
         var l = rid ? (rid.length||0) : 0, i;
         

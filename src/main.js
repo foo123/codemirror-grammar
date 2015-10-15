@@ -20,52 +20,36 @@ var Parser = Class({
     constructor: function Parser( grammar, LOC ) {
         var self = this;
         
-        // support extra functionality
-        self.Extra = grammar.Extra || {};
-        
-        // support comments toggle functionality
-        self.LC = (grammar.Comments.line) ? grammar.Comments.line[0] : null,
-        self.BCS = (grammar.Comments.block) ? grammar.Comments.block[0][0] : null,
-        self.BCE = (grammar.Comments.block) ? grammar.Comments.block[0][1] : null,
-        self.BCC = self.BCL = (grammar.Comments.block) ? grammar.Comments.block[0][2] : null,
+        self.$grammar = grammar;
         self.DEF = LOC.DEFAULT;
         self.ERR = grammar.Style.error || LOC.ERROR;
         
-        // support keyword autocompletion
-        self.Keywords = grammar.Keywords.autocomplete || null;
-        
-        self.Tokens = grammar.Parser || [];
-        self.cTokens = grammar.cTokens.length ? grammar.cTokens : null;
-        self.Style = grammar.Style;
+        // support comments toggle functionality
+        self.LC = grammar.$comments.line ? grammar.$comments.line[0] : null;
+        self.BCS = grammar.$comments.block ? grammar.$comments.block[0][0] : null;
+        self.BCE = grammar.$comments.block ? grammar.$comments.block[0][1] : null;
+        self.BCC = self.BCL = grammar.$comments.block ? grammar.$comments.block[0][2] : null;
     }
     
-    ,Extra: null
+    ,$grammar: null
+    ,DEF: null
+    ,ERR: null
     ,LC: null
     ,BCS: null
     ,BCE: null
     ,BCL: null
     ,BCC: null
-    ,ERR: null
-    ,DEF: null
-    ,Keywords: null
-    ,cTokens: null
-    ,Tokens: null
-    ,Style: null
     
     ,dispose: function( ) {
         var self = this;
-        self.Extra = null;
+        self.$grammar = null;
+        self.DEF = null;
+        self.ERR = null;
         self.LC = null;
         self.BCS = null;
         self.BCE = null;
         self.BCL = null;
         self.BCC = null;
-        self.ERR = null;
-        self.DEF = null;
-        self.Keywords = null;
-        self.cTokens = null;
-        self.Tokens = null;
-        self.Style = null;
         return self;
     }
     
@@ -108,10 +92,9 @@ var Parser = Class({
     
     // Codemirror Tokenizer compatible
     ,getToken: function( stream, state ) {
-        var self = this, i, ci, type, tokenizer, action,
-            interleavedCommentTokens = self.cTokens, tokens = self.Tokens, numTokens = tokens.length, 
-            parseAll = !!state.parseAll, stack, pos, line,
-            Style = self.Style, DEFAULT = self.DEF, ERR = self.ERR
+        var self = this, grammar = self.$grammar, Style = grammar.Style, DEFAULT = self.DEF, ERR = self.ERR,
+            interleaved_comments = grammar.$interleaved, tokens = grammar.$parser, nTokens = tokens.length, 
+            parseAll = !!state.parseAll, stack, pos, line, i, ci, type, tokenizer, action
         ;
         
         stream = parseAll ? stream : Stream._( stream );
@@ -142,12 +125,12 @@ var Parser = Class({
         line = state.line;
         while ( !stack.isEmpty() && !stream.eol() )
         {
-            if ( interleavedCommentTokens )
+            if ( interleaved_comments )
             {
                 ci = 0;
-                while ( ci < interleavedCommentTokens.length )
+                while ( ci < interleaved_comments.length )
                 {
-                    tokenizer = interleavedCommentTokens[ci++];
+                    tokenizer = interleaved_comments[ci++];
                     type = tokenizer.get( stream, state );
                     if ( false !== type )
                     {
@@ -204,7 +187,7 @@ var Parser = Class({
             }
         }
         
-        for (i=0; i<numTokens; i++)
+        for (i=0; i<nTokens; i++)
         {
             pos = stream.pos;
             tokenizer = tokens[i];
@@ -315,8 +298,8 @@ function get_mode( grammar, DEFAULT )
             blockCommentLead: parser.BCL,
             // support extra functionality defined in grammar
             // eg. code folding, electriChars etc..
-            electricChars: parser.Extra.electricChars || false,
-            fold: parser.Extra.fold || false
+            electricChars: parser.$grammar.$extra.electricChars || false,
+            fold: parser.$grammar.$extra.fold || false
         };
     };
     cm_mode.supportGrammarAnnotations = false;
@@ -345,7 +328,7 @@ function get_mode( grammar, DEFAULT )
     // autocompletion helper extracted from the grammar
     // adapted from codemirror anyword-hint helper
     cm_mode.autocomplete = function( cm, options ) {
-        var keywords = parser.Keywords, list, Pos = _CodeMirror.Pos,
+        var keywords = parser.$grammar.$autocomplete, list, Pos = _CodeMirror.Pos,
             cur = cm.getCursor(), curLine, start = cur.ch, end = start, 
             token, token_i, word, len, maxword = 0, maxtype = 0, word_re, renderer, 
             i, l, w, wm, wl, pos, pos_i, case_insensitive_match, prefix_match, m1, m2;
@@ -401,7 +384,7 @@ function get_mode( grammar, DEFAULT )
                         displayText: w + "\t\t["+wm+"]",
                         render: renderer,
                         // longer matches or matches not at start have lower match score
-                        score: 1000 - 10*(wl-len) - 2*(pos<0?pos_i+10:pos)
+                        score: 1000 - 10*(wl-len) - 5*(pos<0?pos_i+3:pos)
                     });
                 }
                 if ( list.length ) list = list.sort( by_score );
@@ -467,6 +450,20 @@ var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
     * This way arbitrary `dialects` and `variations` can be handled more easily
     [/DOC_MARKDOWN]**/
     extend: extend,
+    
+    // pre-process a grammar (in-place)
+    /**[DOC_MARKDOWN]
+    * __Method__: `pre_process`
+    *
+    * ```javascript
+    * CodeMirrorGrammar.pre_process( grammar );
+    * ```
+    *
+    * This is used internally by the `CodeMirrorGrammar` Class `parse` method
+    * In order to pre-process, in-place, a `JSON grammar` 
+    * to transform any shorthand configurations to full object configurations and provide defaults.
+    [/DOC_MARKDOWN]**/
+    pre_process: pre_process_grammar,
     
     // parse a grammar
     /**[DOC_MARKDOWN]
