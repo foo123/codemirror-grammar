@@ -53,16 +53,8 @@ var CodeMirrorParser = Class(Parser, {
 
 function get_mode( grammar, DEFAULT ) 
 {
-    var parser = new CodeMirrorParser(parse_grammar( grammar ), { 
-        // default return code for skipped or not-styled tokens
-        // 'null' should be used in most cases
-        DEFAULT: DEFAULT || DEFAULTSTYLE,
-        ERROR: DEFAULTERROR
-    }), cm_mode;
-    
     // Codemirror-compatible Mode
-    cm_mode = function cm_mode( conf, parserConf ) {
-        
+    var cm_mode = function cm_mode( conf, parserConf ) {
         // return the (codemirror) parser mode for the grammar
         return {
             /*
@@ -106,7 +98,12 @@ function get_mode( grammar, DEFAULT )
         };
     };
     cm_mode.$id = uuid("codemirror_grammar_mode");
-    cm_mode.$parser = parser;
+    cm_mode.$parser = new CodeMirrorParser(parse_grammar( grammar ), { 
+        // default return code for skipped or not-styled tokens
+        // 'null' should be used in most cases
+        DEFAULT: DEFAULT || DEFAULTSTYLE,
+        ERROR: DEFAULTERROR
+    });
     cm_mode.supportGrammarAnnotations = false;
     // syntax, lint-like validator generated from grammar
     // maybe use this as a worker (a-la ACE) ??

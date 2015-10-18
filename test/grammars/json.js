@@ -2,31 +2,27 @@
 var json_grammar = {
         
     // prefix ID for regular expressions used in the grammar
-    "RegExpID" : "RE::",
+    "RegExpID": "RE::",
     
-    "Extra" : {
+    "Extra": {
         "fold" : "brace"
     },
     
-    //
     // Style model
-    "Style" : {
+    "Style": {
         // lang token type  -> Editor (style) tag
         "comment"    : "comment",
         "atom"       : "atom",
         "number"     : "number",
-        "string"     : "string"
+        "string"     : "string",
+        "error"      : "error"
     },
 
-    
-    //
     // Lexical model
-    "Lex" : {
-        
-        // comments
+    "Lex": {
         "comment:comment" : {
             "interleave": true,
-            "tokens" : [
+            "tokens": [
                 // line comment
                 // start, end delims  (null matches end-of-line)
                 [  "//",  null ],
@@ -35,9 +31,7 @@ var json_grammar = {
                 [  "/*",   "*/" ]
             ]
         },
-        
-        // numbers, in order of matching
-        "number" : [
+        "number": [
             // floats
             "RE::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?/",
             "RE::/\\d+\\.\\d*/",
@@ -54,31 +48,22 @@ var json_grammar = {
             // just zero
             "RE::/0(?![\\dx])/"
         ],
-
-        // usual strings
-        "string:escaped-block" : [ "\"",   "\"" ],
-        
-        // atoms
-        "atom" : {
+        "string:escaped-block": [ "\"",   "\"" ],
+        "atom": {
             // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
             "tokens" : [ "true", "false", "null" ]
         },
-        
         "other": "RE::/\\S+/",
         
-        "ctx_start:action": {"context-start":true},
-        
-        "ctx_end:action": {"context-end":true},
-        
-        "error:action":{"error":true,"msg":"Invalid JSON"},
-        
+        "ctx:action": {"context":true},
+        "\\ctx:action": {"context":false},
+        "invalid_json:error": "Invalid JSON",
         "unique:action": {
             "unique": ["prop", "$0"],
             "msg": "Duplicate object property \"$0\"",
             "in-context": true
         },
-        
         "unique_prop:action": {
             "unique": ["prop", "$1"],
             "msg": "Duplicate object property \"$0\"",
@@ -86,18 +71,17 @@ var json_grammar = {
         }
     },
     
-    //
     // Syntax model (optional)
-    "Syntax" : {
-        "literalObject" : "'{' ctx_start (literalPropertyValue (',' literalPropertyValue)*)? '}' ctx_end",
-        "literalArray" : "'[' (literalValue (',' literalValue)*)? ']'",
+    "Syntax": {
+        "literalObject": "'{' ctx (literalPropertyValue (',' literalPropertyValue)*)? '}' \\ctx",
+        "literalArray": "'[' (literalValue (',' literalValue)*)? ']'",
         // grammar recursion here
-        "literalValue" : "atom | string | number | literalArray | literalObject",
-        "literalPropertyValue" : "string unique_prop ':' literalValue",
-        "json:ngram" : ["literalValue | other error"]
+        "literalValue": "atom | string | number | literalArray | literalObject",
+        "literalPropertyValue": "string unique_prop ':' literalValue",
+        "json": "literalValue | other.error invalid_json"
     },
 
     // what to parse and in what order
     // allow comments in json ;)
-    "Parser" : [ "comment", "json" ]
+    "Parser": [ "comment", ["json"] ]
 };

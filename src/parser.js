@@ -124,7 +124,7 @@ var Parser = Class({
             // found token
             else
             {
-                state.$replace$ = type;
+                //state.$replace$ = type;
                 // action token follows, execute action on current token
                 while ( stack.length && T_ACTION === peek(stack).type )
                 {
@@ -144,7 +144,7 @@ var Parser = Class({
                 if ( true !== type )
                 {
                     T[$name$] = tokenizer.name;
-                    T[$type$] = Style[state.$replace$] || DEFAULT;
+                    T[$type$] = Style[type/*state.$replace$*/] || DEFAULT;
                     ret = true; break;
                 }
             }
@@ -157,7 +157,7 @@ var Parser = Class({
             stream.nxt(true);
             T[$type$] = DEFAULT;
         }
-        else if ( stack.length > 1 && stream.eol() &&  
+        /*else if ( stack.length > 1 && stream.eol() &&  
             (T_BLOCK & stack[stack.length-1].type) && 
             state.block.name === stack[stack.length-1].name 
         )
@@ -170,7 +170,7 @@ var Parser = Class({
                 if ( action.status & ERROR ) state.$actionerr$ = true;
             }
             T[$type$] = Style[state.$replace$] || DEFAULT;
-        }
+        }*/
         
         T[$token$] = stream.cur(1); state.$eol$ = stream.eol();
         return T;

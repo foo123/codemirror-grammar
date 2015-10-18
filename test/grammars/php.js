@@ -1,65 +1,48 @@
 // 1. an almost complete php grammar in simple JSON format
 var php_grammar = {
     
-    // prefix ID for regular expressions used in the grammar
-    "RegExpID" : "RE::",
+    // prefix ID for regular expressions, represented as strings, used in the grammar
+    "RegExpID": "RE::",
     
-    "Extra" : {
+    "Extra": {
         "fold" : "brace"
     },
     
-    //
     // Style model
-    "Style" : {
+    "Style": {
         // lang token type  -> Editor (style) tag
-        "meta":        "meta",
-        "comment":     "comment",
-        "atom":        "atom",
-        "keyword":     "keyword",
-        "builtin":     "builtin",
-        "operator":    "operator",
-        "identifier":  "variable",
-        "variable":    "variable-2",
-        "number":      "number",
-        "string":      "string",
-        "heredoc":     "keyword",
+        "meta"              : "meta",
+        "comment"           : "comment",
+        "atom"              : "atom",
+        "keyword"           : "keyword",
+        "builtin"           : "builtin",
+        "operator"          : "operator",
+        "identifier"        : "variable",
+        "variable"          : "variable-2",
+        "number"            : "number",
+        "string"            : "string",
+        "heredoc"           : "keyword",
         // allow block delims / interior to have different styles
-        "heredoc.inside":     "string"
+        "heredoc.inside"    : "string"
     },
 
-    
-    //
     // Lexical model
-    "Lex" : {
+    "Lex": {
         
         // comments
-        "comment" : {
-            "type" : "comment",
-            "tokens" : [
-                // line comments, null delim matches the end-of-line
-                [ "//", null ],
-                // line comments, null delim matches the end-of-line
-                [ "#", null ],
-                // block comments, start, end delims
-                [ "/*", "*/" ]
-            ]
-        },
-        
-        // blocks, in this case heredocs
-        "heredoc" : {
-            "type" : "block",
-            // start, end of heredoc (can be the matched regex group ie. 1 )
-            "tokens" : [ "RE::/<<<([_A-Za-z][_A-Za-z0-9]*)/",   1 ]
-        },
-        
-        // general identifiers
-        "identifier" : "RE::/[_A-Za-z][_A-Za-z0-9]*/",
-        
-        // php variables
-        "variable" : "RE::/\\$[_A-Za-z][_A-Za-z0-9]*/",
-
-        // numbers, in order of matching
-        "number" : [
+        "comment:comment": [
+            // line comments, null delim matches the end-of-line
+            [ "//", null ],
+            // line comments, null delim matches the end-of-line
+            [ "#", null ],
+            // block comments, start, end delims
+            [ "/*", "*/" ]
+        ],
+                            // start, end of heredoc (can be the matched regex group ie. 1 )
+        "heredoc:block": ["RE::/<<<([_A-Za-z][_A-Za-z0-9]*)/",   1],
+        "identifier": "RE::/[_A-Za-z][_A-Za-z0-9]*/",
+        "variable": "RE::/\\$[_A-Za-z][_A-Za-z0-9]*/",
+        "number": [
             // floats
             "RE::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?/",
             "RE::/\\d+\\.\\d*/",
@@ -76,51 +59,36 @@ var php_grammar = {
             // just zero
             "RE::/0(?![\\dx])/"
         ],
-
-        // strings
-        "string" : {
-            "type" : "escaped-block",
-            "escape" : "\\",
-            // start, end of string (can be the matched regex group ie. 1 )
-            "tokens" : [ "RE::/([`'\"])/",   1 ]
-        },
-        
-        // operators
-        "operator" : {
-            "combine" : true,
-            "tokens" : [
+        "string:escaped-block": ["RE::/([`'\"])/",   1],
+        "operator": {
+            "combine": true,
+            "tokens": [
                 "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!",
                 "||", "&&", "==", "!=", "<=", ">=", "<>", ">>", "<<",
                 "===", "!==", "and", "or"
             ]
         },
-        
-        // delimiters
-        "delimiter" : {
-            "combine" : true,
-            "tokens" : [
+        "delimiter": {
+            "combine": true,
+            "tokens": [
                 "(", ")", "[", "]", "{", "}", ",", "=", ";", "?", ":",
                 "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "++", "--", "->", 
                 ">>=", "<<="
             ]
         },
-        
-        // atoms
-        "atom" : {
+        "atom": {
             // enable autocompletion for these tokens, with their associated token ID
-            "autocomplete" : true,
-            "tokens" : [
+            "autocomplete": true,
+            "tokens": [
                 "true", "false", "null", "TRUE", "FALSE", 
                 "NULL", "__CLASS__", "__DIR__", "__FILE__", "__LINE__", 
                 "__METHOD__", "__FUNCTION__", "__NAMESPACE__"
             ]
         },
-
-        // keywords
-        "keyword" : {
+        "keyword": {
             // enable autocompletion for these tokens, with their associated token ID
-            "autocomplete" : true,
-            "tokens" : [ 
+            "autocomplete": true,
+            "tokens": [ 
                 "abstract", "and", "array", "as", "break", "case", "catch", "class", "clone", 
                 "const", "continue", "declare", "default", "do", "else", "elseif", "enddeclare", 
                 "endfor", "endforeach", "endif", "endswitch", "endwhile", "extends", "final", "for", 
@@ -131,12 +99,10 @@ var php_grammar = {
                 "__halt_compiler", "self", "static", "parent" 
             ]
         },
-                              
-        // builtin functions, constructs, etc..
-        "builtin" : {
+        "builtin": {
             // enable autocompletion for these tokens, with their associated token ID
-            "autocomplete" : true,
-            "tokens" : [ 
+            "autocomplete": true,
+            "tokens": [ 
                 "func_num_args", "func_get_arg", "func_get_args", "strlen", "strcmp", "strncmp", "strcasecmp", 
                 "strncasecmp", "each", "error_reporting", "define", "defined", "trigger_error", "user_error", 
                 "set_error_handler", "restore_error_handler", "get_declared_classes", "get_loaded_extensions", 
@@ -226,22 +192,12 @@ var php_grammar = {
         }
     },
 
-    //
     // Syntax model (optional)
-    //"Syntax" : null,
+    "Syntax": {
+        "php": "comment | heredoc | number | string | keyword | builtin | operator | delimiter | atom | identifier | variable"
+    },
     
     // what to parse and in what order
-    "Parser" : [
-        "comment",
-        "heredoc",
-        "number",
-        "string",
-        "keyword",
-        "builtin",
-        "operator",
-        "delimiter",
-        "atom",
-        "identifier",
-        "variable"
-    ]
+    // an array i.e ["php"], instead of single token i.e "php", is a shorthand for an "ngram"-type syntax token (for parser use)
+    "Parser": [ ["php"] ]
 };

@@ -408,6 +408,7 @@ Token = Class({
     // tokenizer err message
     ,msg: null
     ,$msg: null
+    ,$mod: null
     ,$clone: null
     ,$id: null
     
@@ -420,6 +421,7 @@ Token = Class({
         self.status = null;
         self.msg = null;
         self.$msg = null;
+        self.$mod = null;
         self.$clone = null;
         self.$id = null;
         return self;
@@ -433,6 +435,7 @@ Token = Class({
         t.name = self.name;
         t.token = self.token;
         t.msg = self.msg;
+        t.$mod = self.$mod;
         
         if ( $clone && $clone.length )
         {
@@ -443,7 +446,7 @@ Token = Class({
     }
     
     ,get: function( stream, state ) {
-        var self = this, token = self.token, line, pos,
+        var self = this, token = self.token, line, pos, modifier = self.$mod,
             type = self.type, tokenID = self.name, t = null;
         
         self.$msg = self.msg || null;
@@ -494,7 +497,7 @@ Token = Class({
                 token: t[1],
                 pos: [line,pos,line,stream.pos]
             };
-            return tokenID; 
+            return modifier || tokenID; 
         }
         if ( self.status && self.$msg ) self.$msg = group_replace( self.$msg, tokenID, true );
         return false;
@@ -504,6 +507,12 @@ Token = Class({
         var self = this;
         if ( !bool ) self.status &= CLEAR_REQUIRED;
         else self.status |= REQUIRED;
+        return self;
+    }
+    
+    ,mod: function( modifier ) { 
+        var self = this;
+        self.$mod = modifier || null;
         return self;
     }
     
@@ -540,23 +549,15 @@ ActionToken = Class(Token, {
     ,get: function( stream, state ) {
         var self = this, action_def = self.token || null, action, 
         t, t0, ns, msg, queu = state.queu, symb = state.symb, ctx = state.ctx, token = state.token,
-        l1, c1, l2, c2, in_ctx, err = state.err, error, emsg, with_errors = !!(state.status&ERRORS),
+        l1, c1, l2, c2, in_ctx, err = state.err, error, emsg, no_errors = !(state.status&ERRORS),
         case_insensitive = self.ci;
         
         self.status = 0; self.$msg = null;
         
         // do action only if state.status handles (action) errors, else dont clutter
-        if ( !action_def || (!with_errors && ((~A_OVERWR) & action_def[ 0 ])) ) return true;
+        if ( !action_def || no_errors ) return true;
         
         action = action_def[ 0 ]; t = action_def[ 1 ]; in_ctx = !!action_def[ 2 ];
-        
-        if ( A_OVERWR === action )
-        {
-            //if ( state.token ) state.token.type = t;
-            state.$replace$ = t;
-            return true;
-        }
-        
         msg = self.msg;
         if ( token && token.pos )
         {
@@ -569,13 +570,14 @@ ActionToken = Class(Token, {
         {
             l1 = l2 = state.line;
             c2 = stream.pos;
-            c1 = token.value ? c2-token.value.length : c2-1;
+            c1 = token&&token.value ? c2-token.value.length : c2-1;
         }
         
         if ( A_ERROR === action )
         {
+            if ( !msg && (T_STR & get_type(t)) ) msg = t;
             if ( msg ) self.$msg = token ? group_replace( msg, token.token, true ) : msg;
-            else self.$msg = 'Error';
+            else self.$msg = 'Error "' + self.name + '"';
             error = l1+'_'+c1+'_'+l2+'_'+c2+'_'+self.name;
             err[error] = [l1,c1,l2,c2,self.err()];
             self.status |= ERROR;
@@ -742,7 +744,8 @@ BlockToken = Class(Token, {
             hasInterior = self.inter, thisBlockInterior = hasInterior ? (thisBlock+'.inside') : thisBlock,
             charIsEscaped = 0, escChar = self.esc, isEscapedBlock = !!escChar,
             isEOLBlock, alreadyIn, ret, streamPos, streamPos0, continueBlock,
-            b_s, b_e, b_i, b_1='', b_2='', b_3='', b_21='', lin, col, stack = state.stack
+            b_s, b_e, b_i, b_1='', b_2='', b_3='', b_21='', lin, col, stack = state.stack,
+            modifier = self.$mod
         ;
         
         /*
@@ -752,6 +755,7 @@ BlockToken = Class(Token, {
             descriptive names and logic used here for clarity as far as possible
         */
         
+        state.token = null;
         self.$msg = self.msg || null;
         //self.pos = null;
         lin = state.line; col = stream.pos;
@@ -772,7 +776,7 @@ BlockToken = Class(Token, {
             b_2 = state.block._i;
             b_21 = '';
         }    
-        else if ( (!state.block||!state.block.name) && (endBlock = startBlock.match(stream)) )
+        else if ( !state.block && (endBlock = startBlock.match(stream)) )
         {
             found = 1;
             b_s = [lin,col];
@@ -805,8 +809,8 @@ BlockToken = Class(Token, {
                 
                 if ( !alreadyIn )
                 {
-                    push_at( stack, stackPos, self.clone( ), '$id', thisBlock );
-                    return ret;
+                    push_at( stack, stackPos, self.clone( ), '$id', self.$id || thisBlock );
+                    return modifier || ret;
                 }
             }
             
@@ -871,7 +875,7 @@ BlockToken = Class(Token, {
                 state.block.e = b_e;
                 state.block._i += b_21;
                 state.block._e = b_3;
-                push_at( stack, stackPos, self.clone( ), '$id', thisBlock );
+                push_at( stack, stackPos, self.clone( ), '$id', self.$id || thisBlock );
             }
             state.token = {
                 name: thisBlock,
@@ -880,7 +884,7 @@ BlockToken = Class(Token, {
                 token: [b_1+b_2+b_21+b_3, b_2+b_21, b_1, b_3],
                 pos: [b_s[0],b_s[1],b_e[0],b_e[1]]
             };
-            return ret;
+            return modifier || ret;
         }
         if ( self.status && self.$msg ) self.$msg = group_replace( self.$msg, thisBlock, true );
         return false;
@@ -915,9 +919,9 @@ CompositeToken = Class(Token, {
     }
     
     ,get: function( stream, state ) {
-        var self = this, i, i0, type = self.type, token, action, style, 
+        var self = this, i, i0, type = self.type, token, action, style, modifier = self.$mod,
             tokens = self.token, n = tokens.length, t, pos, stack, err,
-            found, min, max, tokensRequired, tokensErr, streamPos, stackPos, stackId, match_all;
+            found, min, max, tokensRequired, tokensErr, streamPos, $id, stackPos, match_all;
         
         self.$msg = self.msg || null;
         self.status &= CLEAR_ERROR;
@@ -932,6 +936,7 @@ CompositeToken = Class(Token, {
             for (i=0; i<n; i++)
             {
                 token = tokens[i].clone().req( 1 );
+                if ( modifier ) token.mod( modifier );
                 style = token.get(stream, state);
                 
                 if ( token.status & REQUIRED )
@@ -964,9 +969,10 @@ CompositeToken = Class(Token, {
             if ( match_all ) self.status |= REQUIRED;
             else self.status &= CLEAR_REQUIRED;
             stackPos = stack.length;
-            stackId = self.name+'_'+get_id();
+            $id = self.$id || self.name+'_'+get_id();
             i0 = 0;
             token = tokens[ i0 ].clone().req( match_all );
+            if ( modifier ) token.mod( modifier );
             style = token.get(stream, state);
             
             if ( false !== style )
@@ -975,7 +981,11 @@ CompositeToken = Class(Token, {
                 if ( true !== style || T_EMPTY !== token.type )
                 {
                     for (i=n-1; i>i0; i--)
-                        push_at( stack, stackPos+n-i-1, tokens[ i ].clone().req( 1 ), '$id', stackId );
+                    {
+                        t = tokens[ i ].clone().req( 1 );
+                        if ( modifier ) t.mod( modifier );
+                        push_at( stack, stackPos+n-i-1, t, '$id', $id );
+                    }
                 }
                     
                 return style;
@@ -1000,12 +1010,13 @@ CompositeToken = Class(Token, {
             found = self.found; min = self.min; max = self.max;
             self.status &= CLEAR_REQUIRED;
             stackPos = stack.length;
-            stackId = self.name+'_'+get_id( );
+            $id = self.$id || self.name+'_'+get_id();
             err = [];
             
             for (i=0; i<n; i++)
             {
                 token = tokens[i].clone( ).req( 1 );
+                if ( modifier ) token.mod( modifier );
                 style = token.get( stream, state );
                 
                 if ( false !== style )
@@ -1015,7 +1026,7 @@ CompositeToken = Class(Token, {
                     {
                         // push it to the stack for more
                         self.found = found;
-                        push_at( stack, stackPos, self.clone( ), '$id', stackId );
+                        push_at( stack, stackPos, self.clone( ), '$id', $id );
                         self.found = 0;
                         return style;
                     }
@@ -1112,7 +1123,7 @@ function get_delimited( src, delim, esc, collapse_esc )
 function parse_peg_bnf_notation( tok, Lex, Syntax )
 {
     var alternation, sequence, token, literal, repeat, 
-        t, c, fl, prev_token, curr_token, stack, tmp, overwrite = false;
+        t, c, fl, prev_token, curr_token, stack, tmp, modifier = false;
     
     t = new String( trim(tok) );
     t.pos = 0;
@@ -1138,19 +1149,20 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
             {
                 if ( token.length )
                 {
-                    if ( overwrite )
+                    if ( modifier )
                     {
-                        // interpret as overwrite action
-                        curr_token = 'overwrite_$' + token + '$';
-                        if ( !Lex[curr_token] )
+                        // interpret as modifier / decorator
+                        if ( sequence.length )
                         {
-                            Lex[ curr_token ] = {
-                                type: 'action',
-                                overwrite: token
-                            };
+                            curr_token = sequence[sequence.length-1];
+                            if ( !Lex[curr_token + '.' + token] && !Syntax[curr_token + '.' + token] )
+                            {
+                                Syntax[ curr_token + '.' + token ] = clone(Lex[curr_token] || Syntax[curr_token]);
+                                Syntax[ curr_token + '.' + token ].modifier = token;
+                            }
+                            sequence[ sequence.length-1 ] = curr_token + '.' + token;
                         }
-                        sequence.push( curr_token );
-                        overwrite = false;
+                        modifier = false;
                     }
                     else if ( '0' === token )
                     {
@@ -1193,12 +1205,11 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
             
                 if ( '.' === c )
                 {
-                    overwrite = true;
+                    modifier = true;
                 }
                 
                 else if ( '"' === c || "'" === c )
                 {
-                    overwrite = false;
                     // literal token, quoted
                     literal = get_delimited( t, c, false );
                     if ( literal.length )
@@ -1222,7 +1233,6 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 
                 else if ( '/' === c )
                 {
-                    overwrite = false;
                     // literal regex token
                     literal = get_delimited( t, c, '\\', true ); fl = '';
                     if ( literal.length )
@@ -1233,7 +1243,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                         {
                             Lex[curr_token] = {
                                 type: 'simple',
-                                tokens: new RegExp("^(" + literal + ")",fl)
+                                tokens: new RegExp("^" + literal + "",fl)
                             };
                         }
                         sequence.push( curr_token );
@@ -1242,7 +1252,6 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 
                 else if ( '*' === c || '+' === c || '?' === c )
                 {
-                    overwrite = false;
                     // repeat modifier, applies to token that comes before
                     prev_token = sequence.pop( );
                     curr_token = '' + prev_token + c;
@@ -1259,7 +1268,6 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 
                 else if ( '{' === c )
                 {
-                    overwrite = false;
                     // literal repeat modifier, applies to token that comes before
                     repeat = get_delimited( t, '}', false );
                     repeat = map( repeat.split( ',' ), trim );
@@ -1294,7 +1302,6 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 
                 else if ( '}' === c )
                 {
-                    overwrite = false;
                     // literal repeat end modifier, should be handled in previous case
                     // added here just for completeness
                     continue;
@@ -1302,7 +1309,6 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 
                 else if ( '[' === c )
                 {
-                    overwrite = false;
                     // start of character select
                     literal = get_delimited( t, ']', false );
                     curr_token = '[' + literal + ']';
@@ -1318,7 +1324,6 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 
                 else if ( ']' === c )
                 {
-                    overwrite = false;
                     // end of character select, should be handled in previous case
                     // added here just for completeness
                     continue;
@@ -1326,7 +1331,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 
                 else if ( '|' === c )
                 {
-                    overwrite = false;
+                    modifier = false;
                     // alternation
                     if ( sequence.length > 1 )
                     {
@@ -1354,15 +1359,13 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 
                 else if ( '(' === c )
                 {
-                    overwrite = false;
                     // start of grouped sub-sequence
-                    stack.push([sequence, alternation, token, overwrite]);
+                    stack.push([sequence, alternation, token]);
                     sequence = []; alternation = []; token = '';
                 }
                 
                 else if ( ')' === c )
                 {
-                    overwrite = false;
                     // end of grouped sub-sequence
                     if ( sequence.length > 1 )
                     {
@@ -1424,19 +1427,20 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
         
         if ( token.length )
         {
-            if ( overwrite )
+            if ( modifier )
             {
-                // interpret as overwrite action
-                curr_token = 'overwrite_$' + token + '$';
-                if ( !Lex[curr_token] )
+                // interpret as modifier / decorator
+                if ( sequence.length )
                 {
-                    Lex[ curr_token ] = {
-                        type: 'action',
-                        overwrite: token
-                    };
+                    curr_token = sequence[sequence.length-1];
+                    if ( !Lex[curr_token + '.' + token] && !Syntax[curr_token + '.' + token] )
+                    {
+                        Syntax[ curr_token + '.' + token ] = clone(Lex[curr_token] || Syntax[curr_token]);
+                        Syntax[ curr_token + '.' + token ].modifier = token;
+                    }
+                    sequence[ sequence.length-1 ] = curr_token + '.' + token;
                 }
-                sequence.push( curr_token );
-                overwrite = false;
+                modifier = false;
             }
             else if ( '0' === token )
             {
@@ -1530,7 +1534,7 @@ function pre_process_grammar( grammar )
 {
     if ( !grammar.Lex ) grammar.Lex = {};
     if ( !grammar.Syntax ) grammar.Syntax = {};
-    var id, type, t, tok, T, xtends, xtok,
+    var id, type, t, tok, T, xtends, xtok, tl,
         Lex = grammar.Lex, Syntax = grammar.Syntax, 
         conf = [Lex, Syntax], nG = conf.length, G, i, i1, i2, T1;
     
@@ -1562,8 +1566,7 @@ function pre_process_grammar( grammar )
                         if ( 'error' === type )
                         {
                             G[id].type = 'action';
-                            G[id].error = true;
-                            G[id].msg = tok;
+                            G[id].error = tok;
                         }
                         else if ( 'action' === type && T_STR === T ) G[id][tok] = true;
                         else G[id].tokens = tok;
@@ -1577,23 +1580,29 @@ function pre_process_grammar( grammar )
                     // simple token given as literal token, wrap it
                     G[id] = {type:"simple", tokens:G[id]};
                 }
+                //if ( !G[id].type ) G[id].type = 'simple';
+                
                 // shorthands for single-line/escaped block tokens
-                if ( 'line-block' === G[id].type[LOWER]() )
+                if ( G[id].type )
                 {
-                    G[id].type = 'block';
-                    G[id].multiline = false;
-                }
-                else if ( 'escaped-line-block' === G[id].type[LOWER]() )
-                {
-                    G[id].type = 'block';
-                    G[id].escape = '\\';
-                    G[id].multiline = false;
-                }
-                else if ( 'escaped-block' === G[id].type[LOWER]() )
-                {
-                    G[id].type = 'block';
-                    G[id].escape = '\\';
-                    G[id].multiline = true;
+                    tl = G[id].type[LOWER]();
+                    if ( 'line-block' === tl )
+                    {
+                        G[id].type = 'block';
+                        G[id].multiline = false;
+                    }
+                    else if ( 'escaped-line-block' === tl )
+                    {
+                        G[id].type = 'block';
+                        G[id].escape = '\\';
+                        G[id].multiline = false;
+                    }
+                    else if ( 'escaped-block' === tl )
+                    {
+                        G[id].type = 'block';
+                        G[id].escape = '\\';
+                        G[id].multiline = true;
+                    }
                 }
             }
         }
@@ -1618,6 +1627,7 @@ function pre_process_grammar( grammar )
                 {
                     xtok = Lex[ xtends ] = {type:"simple", tokens:xtok};
                 }
+                //if ( !xtok.type ) xtok.type = 'simple';
                 tok = extend( xtok, tok );
             }
             // xtok may in itself extend another tok and so on,
@@ -1637,29 +1647,17 @@ function pre_process_grammar( grammar )
             // provide some defaults
             if ( T_OBJ === get_type(tok) && 'undefined' === typeof tok.type )
             {
-                if ( tok[HAS]('overwrite') )
-                {
-                    tok.type = "action";
-                    tok.action = [ 'overwrite', tok.overwrite, !!tok['in-context'] ];
-                    delete tok.overwrite;
-                }
-                else if ( tok[HAS]('error') )
+                if ( tok[HAS]('error') )
                 {
                     tok.type = "action";
                     tok.action = [ 'error', tok.error, !!tok['in-context'] ];
                     delete tok.error;
                 }
-                else if ( tok[HAS]('context-start') )
+                else if ( tok[HAS]('context') )
                 {
                     tok.type = "action";
-                    tok.action = [ 'context-start', tok['context-start'], !!tok['in-context'] ];
-                    delete tok['context-start'];
-                }
-                else if ( tok[HAS]('context-end') )
-                {
-                    tok.type = "action";
-                    tok.action = [ 'context-end', tok['context-end'], !!tok['in-context'] ];
-                    delete tok['context-end'];
+                    tok.action = [ !!tok.context ? 'context-start' : 'context-end', tok['context'], !!tok['in-context'] ];
+                    delete tok['context'];
                 }
                 else if ( tok[HAS]('empty') )
                 {
@@ -1798,7 +1796,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
                     cachedRegexes, cachedMatchers, cachedTokens, 
                     interleavedTokens, comments, keywords ) 
 {
-    var t, tok, token = null, tokens, type, combine, matchType, MSG = null;
+    var t, tok, token = null, tokens, type, combine, matchType, MSG = null, modifier;
     
     if ( T_SOF === tokenID )
     {
@@ -1862,7 +1860,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     if ( !tok ) return null;
     
     type = tok.type ? tokenTypes[ tok.type[LOWER]( ).replace( dashes_re, '' ) ] || T_SIMPLE : T_SIMPLE;
-    MSG = tok.msg || null;
+    MSG = tok.msg || null; modifier = tok.modifier || null;
     
     if ( T_SIMPLE & type )
     {
@@ -1932,10 +1930,8 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     {
         if ( !tok[HAS]('action') )
         {
-            if ( tok[HAS]('overwrite') ) tok.action = [A_OVERWR, tok.overwrite, !!tok['in-context']];
-            else if ( tok[HAS]('error') ) tok.action = [A_ERROR, tok.error, !!tok['in-context']];
-            else if ( tok[HAS]('context-start') ) tok.action = [A_CTXSTART, tok['context-start'], !!tok['in-context']];
-            else if ( tok[HAS]('context-end') ) tok.action = [A_CTXEND, tok['context-end'], !!tok['in-context']];
+            if ( tok[HAS]('error') ) tok.action = [A_ERROR, tok.error, !!tok['in-context']];
+            else if ( tok[HAS]('context') ) tok.action = [!!tok.context?A_CTXSTART:A_CTXEND, tok['context'], !!tok['in-context']];
             else if ( tok[HAS]('empty') ) tok.action = [A_EMPTY, tok.empty, !!tok['in-context']];
             else if ( tok[HAS]('indent') ) tok.action = [A_INDENT, tok.indent, !!tok['in-context']];
             else if ( tok[HAS]('outdent') ) tok.action = [A_OUTDENT, tok.outdent, !!tok['in-context']];
@@ -1945,8 +1941,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         }
         else
         {
-            if ( 'overwrite' === tok.action[0] ) tok.action[0] = A_OVERWR;
-            else if ( 'error' === tok.action[0] ) tok.action[0] = A_ERROR;
+            if ( 'error' === tok.action[0] ) tok.action[0] = A_ERROR;
             else if ( 'context-start' === tok.action[0] ) tok.action[0] = A_CTXSTART;
             else if ( 'context-end' === tok.action[0] ) tok.action[0] = A_CTXEND;
             else if ( 'empty' === tok.action[0] ) tok.action[0] = A_EMPTY;
@@ -1971,6 +1966,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
                     get_compositematcher( tokenID, tok.tokens.slice(), RegExpID, combine, cachedRegexes, cachedMatchers ), 
                     MSG
                 );
+        if ( modifier ) token.mod( modifier );
         // pre-cache tokenizer to handle recursive calls to same tokenizer
         cachedTokens[ tokenID ] = token;
     }
@@ -1988,9 +1984,10 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
                     !!Style[ tokenID + '.inside' ]
                 );
         
+        if ( modifier ) token.mod( modifier );
         // pre-cache tokenizer to handle recursive calls to same tokenizer
         cachedTokens[ tokenID ] = token;
-        if ( (T_COMMENT & type) && tok.interleave ) interleavedTokens.push( token/*.clone( )*/ );
+        if ( (T_COMMENT & type) && tok.interleave ) interleavedTokens.push( token.clone( ) );
     }
     
     else if ( T_GROUP & type )
@@ -2019,6 +2016,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
                 token = new CompositeToken( T_SEQUENCE, tokenID, null, MSG );
         }
         
+        if ( modifier ) token.mod( modifier );
         // pre-cache tokenizer to handle recursive calls to same tokenizer
         cachedTokens[ tokenID ] = token;
         
@@ -2035,7 +2033,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         
         token = map( tokens, function( t, i ) {
             // get tokenizer for whole ngram
-            return new CompositeToken( T_NGRAM, tokenID+'_NGRAM_'+i, null, MSG );
+            return new CompositeToken( T_NGRAM, tokenID+'_NGRAM_'+i, null, MSG ).mod( modifier );
         } );
         
         // pre-cache tokenizer to handle recursive calls to same tokenizer

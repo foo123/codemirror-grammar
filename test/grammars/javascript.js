@@ -2,15 +2,14 @@
 var js_grammar = {
         
     // prefix ID for regular expressions used in the grammar
-    "RegExpID" : "RE::",
+    "RegExpID": "RE::",
     
-    "Extra" : {
+    "Extra": {
         "fold" : "brace"
     },
     
-    //
     // Style model
-    "Style" : {
+    "Style": {
         // lang token type  -> Editor (style) tag
         "comment":    "comment",
         "atom":       "atom",
@@ -25,10 +24,8 @@ var js_grammar = {
         "regex":      "string-2"
     },
 
-    
-    //
     // Lexical model
-    "Lex" : {
+    "Lex": {
         
         // comments
         "comment" : {
@@ -140,17 +137,15 @@ var js_grammar = {
         }
     },
     
-    //
     // Syntax model (optional)
-    "Syntax" : {
-        
-        "dotProperty" : {
+    "Syntax": {
+        "dotProperty": {
             "sequence" : [ ".", "property" ]
         }
     },
 
     // what to parse and in what order
-    "Parser" : [
+    "Parser": [
         "comment",
         "number",
         "string",
@@ -158,6 +153,6 @@ var js_grammar = {
         "keyword",
         "operator",
         "atom",
-        [ "} | ) | this | builtin | identifier | dotProperty", "dotProperty*" ]
+        [ "'}' | ')' | this | builtin | identifier | dotProperty", "dotProperty*" ]
     ]
 };

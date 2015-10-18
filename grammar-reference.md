@@ -78,7 +78,7 @@ example:
     5. *optionaly*, token `"type"` can be **annotated inside** the `token_id` ([see below](#lex-shorthand-type-annotations))
 
 * a token type can be `"simple"` (default), `"block"` , `"escaped-block"` , `"comment"` , `"action"`
-* a token can *extend / reference* another token using the `extend` property; this way 2 tokens that share common configuration but different styles (depending on context) can be defined only once. Examples are tokens for `identifiers` and `properties` While both have similar tokenizers, the styles (and probably other properties) can be different.
+* a token can *extend / reference* another token using the `extend` property; this way 2 tokens that share common configuration but different styles (depending on context) can be defined only once. Examples are tokens for `identifiers` and `properties` While both have similar tokenizers, the styles (and probably other properties) can be different (see [syntax notations](#syntax-pegbnf-like-notations) for a **more convenient and more flexible alternative**).
 
 ```javascript
 
@@ -164,7 +164,9 @@ An `action` token in a grammar **applies only and directly to the token precedin
 
 * `"action"` tokens can `check` the (preceding) matched token is unique, for example *unique identifiers checking* can be done this way, (see `test/grammars/xml.js` for an example)
 
-* `"action"` tokens can `start` (`"context-start"`) and `end` (`"context-end"`) a new dynamic `context` so succesive actions take place in that context, for example *unique object literal properties* and *unique xml tag attributes* can be done his way, (see `test/grammars/xml.js` for an example)
+* `"action"` tokens can `start` (`"context":true`) and `end` (`"context":false`) a new dynamic `context` so succesive actions take place in that context, for example *unique object literal properties* and *unique xml tag attributes* can be done his way, (see `test/grammars/xml.js` for an example)
+
+* `"action"` tokens can generate a hard `error` in context (`"error":"error message"`), for example **special syntax errors** can be modeled, in the grammar, as needed, if needed, (see `test/grammars/xml.js` for an example)
 
 * .. more actions to be added like `indent`/`outdent` etc..
 
@@ -382,10 +384,9 @@ Specificaly:
     "tokens": ["t1", "t_equal", "t2"]
 }
 
-// a (single) token followed by a dotted-style, uses this style in context
-// for example
-// the token "t3" will be styled differently depending on context
-// i.e whether it comes after "t1" or "t2"
+// any (simple or composite) token followed by a dotted-style modifier, uses this style in context
+// for example, the token "t3", below, will be styled differently depending on context
+// i.e whether it comes after "t1" or after "t2"
 
 // ..
 // Style..
@@ -398,6 +399,12 @@ Specificaly:
 // Syntax..
 
 "t": "t1 t3.style1 | t2 t3.style2"
+
+// style modifier for composite tokens also works
+// i.e below both "t2" and "t3" tokens will be styled with "style1", if after "t1"
+// note: ".style1" overrides internal "t2.style2" as well
+
+"t": "t1 (t2.style2 t3).style1"
 
 
 // tokens can be grouped using parentheses

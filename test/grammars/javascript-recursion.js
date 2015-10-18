@@ -2,15 +2,14 @@
 var js_grammar = {
         
     // prefix ID for regular expressions used in the grammar
-    "RegExpID" : "RE::",
+    "RegExpID": "RE::",
     
-    "Extra" : {
+    "Extra": {
         "fold" : "brace"
     },
     
-    //
     // Style model
-    "Style" : {
+    "Style": {
         // lang token type  -> Editor (style) tag
         "comment"    : "comment",
         "atom"       : "atom",
@@ -24,11 +23,8 @@ var js_grammar = {
         "regex"      : "string-2"
     },
 
-    
-    //
     // Lexical model
-    "Lex" : {
-        
+    "Lex": {
         // comments
         "comment:comment" : {
             "interleave": true,
@@ -40,10 +36,8 @@ var js_grammar = {
             ]
         },
         
-        // general identifiers
+        // general identifiers, but property as well
         "identifier" : "RE::/[_A-Za-z$][_A-Za-z0-9$]*/",
-        
-        "property" : "RE::/[_A-Za-z$][_A-Za-z0-9$]*/",
         
         // numbers, in order of matching
         "number" : [
@@ -68,7 +62,7 @@ var js_grammar = {
         "string:escaped-block" : [ "RE::/(['\"])/",   1 ],
         
         // literal regular expressions
-        "regex:escaped-block" : [ "/",    "RE::#/[gimy]{0,4}#" ],
+        "regex:escaped-line-block" : [ "/",    "RE::#/[gimy]{0,4}#" ],
         
         // atoms
         "atom" : {
@@ -79,7 +73,8 @@ var js_grammar = {
                 "true", "false", 
                 "null", "undefined", 
                 "NaN", "Infinity"
-            ]
+            ],
+            "meta": "JavaScript ATOM"
         },
 
         // keywords
@@ -92,7 +87,8 @@ var js_grammar = {
                 "var", "const", "let", "function", "catch",
                 "for", "switch", "case", "default",
                 "in", "typeof", "instanceof"
-            ]
+            ],
+            "meta": "JavaScript KEYWORD"
         },
         
         // builtins
@@ -102,19 +98,19 @@ var js_grammar = {
             "tokens" : [ 
                 "Object", "Function", "Array", "String", "Date", "Number", "RegExp", "Exception",
                 "setTimeout", "setInterval", "alert", "console", 'window', 'prototype', 'constructor'
-            ]
+            ],
+            "meta": "JavaScript Builtins"
         },
         
         "other" : "RE::/\\S+/",
         
-        "ctx_start:action": {"context-start":true},
-        
-        "ctx_end:action": {"context-end":true},
+        "ctx:action": {"context":true},
+        "\\ctx:action": {"context":false},
         
         "match_b:action": {"push": "}"},
         "match_p:action": {"push": ")"},
         "match_p2:action": {"push": "]"},
-        "matched:action": {
+        "\\match:action": {
             "pop": "$0",
             "msg": "Brackets do not match"
         },
@@ -124,8 +120,7 @@ var js_grammar = {
             "msg": "Duplicate object property \"$0\"",
             "in-context": true
         },
-        
-        "unique_prop:action": {
+        "unique_str:action": {
             "unique": ["prop", "$1"],
             "msg": "Duplicate object property \"$0\"",
             "in-context": true
@@ -136,19 +131,19 @@ var js_grammar = {
     // Syntax model (optional)
     "Syntax" : {
         
-        "literalProperty" : "string unique_prop | property unique",
+        "literalProperty" : "string unique_str | identifier.property unique | /[0-9]+/.number unique",
         
         "literalValue" : "atom | string | regex | number | identifier | literalArray | literalObject",
         
         "literalPropertyValue" : "literalProperty ':' literalValue",
         
         // grammar recursion here
-        "literalObject" : "'{' match_b ctx_start (literalPropertyValue (',' literalPropertyValue)*)? '}' matched ctx_end",
+        "literalObject" : "'{' match_b ctx (literalPropertyValue (',' literalPropertyValue)*)? '}' \\match \\ctx",
         
         // grammar recursion here
-        "literalArray" : "'[' match_p2 (literalValue (',' literalValue)*)? ']' matched",
+        "literalArray" : "'[' match_p2 (literalValue (',' literalValue)*)? ']' \\match",
         
-        "brackets" : "'{' match_b | '}' matched | '(' match_p | ')' matched | '[' match_p2 | ']' matched",
+        "brackets" : "'{' match_b | '}' \\match | '(' match_p | ')' \\match | '[' match_p2 | ']' \\match",
         
         "js" : "comment | number | string | regex | keyword | operator | atom | literalObject | literalArray | brackets | other"
     },

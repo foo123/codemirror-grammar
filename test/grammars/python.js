@@ -1,59 +1,35 @@
 // 1. an almost complete python grammar in simple JSON format
 var python_grammar = {
     
-    // prefix ID for regular expressions used in the grammar
-    "RegExpID" : "RE::",
+    // prefix ID for regular expressions, represented as strings, used in the grammar
+    "RegExpID": "RE::",
 
-    "Extra" : {
+    "Extra": {
         "fold" : "indent"
     },
     
-    //
     // Style model
-    "Style" : {
+    "Style": {
         // lang token type  -> Editor (style) tag
-        "decorator":    "meta",
-        "comment":      "comment",
-        "keyword":      "keyword",
-        "builtin":      "builtin",
-        "operator":     "operator",
-        "identifier":   "variable",
-        "number":       "number",
-        "string":       "string",
-        "heredoc":      "string"
+        "decorator"     : "meta",
+        "comment"       : "comment",
+        "keyword"       : "keyword",
+        "builtin"       : "builtin",
+        "operator"      : "operator",
+        "identifier"    : "variable",
+        "number"        : "number",
+        "string"        : "string",
+        "heredoc"       : "string"
     },
 
-    
-    //
     // Lexical model
-    "Lex" : {
+    "Lex": {
     
         // comments
-        "comment" : {
-            "type" : "comment",
-            "tokens" : [
-                // null delimiter, matches end-of-line
-                ["#",  null]
-            ]
-        },
-        
-        // blocks, in this case heredocs
-        "heredoc" : {
-            "type" : "block",
-            "tokens" : [ 
-                // begin and end of heredocs
-                // if no end given, end is same as start of block
-                [ "'''" ], 
-                [ "\"\"\"" ], 
-                [ "RE::/([rubRUB]|(ur)|(br)|(UR)|(BR))?('{3}|\"{3})/", 6 ] 
-            ]
-        },
-        
-        // general identifiers
-        "identifier" : "RE::/[_A-Za-z][_A-Za-z0-9]*/",
-
-        // numbers, in order of matching
-        "number" : [
+        "comment:comment": ["#",  null],
+        "heredoc:block": [ ["'''"], ["\"\"\""], ["RE::/([rubRUB]|(ur)|(br)|(UR)|(BR))?('{3}|\"{3})/", 6] ],
+        "identifier": "RE::/[_A-Za-z][_A-Za-z0-9]*/",
+        "number": [
             // floats
             "RE::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?[jJ]?/",
             "RE::/\\d+\\.\\d*[jJ]?/",
@@ -70,44 +46,19 @@ var python_grammar = {
             // just zero
             "RE::/0(?![\\dx])/"
         ],
-
-        // strings
-        "string" : {
-            "type" : "escaped-block",
-            "escape" : "\\",
-            "tokens" : [ 
-                // start, end of string (can be the matched regex group ie. 1 )
-                [ "RE::/(['\"])/", 1 ], 
-                [ "RE::/([rubRUB]|(ur)|(br)|(UR)|(BR))?(['\"])/", 6 ] 
-            ]
-        },
-        
-        // operators
-        "operator" : {
-            "combine" : true,
-            "tokens" : [
-                "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!",
-                "==", "!=", "<=", ">=", "<>", "<<", ">>", "//", "**",
-                "and", "or", "not", "is", "in"
-            ]
-        },
-        
-        // delimiters
-        "delimiter" : {
-            "combine" : true,
-            "tokens" : [ 
-                "(", ")", "[", "]", "{", "}", ",", ":", "`", "=", ";", ".",
-                "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", 
-                ">>=", "<<=", "//=", "**=", "@"
-            ]
-        },
-        
-        // decorators
-        "decorator" : "RE::/@[_A-Za-z][_A-Za-z0-9]*/",
-
-        // keywords
+        "string:escaped-block": [ ["RE::/(['\"])/", 1], ["RE::/([rubRUB]|(ur)|(br)|(UR)|(BR))?(['\"])/", 6] ],
+        "operator": [
+            "\\", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">" , "!",
+            "==", "!=", "<=", ">=", "<>", "<<", ">>", "//", "**",
+            "and", "or", "not", "is", "in"
+        ],
+        "delimiter": [ 
+            "(", ")", "[", "]", "{", "}", ",", ":", "`", "=", ";", ".",
+            "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", 
+            ">>=", "<<=", "//=", "**=", "@"
+        ],
+        "decorator": "RE::/@[_A-Za-z][_A-Za-z0-9]*/",
         "keyword" : {
-            // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
             "tokens" : [
                 "assert", "break", "class", "continue",
@@ -117,10 +68,7 @@ var python_grammar = {
                 "try", "while", "with", "yield", "as"
             ]
         },
-                              
-        // builtin functions, constructs, etc..
         "builtin" : {
-            // enable autocompletion for these tokens, with their associated token ID
             "autocomplete" : true,
             "tokens" : [
                 "abs", "all", "any", "bin", "bool", "bytearray", "callable", "chr",
@@ -138,21 +86,12 @@ var python_grammar = {
         }
     },
 
-    //
     // Syntax model (optional)
-    //"Syntax" : null,
+    "Syntax": {
+        "py": "comment | heredoc | number | string | decorator | operator | delimiter | keyword | builtin | identifier"
+    },
     
     // what to parse and in what order
-    "Parser" : [
-        "comment",
-        "heredoc",
-        "number",
-        "string",
-        "decorator",
-        "operator",
-        "delimiter",
-        "keyword",
-        "builtin",
-        "identifier"
-    ]
+    // an array i.e ["py"], instead of single token i.e "py", is a shorthand for an "ngram"-type syntax token (for parser use)
+    "Parser": [ ["py"] ]
 };

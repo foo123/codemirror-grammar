@@ -19,7 +19,6 @@ var
     A_OUTDENT = 256,
     A_CTXSTART = 512,
     A_CTXEND = 1024,
-    A_OVERWR = 2048,
     
     // pattern types
     P_SIMPLE = 2,
