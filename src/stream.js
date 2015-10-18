@@ -1,8 +1,6 @@
 
 //
 // Stream Class
-var Max = Math.max, spcRegex = /^[\s\u00a0]+/, spc = /[^\s\u00a0]/;
-
 // a wrapper-class to manipulate a string as a stream, based on Codemirror's StringStream
 var Stream = Class({
     constructor: function Stream( line ) {
@@ -62,8 +60,7 @@ var Stream = Class({
     // move pointer forward/backward n steps
     ,mov: function( n ) {
         var self = this;
-        if ( 0 > n ) self.pos = Max(0, self.pos - n);
-        else self.pos += n;
+        self.pos = 0 > n ? Max(0, self.pos+n) : Min(self.s.length, self.pos+n);
         return self;
     }
     
@@ -81,14 +78,20 @@ var Stream = Class({
         return self;
     }
     
-    // next char
-    ,nxt: function( ) {
-        var self = this, c, s = self.s;
-        if ( self.pos < s.length )
+    // next char(s) or whole token
+    ,nxt: function( num, re_token ) {
+        var self = this, c, s = self.s, token = '', n;
+        if ( true === num )
         {
-            c = s.charAt(self.pos++) || null;
-            return c;
+            re_token = re_token || Stream.$RE_NONSPC$;
+            while ( self.pos<s.length && re_token.test(c=s.charAt(self.pos++)) ) token += c;
         }
+        else
+        {
+            num = num||1; n = 0;
+            while ( n++ < num && self.pos<s.length ) token += s.charAt(self.pos++);
+        }
+        return token;
     }
     
     // current stream selection
@@ -98,21 +101,15 @@ var Stream = Class({
         return ret;
     }
     
-    ,upd: function( ) {
-        var self = this;
-        if ( self._ ) self._.pos = self.pos;
-        return self;
-    }
-    
-    // eat space
-    ,spc: function( eat ) {
+    // eat "space"
+    ,spc: function( eat, re_space ) {
         var self = this, m, start = self.pos, s = self.s.slice(start);
-        if ( m = s.match( spcRegex ) ) 
+        if ( m = s.match( re_space||Stream.$RE_SPC$ ) ) 
         {
             if ( false !== eat ) self.mov( m[0].length );
-            return 1;
+            return m[0];
         }
-        return 0;
+        return null;
     }
     
     // get current column including tabs
@@ -142,6 +139,9 @@ var Stream = Class({
     }
 });
 
+Stream.$RE_SPC$ = /^[\s\u00a0]+/;
+Stream.$RE_NONSPC$ = /[^\s\u00a0]/;
+
 // Counts the column offset in a string, taking tabs into account.
 // Used mostly to find indentation.
 // adapted from CodeMirror
@@ -149,11 +149,11 @@ Stream.col = function( string, end, tabSize, startIndex, startValue ) {
     var i, n;
     if ( null === end ) 
     {
-        end = string.search( spc );
-        if ( -1 == end ) end = string.length;
+        end = string.search( Stream.$RE_NONSPC$ );
+        if ( -1 === end ) end = string.length;
     }
     for (i = startIndex || 0, n = startValue || 0; i < end; ++i) 
-        n += ( "\t" == string.charAt(i) ) ? (tabSize - (n % tabSize)) : 1;
+        n += ( "\t" === string.charAt(i) ) ? (tabSize - (n % tabSize)) : 1;
     return n;
 };
     

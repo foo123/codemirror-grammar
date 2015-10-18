@@ -127,7 +127,7 @@ example:
 
 ####Block Tokens
 
-* `"block"`, `"comment"`, `"escaped-block"` token types take pairs of patterns `[start-pattern, end-pattern]`
+* `"block"`, `"comment"`, `"escaped-block"`, `"escaped-line-block"`, `"line-block"` token types take pairs of patterns `[start-pattern, end-pattern]`
 
 * if `"end-pattern"` is missing, `"end-pattern"` is same as `"start-pattern"`
 
@@ -137,11 +137,13 @@ example:
 
 * if `"end-pattern"` is a `number` , then the `"end-pattern"` is generated dynamically from the respective `"start-pattern"` match group (provided `start-pattern` is a regex)
 
-* `"escaped-block"` type is a `"block"` which can contain its `"end-pattern"` if it is *escaped* , `"strings"` are classic examples
+* `"escaped-block"`, `"escaped-line-block"` type is a `"block"` which can contain its `"end-pattern"` if it is *escaped* , `"strings"` are classic examples
 
 * `"block"`, `"comment"`, `"escaped-block"` can span multiple lines by default, setting the `"multiline": false` option can alter this
 
-* `"escaped-block"` by default uses the `"\\"` escape character, setting the `"escape": escChar` option, can alter this
+* `"escaped-line-block"`, `"line-block"` type is a `"block"` which can span only a single line (`"multiline":false`)
+
+* `"escaped-block"`, `"escaped-line-block"` by default uses the `"\\"` escape character, setting the `"escape": escChar` option, can alter this
 
 * `"comment"` type is a `"block"` type with the additional **semantic** information that token is about comments, so *comment toggle functionality* and *comment interleave functionality* can be enabled
 
@@ -153,7 +155,7 @@ example:
 
 
 ####Action Tokens 
-**(new)**
+**(new, experimental)**
 
 `Action` tokens enable the grammar parser to perform some extra context-specific parsing functionality on tokens.
 An `action` token in a grammar **applies only and directly to the token preceding it**. It performs an **action on that token only**.
@@ -363,7 +365,7 @@ Specificaly:
 // zero 0 literal token w/o quotes matches EMPTY production (i.e succeeds always)
 
 // ^ literal token w/o quotes matches SOL (i.e start-of-line, any line)
-// ^^ literal token w/o quotes matches SOF (i.e start-of-file, start of line, first line of code, NOTE in some cases behaves like ^, above)
+// ^^ literal token w/o quotes matches SOF (i.e start-of-file, first line of code)
 
 // $ literal token w/o quotes matches EOL (i.e end-of-line, along with any extra space)
 // $$ literal token w/o quotes matches EOF (i.e end-of-file, end of line of last line of code) (currently NOT supported)
@@ -379,6 +381,23 @@ Specificaly:
     "match": "sequence",
     "tokens": ["t1", "t_equal", "t2"]
 }
+
+// a (single) token followed by a dotted-style, uses this style in context
+// for example
+// the token "t3" will be styled differently depending on context
+// i.e whether it comes after "t1" or "t2"
+
+// ..
+// Style..
+"Style": {
+    "style1": "an-editor-style",
+    "style2": "another-editor-style"
+}
+
+// ..
+// Syntax..
+
+"t": "t1 t3.style1 | t2 t3.style2"
 
 
 // tokens can be grouped using parentheses

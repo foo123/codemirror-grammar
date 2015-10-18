@@ -10,19 +10,17 @@
 
 
 // codemirror supposed to be available
-var _CodeMirror = CodeMirror || { Pass : { toString: function(){return "CodeMirror.Pass";} } };
+var $CodeMirror$ = CodeMirror || { Pass : { toString: function(){return "CodeMirror.Pass";} } },
+    // used for autocompletion
+    RE_W = /[\w$]/, by_score = function( a, b ) { return b.score-a.score }
+;
 
-//
-// parser factories
-DEFAULTSTYLE = null;
-DEFAULTERROR = "error";
-var Parser = Class({
-    constructor: function Parser( grammar, LOC ) {
+DEFAULTSTYLE = null; DEFAULTERROR = "error";
+var CodeMirrorParser = Class(Parser, {
+    constructor: function CodeMirrorParser( grammar, LOC ) {
         var self = this;
         
-        self.$grammar = grammar;
-        self.DEF = LOC.DEFAULT;
-        self.ERR = grammar.Style.error || LOC.ERROR;
+        Parser.call(self, grammar, LOC);
         
         // support comments toggle functionality
         self.LC = grammar.$comments.line ? grammar.$comments.line[0] : null;
@@ -31,9 +29,6 @@ var Parser = Class({
         self.BCC = self.BCL = grammar.$comments.block ? grammar.$comments.block[0][2] : null;
     }
     
-    ,$grammar: null
-    ,DEF: null
-    ,ERR: null
     ,LC: null
     ,BCS: null
     ,BCE: null
@@ -42,353 +37,167 @@ var Parser = Class({
     
     ,dispose: function( ) {
         var self = this;
-        self.$grammar = null;
-        self.DEF = null;
-        self.ERR = null;
         self.LC = null;
         self.BCS = null;
         self.BCE = null;
         self.BCL = null;
         self.BCC = null;
-        return self;
+        return Parser[PROTO].dispose.call( self );
     }
     
-    ,parse: function( code, parse_type ) {
-        code = code || "";
-        var self = this, lines = code.split(newline_re), l = lines.length, i,
-            linetokens, tokens, state, stream, ret, parse_errors, parse_tokens;
-        
-        parse_type = parse_type || TOKENS;
-        parse_errors = !!(parse_type&ERRORS);
-        parse_tokens = !!(parse_type&TOKENS);
-        
-        state = new State( 0, 0, parse_type );
-        state.parseAll = 1;
-        if ( parse_tokens )
-        {
-            linetokens = [];
-            for (i=0; i<l; i++)
-            {
-                state.line = i; stream = new Stream( lines[i] );
-                tokens = [];
-                while ( !stream.eol() ) tokens.push( self.getToken( stream, state ) );
-                linetokens.push( tokens );
-            }
-        }
-        else //if ( parse_errors )
-        {
-            for (i=0; i<l; i++)
-            {
-                state.line = i; stream = new Stream( lines[i] );
-                while ( !stream.eol() ) self.getToken( stream, state );
-            }
-        }
-        if ( parse_tokens && parse_errors ) ret = {tokens:linetokens, errors:state.err};
-        else if ( parse_tokens ) ret = linetokens;
-        else ret = state.err;
-        stream.dispose(); state.dispose();
-        return ret;
-    }
-    
-    // Codemirror Tokenizer compatible
-    ,getToken: function( stream, state ) {
-        var self = this, grammar = self.$grammar, Style = grammar.Style, DEFAULT = self.DEF, ERR = self.ERR,
-            interleaved_comments = grammar.$interleaved, tokens = grammar.$parser, nTokens = tokens.length, 
-            parseAll = !!state.parseAll, stack, pos, line, i, ci, type, tokenizer, action
-        ;
-        
-        stream = parseAll ? stream : Stream._( stream );
-        if ( parseAll )
-        {
-            if ( 0 === state.line ) state.status |= T_SOF;
-            else state.status &= ~T_SOF;
-        }
-        else
-        {
-            if ( stream.sol() ) state.status |= T_SOF;
-            else state.status &= ~T_SOF;
-        }
-        stack = state.stack;
-        
-        // if EOL tokenizer is left on stack, pop it now
-        if ( stream.sol() && !stack.isEmpty() && T_EOL === stack.peek().type )
-        {
-            stack.pop();
-        }
-        
-        // check for non-space tokenizer before parsing space
-        if ( (stack.isEmpty() || (T_NONSPACE !== stack.peek().type)) && stream.spc() )
-        {
-            return parseAll ? {value:stream.cur(1), type:DEFAULT} : (stream.upd()&&DEFAULT);
-        }
-        
-        line = state.line;
-        while ( !stack.isEmpty() && !stream.eol() )
-        {
-            if ( interleaved_comments )
-            {
-                ci = 0;
-                while ( ci < interleaved_comments.length )
-                {
-                    tokenizer = interleaved_comments[ci++];
-                    type = tokenizer.get( stream, state );
-                    if ( false !== type )
-                    {
-                        type = Style[type] || DEFAULT;
-                        return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
-                    }
-                }
-            }
-            
-            pos = stream.pos;
-            tokenizer = stack.pop();
-            type = tokenizer.get(stream, state);
-            
-            // match failed
-            if ( false === type )
-            {
-                // error
-                if ( tokenizer.status&REQUIRED_OR_ERROR )
-                {
-                    // empty the stack
-                    stack.empty('$id', tokenizer.$id);
-                    // skip this character
-                    stream.nxt();
-                    // generate error
-                    type = ERR;
-                    tokenizer.err(state, line, pos, line, stream.pos);
-                    return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
-                }
-                // optional
-                else
-                {
-                    continue;
-                }
-            }
-            // found token (not empty)
-            else if ( true !== type )
-            {
-                type = Style[type] || DEFAULT;
-                // action token follows, execute action on current token
-                while ( !stack.isEmpty() && T_ACTION === stack.peek().type )
-                {
-                    action = stack.pop();
-                    action.get(stream, state);
-                    // action error
-                    /*if ( action.status&ERROR )
-                    {
-                        // empty the stack
-                        //stack.empty('$id', tokenizer.$id);
-                        // generate error
-                        //action.err(state, line, pos, line, stream.pos);
-                    }*/
-                }
-                return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
-            }
-        }
-        
-        for (i=0; i<nTokens; i++)
-        {
-            pos = stream.pos;
-            tokenizer = tokens[i];
-            type = tokenizer.get(stream, state);
-            
-            // match failed
-            if ( false === type )
-            {
-                // error
-                if ( tokenizer.status&REQUIRED_OR_ERROR )
-                {
-                    // empty the stack
-                    stack.empty('$id', tokenizer.$id);
-                    // skip this character
-                    stream.nxt();
-                    // generate error
-                    type = ERR;
-                    tokenizer.err(state, line, pos, line, stream.pos);
-                    return parseAll ? {value:stream.cur(1), type:type} : (stream.upd()&&type);
-                }
-                // optional
-                else
-                {
-                    continue;
-                }
-            }
-            // found token (not empty)
-            else if ( true !== type )
-            {
-                type = Style[type] || DEFAULT;
-                // action token follows, execute action on current token
-                while ( !stack.isEmpty() && T_ACTION === stack.peek().type )
-                {
-                    action = stack.pop();
-                    action.get(stream, state);
-                    // action error
-                    /*if ( action.status&ERROR )
-                    {
-                        // empty the stack
-                        //stack.empty('$id', tokenizer.$id);
-                        // generate error
-                        //action.err(state, line, pos, line, stream.pos);
-                    }*/
-                }
-                return parseAll ? {value: stream.cur(1), type: type} : (stream.upd()&&type);
-            }
-        }
-        
-        // unknown, bypass
-        stream.nxt();
-        return parseAll ? {value:stream.cur(1), type:DEFAULT} : (stream.upd()&&DEFAULT);
-    }
-    
-    ,indent: function(state, textAfter, fullLine, conf, parserConf) {
-        var indentUnit = conf.indentUnit || 4, Pass = _CodeMirror.Pass;
+    ,indent: function( state, textAfter, fullLine, conf, parserConf ) {
+        var indentUnit = conf.indentUnit || 4, Pass = $CodeMirror$.Pass;
         return Pass;
     }
 });
 
-// used for autocompletion
-var W = /[\w$]/, by_score = function( a, b ) { return b.score-a.score };
-
 function get_mode( grammar, DEFAULT ) 
 {
-    var parser = new Parser( parse_grammar( grammar ), { 
+    var parser = new CodeMirrorParser(parse_grammar( grammar ), { 
         // default return code for skipped or not-styled tokens
         // 'null' should be used in most cases
         DEFAULT: DEFAULT || DEFAULTSTYLE,
         ERROR: DEFAULTERROR
-    });
+    }), cm_mode;
     
     // Codemirror-compatible Mode
-    var cm_mode = function cm_mode( conf, parserConf ) {
+    cm_mode = function cm_mode( conf, parserConf ) {
         
         // return the (codemirror) parser mode for the grammar
         return {
             /*
-            // maybe needed in later versions..
+            // maybe needed in later versions..?
             
-            blankLine: function( state ) { },
+            blankLine: function( state ) { }
             
-            innerMode: function( state ) { },
+            ,innerMode: function( state ) { }
             */
             
             startState: function( ) { 
-                var state = new State( );
-                return state;
-            },
+                return cm_mode.$parser.state( );
+            }
             
-            copyState: function( state ) { 
-                var statec = state.clone( );
-                return statec;
-            },
+            ,copyState: function( state ) { 
+                return cm_mode.$parser.state( 0, state );
+            }
             
-            token: function( stream, state ) { 
-                return parser.getToken( stream, state ); 
-            },
+            ,token: function( stream, state ) { 
+                var pstream = Stream._( stream ), 
+                    token = cm_mode.$parser.token( pstream, state ).type;
+                stream.pos = pstream.pos; pstream.dispose();
+                return token;
+            }
             
-            indent: function( state, textAfter, fullLine ) { 
-                return parser.indent( state, textAfter, fullLine, conf, parserConf ); 
-            },
+            ,indent: function( state, textAfter, fullLine ) { 
+                return cm_mode.$parser.indent( state, textAfter, fullLine, conf, parserConf ); 
+            }
             
             // support comments toggle functionality
-            lineComment: parser.LC,
-            blockCommentStart: parser.BCS,
-            blockCommentEnd: parser.BCE,
-            blockCommentContinue: parser.BCC,
-            blockCommentLead: parser.BCL,
+            ,lineComment: cm_mode.$parser.LC
+            ,blockCommentStart: cm_mode.$parser.BCS
+            ,blockCommentEnd: cm_mode.$parser.BCE
+            ,blockCommentContinue: cm_mode.$parser.BCC
+            ,blockCommentLead: cm_mode.$parser.BCL
             // support extra functionality defined in grammar
             // eg. code folding, electriChars etc..
-            electricChars: parser.$grammar.$extra.electricChars || false,
-            fold: parser.$grammar.$extra.fold || false
+            ,electricInput: cm_mode.$parser.$grammar.$extra.electricInput || false
+            ,electricChars: cm_mode.$parser.$grammar.$extra.electricChars || false
+            ,fold: cm_mode.$parser.$grammar.$extra.fold || false
         };
     };
+    cm_mode.$id = uuid("codemirror_grammar_mode");
+    cm_mode.$parser = parser;
     cm_mode.supportGrammarAnnotations = false;
     // syntax, lint-like validator generated from grammar
     // maybe use this as a worker (a-la ACE) ??
     cm_mode.validator = function( code, options )  {
-        if ( !cm_mode.supportGrammarAnnotations || !code || !code.length ) return [];
+        if ( !cm_mode.$parser || !cm_mode.supportGrammarAnnotations || !code || !code.length ) return [];
         
-        var errors = [], err, msg, error,
-            code_errors = parser.parse( code, ERRORS );
+        var errors = [], err, msg, error, Pos = $CodeMirror$.Pos,
+            code_errors = cm_mode.$parser.parse( code, ERRORS );
         if ( !code_errors ) return errors;
         
         for (err in code_errors)
         {
-            if ( !code_errors.hasOwnProperty(err) ) continue;
+            if ( !code_errors[HAS](err) ) continue;
             error = code_errors[err];
             errors.push({
                 message: error[4] || "Syntax Error",
                 severity: "error",
-                from: CodeMirror.Pos(error[0], error[1]),
-                to: CodeMirror.Pos(error[2], error[3])
+                from: Pos(error[0], error[1]),
+                to: Pos(error[2], error[3])
             });
         }
         return errors;
     };
     // autocompletion helper extracted from the grammar
     // adapted from codemirror anyword-hint helper
+    cm_mode.autocomplete_renderer = function( elt, data, cmpl ) {
+        var word = cmpl.text, type = cmpl.meta, p1 = cmpl.start, p2 = cmpl.end,
+            padding = data.list.maxlen-word.length-type.length+5;
+        elt.innerHTML = [
+            '<span class="cmg-autocomplete-keyword">', word.slice(0,p1),
+            '<strong class="cmg-autocomplete-keyword-match">', word.slice(p1,p2), '</strong>',
+            word.slice(p2), '</span>',
+            new Array(1+padding).join('&nbsp;'),
+            '<strong class="cmg-autocomplete-keyword-meta">', type, '</strong>',
+            '&nbsp;'
+        ].join('');
+        // adjust to fit keywords
+        elt.className = (elt.className&&elt.className.length ? elt.className+' ' : '') + 'cmg-autocomplete-keyword-hint';
+        elt.style.position = 'relative';
+        elt.style.width = '100%'; elt.style.maxWidth = '100%';
+    };
     cm_mode.autocomplete = function( cm, options ) {
-        var keywords = parser.$grammar.$autocomplete, list, Pos = _CodeMirror.Pos,
-            cur = cm.getCursor(), curLine, start = cur.ch, end = start, 
-            token, token_i, word, len, maxword = 0, maxtype = 0, word_re, renderer, 
-            i, l, w, wm, wl, pos, pos_i, case_insensitive_match, prefix_match, m1, m2;
-        list = [];
-        if ( keywords && keywords.length )
+        var list = [], Pos = $CodeMirror$.Pos,
+            cur = cm.getCursor(), curLine,
+            start0 = cur.ch, start = start0, end0 = start0, end = end0,
+            token, token_i, len, maxlen = 0, word_re, renderer,
+            case_insensitive_match, prefix_match;
+        if ( cm_mode.$parser && cm_mode.$parser.$grammar.$autocomplete )
         {
             options = options || {};
-            word_re = options.word || W;
-            case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : true;
-            prefix_match = !!options.prefixMatch;
-            curLine = cm.getLine(cur.line);
+            word_re = options.word || RE_W; curLine = cm.getLine(cur.line);
             while (end < curLine.length && word_re.test(curLine.charAt(end))) ++end;
             while (start && word_re.test(curLine.charAt(start - 1))) --start;
             if ( start < end )
             {
-                renderer = options.renderer || function(elt, data, cmpl) {
-                    var word = cmpl.text, type = cmpl.meta, 
-                        tabsize = data.list.maxlen-word.length-type.length+1+2,
-                        tab = new Array(tabsize).join("&nbsp;"),
-                        p1 = cmpl.start, p2 = cmpl.end;
-                    elt.innerHTML = [
-                        '<span class="cmg-autocomplete-keyword">', word.slice(0,p1),
-                        '<strong class="cmg-autocomplete-keyword-match">', word.slice(p1,p2), '</strong>',
-                        word.slice(p2), '</span>',
-                        tab,
-                        '<strong class="cmg-autocomplete-keyword-meta">', type, '</strong>'
-                    ].join('');
-                };
-                token = curLine.slice(start, end); token_i = token.toLowerCase(); len = token.length;
-                for (i=0,l=keywords.length; i<l; i++)
-                {
-                    word = keywords[i];
-                    w = word.word; wm = word.meta; wl = w.length;
-                    if ( wl < len ) continue;
-                    if ( case_insensitive_match )
+                prefix_match = options[HAS]('prefixMatch') ? !!options.prefixMatch : end0 === end;
+                case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : true;
+                renderer = options.renderer || cm_mode.autocomplete_renderer;
+                token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
+                operate(cm_mode.$parser.$grammar.$autocomplete, function( list, word ){
+                    var w = word.word, wm = word.meta, wl = w.length, pos, pos_i, m1, m2;
+                    if ( wl >= len )
                     {
-                        m1 = w.toLowerCase();
-                        m2 = token_i;
+                        if ( case_insensitive_match )
+                        {
+                            m1 = w[LOWER]();
+                            m2 = token_i;
+                        }
+                        else
+                        {
+                            m1 = w;
+                            m2 = token;
+                        }
+                        if ( ((pos_i = m1.indexOf( m2 )) >= 0) && (!prefix_match || (0 === pos_i)) )
+                        {
+                            pos = case_insensitive_match ? w.indexOf( token ) : pos_i;
+                            if ( wl+wm.length > maxlen ) maxlen = wl+wm.length;
+                            list.push({
+                                text: w, name: w, meta: wm,
+                                start: pos<0?pos_i:pos, end: (pos<0?pos_i:pos) + token.length, match: token,
+                                displayText: w + "\t\t["+wm+"]",
+                                render: renderer,
+                                // longer matches or matches not at start have lower match score
+                                score: 1000 - 10*(wl-len) - 5*(pos<0?pos_i+3:pos)
+                            });
+                        }
                     }
-                    else
-                    {
-                        m1 = w;
-                        m2 = token;
-                    }
-                    if ( ((pos_i = m1.indexOf( m2 )) < 0) || (prefix_match && (pos_i > 0)) ) continue;
-                    if ( case_insensitive_match ) pos = w.indexOf( token );
-                    //else pos = pos_i;
-                    if ( wl > maxword ) maxword = wl;
-                    if ( wm.length > maxtype ) maxtype = wm.length;
-                    list.push({
-                        text: w, name: w, meta: wm,
-                        start: pos<0?pos_i:pos, end: (pos<0?pos_i:pos) + token.length, match: token,
-                        displayText: w + "\t\t["+wm+"]",
-                        render: renderer,
-                        // longer matches or matches not at start have lower match score
-                        score: 1000 - 10*(wl-len) - 5*(pos<0?pos_i+3:pos)
-                    });
-                }
+                    return list;
+                }, list);
                 if ( list.length ) list = list.sort( by_score );
-                list.maxlen = maxword + maxtype; 
+                list.maxlen = maxlen; 
             }
         }
         return {
@@ -396,6 +205,10 @@ function get_mode( grammar, DEFAULT )
             from: Pos( cur.line, start ),
             to: Pos( cur.line, end )
         };
+    };
+    cm_mode.dispose = function( ) {
+        if ( cm_mode.$parser ) cm_mode.$parser.dispose( );
+        cm_mode.$parser = null;
     };
     return cm_mode;
 }

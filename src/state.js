@@ -2,7 +2,7 @@
 //
 // State Class
 var State = Class({
-    constructor: function State( s, unique, status ) {
+    constructor: function State( unique, s ) {
         var self = this;
         // this enables unique state "names"
         // thus forces highlight to update
@@ -12,13 +12,12 @@ var State = Class({
         {
             // clone
             self.line = s.line;
-            //self.indent = s.indent;
             self.status = s.status;
-            self.stack = s.stack.clone();
+            self.stack = s.stack.slice();
             self.token = s.token;
             self.block = s.block;
             // keep extra state only if error handling is enabled
-            if ( self.status&ERRORS )
+            if ( self.status & ERRORS )
             {
                 self.queu = s.queu/*.slice()*/;
                 self.symb = /*clone(*/ s.symb/*, 1 )*/;
@@ -36,14 +35,13 @@ var State = Class({
         }
         else
         {
-            self.line = s || 0;
-            //self.indent = null;
-            self.status = status || 0;
-            self.stack = new Stack();
+            self.line = -1;
+            self.status = s || 0;
+            self.stack = [];
             self.token = null;
             self.block = null;
             // keep extra state only if error handling is enabled
-            if ( self.status&ERRORS )
+            if ( self.status & ERRORS )
             {
                 self.queu = [];
                 self.symb = {};
@@ -63,7 +61,6 @@ var State = Class({
     
     ,id: null
     ,line: 0
-    //,indent: 0
     ,status: 0
     ,token: null
     ,block: null
@@ -77,9 +74,7 @@ var State = Class({
         var self = this;
         self.id = null;
         self.line = null;
-        //self.indent = null;
         self.status = null;
-        if ( self.stack ) self.stack.dispose( );
         self.stack = null;
         self.token = null;
         self.block = null;
@@ -90,14 +85,9 @@ var State = Class({
         return self;
     }
     
-    ,clone: function( unique ) {
-        return new State( this, unique );
-    }
-    
-    // used mostly for ACE which treats states as strings, 
     // make sure to generate a string which will cover most cases where state needs to be updated by the editor
     ,toString: function() {
         var self = this;
-        return [self.id, self.line, self.token ? self.token.name : '0', self.block ? self.block.name : '0'].join('_');
+        return self.id+'_'+self.line+'_'+(self.token?self.token.name:'0')+'_'+(self.block?self.block.name:'0');
     }
 });
