@@ -77,7 +77,7 @@ example:
     4. `properties` depending on `token type` (see below)
     5. *optionaly*, token `"type"` can be **annotated inside** the `token_id` ([see below](#lex-shorthand-type-annotations))
 
-* a token type can be `"simple"` (default), `"block"` , `"escaped-block"` , `"comment"` , `"action"`
+* a token type can be `"simple"` (default), `"block"`, `"line-block"`,  `"escaped-block"`, `"escaped-line-block"`, `"comment"`, `"action"`
 * a token can *extend / reference* another token using the `extend` property; this way 2 tokens that share common configuration but different styles (depending on context) can be defined only once. Examples are tokens for `identifiers` and `properties` While both have similar tokenizers, the styles (and probably other properties) can be different (see [syntax notations](#syntax-pegbnf-like-notations) for a **more convenient and more flexible alternative**).
 
 ```javascript
@@ -110,8 +110,6 @@ example:
 
 ####Simple Tokens
 
-* a literal `null` valued token matches `end-of-line` (EOL); can be useful in token (syntax) sequences when `EOL` is used as separator
-
 * a literal `false` or `0` valued token matches `empty production` ; can be useful in defining syntax sequences that can repeat (can be used as alternative to `"zeroOrMore"`, `"oneOrMore"` group types, plus give a familiar feel to defining rule productions )
 
 * a literal `empty string` token (  `""`  ) matches `non-space` ; can be useful when multiple tokens should be consecutive with no space between them
@@ -127,7 +125,7 @@ example:
 
 ####Block Tokens
 
-* `"block"`, `"comment"`, `"escaped-block"`, `"escaped-line-block"`, `"line-block"` token types take pairs of patterns `[start-pattern, end-pattern]`
+* `"block"`, `"line-block"`, `"escaped-block"`, `"escaped-line-block"`, `"comment"` token types take pairs of patterns `[start-pattern, end-pattern]`
 
 * if `"end-pattern"` is missing, `"end-pattern"` is same as `"start-pattern"`
 
