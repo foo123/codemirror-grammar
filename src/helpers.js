@@ -53,7 +53,7 @@ function get_delimited( src, delim, esc, collapse_esc )
 function group_replace( pattern, token, raw )
 {
     var i, l, c, g, replaced, offset = true === raw ? 0 : 1;
-    if ( T_STR & get_type(token) ) { token = [token, token]; offset = 0; }
+    if ( T_STR & get_type(token) ) { token = [token, token, token]; offset = 0; }
     l = pattern.length; replaced = ''; i = 0;
     while ( i<l )
     {
@@ -654,17 +654,30 @@ function preprocess_grammar( grammar )
     return grammar;
 }
 
+function get_backreference( token, Lex, Syntax )
+{
+    var entry;
+    // handle trivial, back-references,
+    // i.e a token referencing another token and so on..
+    // until finding a non-trivial reference
+    while ( T_STR & get_type(entry=Lex[token]||Syntax[token]) ) token = entry;
+    return entry  || token;
+}
+
 function parse_peg_bnf_notation( tok, Lex, Syntax )
 {
-    var alternation, sequence, token, literal, repeat, 
-        t, c, fl, prev_token, curr_token, stack, tmp, modifier = false, lookahead = false;
+    var alternation, sequence, token, literal, repeat, entry, prev_entry,
+        t, c, fl, prev_token, curr_token, stack, tmp,
+        modifier = false, lookahead = false, modifier_preset;
     
+    //tok = get_backreference( tok, Lex, Syntax );
+    modifier_preset = !!tok.modifier ? tok.modifier : null;
     t = new String( trim(tok) ); t.pos = 0;
     
     if ( 1 === t.length )
     {
         curr_token = '' + tok;
-        if ( !Lex[ curr_token ] ) Lex[ curr_token ] = { type:"simple", tokens:tok };
+        if ( !Lex[ curr_token ] && !Syntax[ curr_token ] ) Lex[ curr_token ] = { type:"simple", tokens:tok };
         tok = curr_token;
     }
     else
@@ -687,9 +700,14 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                         {
                             prev_token = sequence[sequence.length-1];
                             curr_token  = prev_token + '.' + token;
-                            if ( !Lex[curr_token] && !Syntax[curr_token] )
+                            entry = Lex[curr_token] || Syntax[curr_token];
+                            if ( !entry )
                             {
-                                Syntax[ curr_token ] = clone(Lex[prev_token] || Syntax[prev_token]);
+                                // in case it is just string, wrap it, to maintain the modifier reference
+                                prev_entry = get_backreference( prev_token, Lex, Syntax );
+                                Syntax[ curr_token ] = T_STR & get_type( prev_entry )
+                                                    ? new String( prev_entry )
+                                                    : clone( prev_entry );
                                 Syntax[ curr_token ].modifier = token;
                             }
                             sequence[ sequence.length-1 ] = curr_token;
@@ -912,14 +930,19 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
         {
             if ( modifier )
             {
-                // interpret as modifier / decorator
+                // interpret as modifier / group / decorator
                 if ( sequence.length )
                 {
                     prev_token = sequence[sequence.length-1];
                     curr_token  = prev_token + '.' + token;
-                    if ( !Lex[curr_token] && !Syntax[curr_token] )
+                    entry = Lex[curr_token] || Syntax[curr_token];
+                    if ( !entry )
                     {
-                        Syntax[ curr_token ] = clone(Lex[prev_token] || Syntax[prev_token]);
+                        // in case it is just string, wrap it, to maintain the modifier reference
+                        prev_entry = get_backreference( prev_token, Lex, Syntax );
+                        Syntax[ curr_token ] = T_STR & get_type( prev_entry )
+                                            ? new String( prev_entry )
+                                            : clone( prev_entry );
                         Syntax[ curr_token ].modifier = token;
                     }
                     sequence[ sequence.length-1 ] = curr_token;
@@ -990,6 +1013,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
         }
         alternation = [];
     }
+    if ( modifier_preset && (Lex[tok]||Syntax[tok]) ) (Lex[tok]||Syntax[tok]).modifier = modifier_preset;
     return tok;
 }
 

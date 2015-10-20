@@ -194,7 +194,7 @@ function tokenize( t, stream, state, token )
         : (
             T_BLOCK & T
             ? t_block
-            : /*( T_ACTION & T ? t_action :*/ t_simple /*)*/
+            : ( T_ACTION & T ? t_action : t_simple )
         );
     return t_( t, stream, state, token );
 }
@@ -210,7 +210,7 @@ function t_action( a, stream, state, token )
     self.status = 0; self.$msg = null;
 
     // do action only if state.status handles (action) errors, else dont clutter
-    if ( no_errors || !action_def ) return true;
+    if ( no_errors || !action_def || !token || !token.pos ) return true;
     is_block = !!(T_BLOCK & token.T);
     // partial block not completed yet, postpone
     if ( is_block && !token.block ) return true;
@@ -271,7 +271,7 @@ function t_action( a, stream, state, token )
         if ( token )
         {
             t0 = t[1]; ns = t[0];
-            t0 = T_NUM === get_type( t0 ) ? token.match[ t0 ] : group_replace( t0, t_str, true );
+            t0 = group_replace( t0, t_str, true );
             if ( case_insensitive ) t0 = t0[LOWER]();
             if ( !symb[HAS](ns) ) symb[ns] = { };
             if ( symb[ns][HAS](t0) )
@@ -360,8 +360,8 @@ function t_simple( t, stream, state, token )
         type = self.type, tokenID = self.name,
         line = state.line, pos = stream.pos, m = null, ret = false;
     
-    self.$msg = self.msg || null;
     self.status &= CLEAR_ERROR;
+    self.$msg = self.msg || null;
     
     // match SOF (start-of-file, first line of source)
     if ( T_SOF === type ) { ret = 0 === line; }
@@ -404,8 +404,8 @@ function t_simple( t, stream, state, token )
     }
     if ( false !== ret )
     {
-        token.id = tokenID; token.T = type; token.type = ret; token.match = m;
-        token.str = stream.sel(pos, stream.pos);
+        token.T = type; token.id = tokenID; token.type = ret;
+        token.str = stream.sel(pos, stream.pos); token.match = m;
         token.pos = [line, pos, line, stream.pos];
     }
     if ( !ret && self.status && self.$msg ) self.$msg = group_replace( self.$msg, tokenID, true );
@@ -585,8 +585,8 @@ function t_composite( t, stream, state, token )
         tokens_required, tokens_err, stream_pos, stack_pos,
         i, tt, stack, err, $id, match_all;
 
-    self.$msg = self.msg || null;
     self.status &= CLEAR_ERROR;
+    self.$msg = self.msg || null;
 
     stack = state.stack;
     stream_pos = stream.pos; stack_pos = stack.length;

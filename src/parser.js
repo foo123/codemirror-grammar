@@ -17,7 +17,7 @@ var Parser = Class({
     ,dispose: function( ) {
         var self = this;
         self.$grammar = null;
-        self.$tok$ = self.$typ$ = self.$nam$ = null;
+        self.$n$ = self.$t$ = self.$v$ = null;
         self.$DEF = self.$ERR = self.DEF = self.ERR = null;
         return self;
     }
@@ -165,7 +165,7 @@ var Parser = Class({
     ,tokenize: function( stream, state, row ) {
         var self = this, tokens = [];
         //state.line = row || 0;
-        if ( stream.eol() ) state.line++;
+        if ( stream.eol() ) { state.line++; state.$eol$ = true; }
         else while ( !stream.eol() ) tokens.push( self.token( stream, state ) );
         return tokens;
     }
@@ -197,7 +197,7 @@ var Parser = Class({
             iterate(function( i ) {
                 stream.new_( lines[i] );
                 //state.line = i;
-                if ( stream.eol() ) state.line++;
+                if ( stream.eol() ) { state.line++; state.$eol$ = true; }
                 else while ( !stream.eol() ) self.token( stream, state );
             }, 0, l-1);
         

@@ -824,7 +824,7 @@ function get_delimited( src, delim, esc, collapse_esc )
 function group_replace( pattern, token, raw )
 {
     var i, l, c, g, replaced, offset = true === raw ? 0 : 1;
-    if ( T_STR & get_type(token) ) { token = [token, token]; offset = 0; }
+    if ( T_STR & get_type(token) ) { token = [token, token, token]; offset = 0; }
     l = pattern.length; replaced = ''; i = 0;
     while ( i<l )
     {
@@ -1425,17 +1425,30 @@ function preprocess_grammar( grammar )
     return grammar;
 }
 
+function get_backreference( token, Lex, Syntax )
+{
+    var entry;
+    // handle trivial, back-references,
+    // i.e a token referencing another token and so on..
+    // until finding a non-trivial reference
+    while ( T_STR & get_type(entry=Lex[token]||Syntax[token]) ) token = entry;
+    return entry  || token;
+}
+
 function parse_peg_bnf_notation( tok, Lex, Syntax )
 {
-    var alternation, sequence, token, literal, repeat, 
-        t, c, fl, prev_token, curr_token, stack, tmp, modifier = false, lookahead = false;
+    var alternation, sequence, token, literal, repeat, entry, prev_entry,
+        t, c, fl, prev_token, curr_token, stack, tmp,
+        modifier = false, lookahead = false, modifier_preset;
     
+    //tok = get_backreference( tok, Lex, Syntax );
+    modifier_preset = !!tok.modifier ? tok.modifier : null;
     t = new String( trim(tok) ); t.pos = 0;
     
     if ( 1 === t.length )
     {
         curr_token = '' + tok;
-        if ( !Lex[ curr_token ] ) Lex[ curr_token ] = { type:"simple", tokens:tok };
+        if ( !Lex[ curr_token ] && !Syntax[ curr_token ] ) Lex[ curr_token ] = { type:"simple", tokens:tok };
         tok = curr_token;
     }
     else
@@ -1458,9 +1471,14 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                         {
                             prev_token = sequence[sequence.length-1];
                             curr_token  = prev_token + '.' + token;
-                            if ( !Lex[curr_token] && !Syntax[curr_token] )
+                            entry = Lex[curr_token] || Syntax[curr_token];
+                            if ( !entry )
                             {
-                                Syntax[ curr_token ] = clone(Lex[prev_token] || Syntax[prev_token]);
+                                // in case it is just string, wrap it, to maintain the modifier reference
+                                prev_entry = get_backreference( prev_token, Lex, Syntax );
+                                Syntax[ curr_token ] = T_STR & get_type( prev_entry )
+                                                    ? new String( prev_entry )
+                                                    : clone( prev_entry );
                                 Syntax[ curr_token ].modifier = token;
                             }
                             sequence[ sequence.length-1 ] = curr_token;
@@ -1683,14 +1701,19 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
         {
             if ( modifier )
             {
-                // interpret as modifier / decorator
+                // interpret as modifier / group / decorator
                 if ( sequence.length )
                 {
                     prev_token = sequence[sequence.length-1];
                     curr_token  = prev_token + '.' + token;
-                    if ( !Lex[curr_token] && !Syntax[curr_token] )
+                    entry = Lex[curr_token] || Syntax[curr_token];
+                    if ( !entry )
                     {
-                        Syntax[ curr_token ] = clone(Lex[prev_token] || Syntax[prev_token]);
+                        // in case it is just string, wrap it, to maintain the modifier reference
+                        prev_entry = get_backreference( prev_token, Lex, Syntax );
+                        Syntax[ curr_token ] = T_STR & get_type( prev_entry )
+                                            ? new String( prev_entry )
+                                            : clone( prev_entry );
                         Syntax[ curr_token ].modifier = token;
                     }
                     sequence[ sequence.length-1 ] = curr_token;
@@ -1761,6 +1784,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
         }
         alternation = [];
     }
+    if ( modifier_preset && (Lex[tok]||Syntax[tok]) ) (Lex[tok]||Syntax[tok]).modifier = modifier_preset;
     return tok;
 }
 
@@ -2243,7 +2267,7 @@ function tokenize( t, stream, state, token )
         : (
             T_BLOCK & T
             ? t_block
-            : /*( T_ACTION & T ? t_action :*/ t_simple /*)*/
+            : ( T_ACTION & T ? t_action : t_simple )
         );
     return t_( t, stream, state, token );
 }
@@ -2259,7 +2283,7 @@ function t_action( a, stream, state, token )
     self.status = 0; self.$msg = null;
 
     // do action only if state.status handles (action) errors, else dont clutter
-    if ( no_errors || !action_def ) return true;
+    if ( no_errors || !action_def || !token || !token.pos ) return true;
     is_block = !!(T_BLOCK & token.T);
     // partial block not completed yet, postpone
     if ( is_block && !token.block ) return true;
@@ -2320,7 +2344,7 @@ function t_action( a, stream, state, token )
         if ( token )
         {
             t0 = t[1]; ns = t[0];
-            t0 = T_NUM === get_type( t0 ) ? token.match[ t0 ] : group_replace( t0, t_str, true );
+            t0 = group_replace( t0, t_str, true );
             if ( case_insensitive ) t0 = t0[LOWER]();
             if ( !symb[HAS](ns) ) symb[ns] = { };
             if ( symb[ns][HAS](t0) )
@@ -2409,8 +2433,8 @@ function t_simple( t, stream, state, token )
         type = self.type, tokenID = self.name,
         line = state.line, pos = stream.pos, m = null, ret = false;
     
-    self.$msg = self.msg || null;
     self.status &= CLEAR_ERROR;
+    self.$msg = self.msg || null;
     
     // match SOF (start-of-file, first line of source)
     if ( T_SOF === type ) { ret = 0 === line; }
@@ -2453,8 +2477,8 @@ function t_simple( t, stream, state, token )
     }
     if ( false !== ret )
     {
-        token.id = tokenID; token.T = type; token.type = ret; token.match = m;
-        token.str = stream.sel(pos, stream.pos);
+        token.T = type; token.id = tokenID; token.type = ret;
+        token.str = stream.sel(pos, stream.pos); token.match = m;
         token.pos = [line, pos, line, stream.pos];
     }
     if ( !ret && self.status && self.$msg ) self.$msg = group_replace( self.$msg, tokenID, true );
@@ -2634,8 +2658,8 @@ function t_composite( t, stream, state, token )
         tokens_required, tokens_err, stream_pos, stack_pos,
         i, tt, stack, err, $id, match_all;
 
-    self.$msg = self.msg || null;
     self.status &= CLEAR_ERROR;
+    self.$msg = self.msg || null;
 
     stack = state.stack;
     stream_pos = stream.pos; stack_pos = stack.length;
@@ -2776,7 +2800,7 @@ var Parser = Class({
     ,dispose: function( ) {
         var self = this;
         self.$grammar = null;
-        self.$tok$ = self.$typ$ = self.$nam$ = null;
+        self.$n$ = self.$t$ = self.$v$ = null;
         self.$DEF = self.$ERR = self.DEF = self.ERR = null;
         return self;
     }
@@ -2924,7 +2948,7 @@ var Parser = Class({
     ,tokenize: function( stream, state, row ) {
         var self = this, tokens = [];
         //state.line = row || 0;
-        if ( stream.eol() ) state.line++;
+        if ( stream.eol() ) { state.line++; state.$eol$ = true; }
         else while ( !stream.eol() ) tokens.push( self.token( stream, state ) );
         return tokens;
     }
@@ -2956,7 +2980,7 @@ var Parser = Class({
             iterate(function( i ) {
                 stream.new_( lines[i] );
                 //state.line = i;
-                if ( stream.eol() ) state.line++;
+                if ( stream.eol() ) { state.line++; state.$eol$ = true; }
                 else while ( !stream.eol() ) self.token( stream, state );
             }, 0, l-1);
         

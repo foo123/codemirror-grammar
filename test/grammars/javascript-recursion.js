@@ -126,7 +126,10 @@ var js_grammar = {
     // Syntax model (optional)
     "Syntax" : {
         
-        "literalProperty" : "string | /[0-9]*/ | identifier",
+        "__literalProperty" : "string | /0|[1-9][0-9]*/ | identifier",
+        
+        // back-reference, should be handled
+        "literalProperty" : "__literalProperty",
         
         "literalValue" : "atom | string | regex | number | identifier | literalArray | literalObject",
         
