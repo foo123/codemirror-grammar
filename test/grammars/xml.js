@@ -72,7 +72,7 @@ var xml_grammar = {
         "tag_att": "'id'.att unique_att '=' string unique | att unique_att '=' (string | number)",
         "start_tag": "open_tag match ctx tag_att* (close_open_tag | auto_close_open_tag nomatch) \\ctx",
         "end_tag": "close_tag \\match",
-        "xml": "(^^ $* declaration? doctype?)? (declaration.error out_of_place | doctype.error out_of_place | comment | meta | cdata | start_tag | end_tag | atom | text)*"
+        "xml": "(^^ $* declaration? $* doctype?)? (declaration.error out_of_place | doctype.error out_of_place | comment | meta | cdata | start_tag | end_tag | atom | text)*"
     },
     
     // what to parse and in what order

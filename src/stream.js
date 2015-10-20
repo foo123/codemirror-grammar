@@ -36,8 +36,13 @@ var Stream = Class({
         return self;
     }
     
-    ,toString: function( ) { 
-        return this.s; 
+    ,new_: function( line ) {
+        var self = this;
+        self.s = '' + line;
+        self.start = self.pos = 0;
+        self.lCP = self.lCV = 0;
+        self.lS = 0;
+        return self;
     }
     
     // string start-of-line?
@@ -60,14 +65,14 @@ var Stream = Class({
     // move pointer forward/backward n steps
     ,mov: function( n ) {
         var self = this;
-        self.pos = 0 > n ? Max(0, self.pos+n) : Min(self.s.length, self.pos+n);
+        self.pos = 0 > n ? MAX(0, self.pos+n) : MIN(self.s.length, self.pos+n);
         return self;
     }
     
     // move pointer back to pos
     ,bck: function( pos ) {
         var self = this;
-        self.pos = Max(0, pos);
+        self.pos = MAX(0, pos);
         return self;
     }
     
@@ -91,7 +96,7 @@ var Stream = Class({
             num = num||1; n = 0;
             while ( n++ < num && self.pos<s.length ) token += s.charAt(self.pos++);
         }
-        return token;
+        return token.length ? token : null;
     }
     
     // current stream selection
@@ -99,6 +104,11 @@ var Stream = Class({
         var self = this, ret = self.s.slice(self.start, self.pos);
         if ( shift ) self.start = self.pos;
         return ret;
+    }
+    
+    // stream selection
+    ,sel: function( p0, p1 ) {
+        return this.s.slice(p0, p1);
     }
     
     // eat "space"

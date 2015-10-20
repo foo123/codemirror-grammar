@@ -15,12 +15,15 @@ var $CodeMirror$ = CodeMirror || { Pass : { toString: function(){return "CodeMir
     RE_W = /[\w$]/, by_score = function( a, b ) { return b.score-a.score }
 ;
 
-DEFAULTSTYLE = null; DEFAULTERROR = "error";
+//
+// parser factories
 var CodeMirrorParser = Class(Parser, {
-    constructor: function CodeMirrorParser( grammar, LOC ) {
+    constructor: function CodeMirrorParser( grammar, DEFAULT ) {
         var self = this;
         
-        Parser.call(self, grammar, LOC);
+        Parser.call(self, grammar, null, "error");
+        self.DEF = DEFAULT || self.$DEF;
+        self.ERR = grammar.Style.error || self.$ERR;
         
         // support comments toggle functionality
         self.LC = grammar.$comments.line ? grammar.$comments.line[0] : null;
@@ -37,11 +40,7 @@ var CodeMirrorParser = Class(Parser, {
     
     ,dispose: function( ) {
         var self = this;
-        self.LC = null;
-        self.BCS = null;
-        self.BCE = null;
-        self.BCL = null;
-        self.BCC = null;
+        self.LC = self.BCS = self.BCE = self.BCL = self.BCC = null;
         return Parser[PROTO].dispose.call( self );
     }
     
@@ -55,7 +54,6 @@ function get_mode( grammar, DEFAULT )
 {
     // Codemirror-compatible Mode
     var cm_mode = function cm_mode( conf, parserConf ) {
-        // return the (codemirror) parser mode for the grammar
         return {
             /*
             // maybe needed in later versions..?
@@ -97,13 +95,11 @@ function get_mode( grammar, DEFAULT )
             ,fold: cm_mode.$parser.$grammar.$extra.fold || false
         };
     };
+    
     cm_mode.$id = uuid("codemirror_grammar_mode");
-    cm_mode.$parser = new CodeMirrorParser(parse_grammar( grammar ), { 
-        // default return code for skipped or not-styled tokens
-        // 'null' should be used in most cases
-        DEFAULT: DEFAULT || DEFAULTSTYLE,
-        ERROR: DEFAULTERROR
-    });
+    
+    cm_mode.$parser = new CodeMirrorParser( parse_grammar( grammar ), DEFAULT );
+    
     cm_mode.supportGrammarAnnotations = false;
     // syntax, lint-like validator generated from grammar
     // maybe use this as a worker (a-la ACE) ??
@@ -127,6 +123,7 @@ function get_mode( grammar, DEFAULT )
         }
         return errors;
     };
+    
     // autocompletion helper extracted from the grammar
     // adapted from codemirror anyword-hint helper
     cm_mode.autocomplete_renderer = function( elt, data, cmpl ) {
@@ -142,7 +139,7 @@ function get_mode( grammar, DEFAULT )
         ].join('');
         // adjust to fit keywords
         elt.className = (elt.className&&elt.className.length ? elt.className+' ' : '') + 'cmg-autocomplete-keyword-hint';
-        elt.style.position = 'relative';
+        elt.style.position = 'relative'; elt.style.boxSizing = 'border-box';
         elt.style.width = '100%'; elt.style.maxWidth = '100%';
     };
     cm_mode.autocomplete = function( cm, options ) {
@@ -155,31 +152,28 @@ function get_mode( grammar, DEFAULT )
         {
             options = options || {};
             word_re = options.word || RE_W; curLine = cm.getLine(cur.line);
-            while (end < curLine.length && word_re.test(curLine.charAt(end))) ++end;
-            while (start && word_re.test(curLine.charAt(start - 1))) --start;
+            prefix_match = options[HAS]('prefixMatch') ? !!options.prefixMatch : true;
+            while (start && word_re.test(curLine[CHAR](start - 1))) --start;
+            // operate similar to current ACE autocompleter equivalent
+            if ( !prefix_match ) while (end < curLine.length && word_re.test(curLine[CHAR](end))) ++end;
             if ( start < end )
             {
-                prefix_match = options[HAS]('prefixMatch') ? !!options.prefixMatch : end0 === end;
-                case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : true;
+                case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false;
                 renderer = options.renderer || cm_mode.autocomplete_renderer;
                 token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
                 operate(cm_mode.$parser.$grammar.$autocomplete, function( list, word ){
-                    var w = word.word, wm = word.meta, wl = w.length, pos, pos_i, m1, m2;
+                    var w = word.word, wl = w.length, 
+                        wm, case_insensitive_word,
+                        pos, pos_i, m1, m2, case_insensitive;
                     if ( wl >= len )
                     {
-                        if ( case_insensitive_match )
-                        {
-                            m1 = w[LOWER]();
-                            m2 = token_i;
-                        }
-                        else
-                        {
-                            m1 = w;
-                            m2 = token;
-                        }
+                        wm = word.meta;  case_insensitive_word = !!w.ci;
+                        case_insensitive = case_insensitive_match || case_insensitive_word;
+                        if ( case_insensitive ) { m1 = w[LOWER](); m2 = token_i; }
+                        else { m1 = w; m2 = token; }
                         if ( ((pos_i = m1.indexOf( m2 )) >= 0) && (!prefix_match || (0 === pos_i)) )
                         {
-                            pos = case_insensitive_match ? w.indexOf( token ) : pos_i;
+                            pos = case_insensitive ? w.indexOf( token ) : pos_i;
                             if ( wl+wm.length > maxlen ) maxlen = wl+wm.length;
                             list.push({
                                 text: w, name: w, meta: wm,
@@ -273,7 +267,7 @@ var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
     * In order to pre-process, in-place, a `JSON grammar` 
     * to transform any shorthand configurations to full object configurations and provide defaults.
     [/DOC_MARKDOWN]**/
-    pre_process: pre_process_grammar,
+    pre_process: preprocess_grammar,
     
     // parse a grammar
     /**[DOC_MARKDOWN]

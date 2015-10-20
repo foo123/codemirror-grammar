@@ -2,7 +2,7 @@
 var undef = undefined, 
     PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'propertyIsEnumerable',
     OP = Object[PROTO], toString = OP.toString, Extend = Object.create,
-    Max = Math.max, Min = Math.min, LOWER = 'toLowerCase',
+    MAX = Math.max, MIN = Math.min, LOWER = 'toLowerCase', CHAR = 'charAt',
     
     // types
     INF = Infinity,
@@ -10,7 +10,11 @@ var undef = undefined,
     T_NUM = 32, T_INF = 33, T_NAN = 34, T_BOOL = 64,
     T_STR = 128, T_CHAR = 129, T_CHARLIST = 130,
     T_ARRAY = 256, T_OBJ = 512, T_FUNC = 1024,  T_REGEX = 2048, T_DATE = 4096,
-    T_STR_OR_ARRAY = T_STR|T_ARRAY, T_OBJ_OR_ARRAY = T_OBJ|T_ARRAY, T_STR_OR_ARRAY_OR_REGEX = T_STR|T_ARRAY|T_REGEX,
+    T_STR_OR_NUM = T_STR|T_NUM,
+    T_STR_OR_ARRAY = T_STR|T_ARRAY,
+    T_OBJ_OR_ARRAY = T_OBJ|T_ARRAY,
+    T_REGEX_OR_ARRAY = T_REGEX|T_ARRAY,
+    T_STR_OR_ARRAY_OR_REGEX = T_STR|T_ARRAY|T_REGEX,
     TYPE_STRING = {
     "[object Number]"   : T_NUM,
     "[object String]"   : T_STR,
@@ -30,38 +34,48 @@ var undef = undefined,
         return b.length - a.length 
     },
     
-    escaped_re = /([.*+?^${}()|[\]\/\\\-])/g,
     newline_re = /\r\n|\r|\n/g, dashes_re = /[\-_]/g, 
-    peg_bnf_notation_re = /^([.\[\]{}()*+?\/|'"]|\s)/,
     _id_ = 0
 ;
 
 function get_type( v )
 {
-    if      ( null === v )                return T_NULL;
+    var T = 0;
+    if      ( null === v )                T = T_NULL;
     else if ( true === v || false === v || 
-                   v instanceof Boolean ) return T_BOOL;
-    else if ( undef === v )               return T_UNDEF;
-    var TYPE = TYPE_STRING[ toString.call( v ) ] || T_UNKNOWN;
-    if      ( T_NUM === TYPE   || v instanceof Number )   return isNaN(v) ? T_NAN : (isFinite(v) ? T_NUM : T_INF);
-    else if ( T_STR === TYPE   || v instanceof String )   return 1 === v.length ? T_CHAR : T_STR;
-    else if ( T_ARRAY === TYPE || v instanceof Array )    return T_ARRAY;
-    else if ( T_REGEX === TYPE || v instanceof RegExp )   return T_REGEX;
-    else if ( T_DATE === TYPE  || v instanceof Date )     return T_DATE;
-    else if ( T_FUNC === TYPE  || v instanceof Function ) return T_FUNC;
-    else if ( T_OBJ === TYPE )                            return T_OBJ;
-                                                          return T_UNKNOWN;
+                   v instanceof Boolean ) T = T_BOOL;
+    else if ( undef === v )               T = T_UNDEF;
+    else
+    {
+    T = TYPE_STRING[ toString.call( v ) ] || T_UNKNOWN;
+    if      ( T_NUM === T   || v instanceof Number )   T = isNaN(v) ? T_NAN : (isFinite(v) ? T_NUM : T_INF);
+    else if ( T_STR === T   || v instanceof String )   T = 1 === v.length ? T_CHAR : T_STR;
+    else if ( T_ARRAY === T || v instanceof Array )    T = T_ARRAY;
+    else if ( T_REGEX === T || v instanceof RegExp )   T = T_REGEX;
+    else if ( T_DATE === T  || v instanceof Date )     T = T_DATE;
+    else if ( T_FUNC === T  || v instanceof Function ) T = T_FUNC;
+    else if ( T_OBJ === T )                            T = T_OBJ;
+    else                                               T = T_UNKNOWN;
+    }
+    return T;
 }
     
 function map( x, F, i0, i1 )
 {
-    var len = x.length;
+    var len = x.length, i, k, l, r, q, Fx;
     if ( arguments.length < 4 ) i1 = len-1;
     if ( 0 > i1 ) i1 += len;
     if ( arguments.length < 3 ) i0 = 0;
     if ( i0 > i1 ) return [];
-    var i, k, l=i1-i0+1, r=l&15, q=r&1, Fx=new Array(l);
-    if ( q ) Fx[0] = F(x[i0], i0, i0, i1);
+    else if ( i0 === i1 ) { return [F(x[i0], i0, i0, i1)]; }
+    l = i1-i0+1; Fx = new Array(l);
+    if ( 6 > l)
+    {
+        Fx[0] = F(x[i0], i0, i0, i1); Fx[1] = F(x[i0+1], i0+1, i0, i1);
+        for (k=i0+2; k<=i1; k++) Fx[k-i0] = F(x[k], k, i0, i1);
+        return Fx;
+    }
+    r=l&15; q=r&1; if ( q ) Fx[0] = F(x[i0], i0, i0, i1);
     for (i=q; i<r; i+=2)
     { 
         k = i0+i;
@@ -93,48 +107,65 @@ function map( x, F, i0, i1 )
 
 function operate( x, F, F0, i0, i1 )
 {
-    var len = x.length;
+    var len = x.length, i, k, l, r, q, Fv = F0;
     if ( arguments.length < 5 ) i1 = len-1;
     if ( 0 > i1 ) i1 += len;
     if ( arguments.length < 4 ) i0 = 0;
-    if ( i0 > i1 ) return F0;
-    var i, k, l=i1-i0+1, r=l&15, q=r&1, Fv=q?F(F0,x[i0],i0):F0;
+    if ( i0 > i1 ) return Fv;
+    else if ( i0 === i1 ) { return F(Fv,x[i0],i0); }
+    l = i1-i0+1;
+    if ( 6 > l)
+    {
+        Fv = F(F(Fv,x[i0],i0),x[i0+1],i0+1);
+        for (k=i0+2; k<=i1; k++) Fv = F(Fv,x[k],k);
+        return Fv;
+    }
+    r=l&15; q=r&1; if ( q ) Fv = F(Fv,x[i0],i0);
     for (i=q; i<r; i+=2)  { k = i0+i; Fv = F(F(Fv,x[k],k),x[k+1],k+1); }
     for (i=r; i<l; i+=16) { k = i0+i; Fv = F(F(F(F(F(F(F(F(F(F(F(F(F(F(F(F(Fv,x[k],k),x[k+1],k+1),x[k+2],k+2),x[k+3],k+3),x[k+4],k+4),x[k+5],k+5),x[k+6],k+6),x[k+7],k+7),x[k+8],k+8),x[k+9],k+9),x[k+10],k+10),x[k+11],k+11),x[k+12],k+12),x[k+13],k+13),x[k+14],k+14),x[k+15],k+15); }
     return Fv;
 }
 
-function iterate( F, i0, i1 )
+function iterate( F, i0, i1, F0 )
 {
-    if ( i0 > i1 ) return;
-    var io, i, l=i1-i0+1, r=l&15, q=r&1;
-    if ( q ) F(i0, i0, i1);
-    for (io=q; io<r; io+=2)
-    { 
-        i = i0+io;
-        F(  i, i0, i1);
-        F(++i, i0, i1);
-    }
-    for (io=r; io<l; io+=16)
+    if ( i0 > i1 ) return F0;
+    else if ( i0 === i1 ) { F(i0, F0, i0, i1); return F0; }
+    var l=i1-i0+1, i, k, r, q;
+    if ( 6 > l)
     {
-        i = i0+io;
-        F(  i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
-        F(++i, i0, i1);
+        F(i0, F0, i0, i1); F(i0+1, F0, i0, i1);
+        for (k=i0+2; k<=i1; k++) F(k, F0, i0, i1);
+        return F0;
     }
+    r=l&15; q=r&1;
+    if ( q ) F(i0, F0, i0, i1);
+    for (i=q; i<r; i+=2)
+    { 
+        k = i0+i;
+        F(  k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+    }
+    for (i=r; i<l; i+=16)
+    {
+        k = i0+i;
+        F(  k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+        F(++k, F0, i0, i1);
+    }
+    return F0;
 }
 
 function clone( o, deep )
@@ -271,44 +302,6 @@ function make_array_2( a, force )
     return a;
 }
 
-function esc_re( s ) { return s.replace(escaped_re, '\\$1'); }
-
-function group_replace( pattern, token, raw )
-{
-    var i, l, c, g, replaced, offset = true === raw ? 0 : 1;
-    if ( T_STR & get_type(token) ) { token = [token, token]; offset = 0; }
-    l = pattern.length; replaced = ''; i = 0;
-    while ( i<l )
-    {
-        c = pattern.charAt(i);
-        if ( (i+1<l) && '$' === c )
-        {
-            g = pattern.charCodeAt(i+1);
-            if ( 36 === g ) // escaped $ character
-            {
-                replaced += '$';
-                i += 2;
-            }
-            else if ( 48 <= g && g <= 57 ) // group between 0 and 9
-            {
-                replaced += token[ offset + g - 48 ] || '';
-                i += 2;
-            }
-            else
-            {
-                replaced += c;
-                i += 1;
-            }
-        }
-        else
-        {
-            replaced += c;
-            i += 1;
-        }
-    }
-    return replaced;
-}
-
 function has_prefix( s, p )
 {
     return (
@@ -317,7 +310,7 @@ function has_prefix( s, p )
     );
 }
 
-function peek( stack, index )
+/*function peek( stack, index )
 {
     index = 2 > arguments.length ? -1 : index;
     if ( stack.length )
@@ -327,7 +320,7 @@ function peek( stack, index )
         else if ( 0 <= index && index < stack.length )
             return stack[ index ];
     }
-}
+}*/
 
 function push_at( stack, pos, token, $id, id )
 {
@@ -344,6 +337,12 @@ function empty( stack, $id, id )
     else
         stack.length = 0;
     return stack;
+}
+
+function del( o, p, soft )
+{
+    if ( soft ) o[p] = undef; else delete o[p];
+    return o;
 }
 
 function get_id( ) { return ++_id_; }

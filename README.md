@@ -5,7 +5,7 @@ __Transform a JSON grammar into a CodeMirror syntax-highlight parser__
 
 
 
-A simple and light-weight (~ 25kB minified, ~ 9kB zipped) [CodeMirror](https://github.com/marijnh/codemirror) add-on
+A simple and light-weight (~ 30kB minified, ~ 11kB zipped) [CodeMirror](https://github.com/marijnh/codemirror) add-on
 
 to generate syntax-highlight parsers (codemirror modes) from a grammar specification in JSON format.
 

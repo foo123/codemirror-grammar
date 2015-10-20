@@ -253,21 +253,23 @@ Lexical tokens can annotate their `type` in their `token_id` as `"token_id:token
 
 * Inside the `Syntax` model, *(single) tokens* can also be defined (similar to `Lex` part), however it is recommended (single) tokens be defined in `Lex` part
 
-* `Syntax` includes 2 types of *special patterns/tokens* ( like generalised regular expressions for composite token sequences )
+* `Syntax` includes *special token types* (like generalised regular expressions for composite token sequences, or parsing expressions in the style of `PEG`s)
 
-* `Syntax groups` are syntax tokens with type `"group"` ; these tokens contain sequences of subtokens to be matched according to some scheme
+* `Syntax` token `"type"` can be: `"alternation"`,`"sequence"`,`"zeroOrOne"`,`"zeroOrMore"`,`"oneOrMore"`,`"repeat"` ; these tokens contain sequences of subtokens (`"tokens"`) to be matched according to some scheme
 
-* `"group"` tokens `match` types can be :
-    1. `"match": [min, max]` , match any of the tokens a minimum `min` times and a maximum `max` times else error (analogous to a regex: `(t1 | t2 | t3..){min, max}` , where `t1`, `t2`, etc are also composite tokens )
-    2. `"match": "zeroOrOne"` :  match any of the tokens `zero or one` times (analogous to a regex: `(t1 | t2 | t3..)?` , where `t1`, `t2`, etc are also composite tokens )
-    3. `"match": "zeroOrMore"` ,  match any of the tokens `zero or more` times (analogous to a regex: `(t1 | t2 | t3..)*` , where `t1`, `t2`, etc are also composite tokens )
-    4. `"match": "oneOrMore"` :  match any of the tokens `one or more` times (analogous to a regex: `(t1 | t2 | t3..)+` , where `t1`, `t2`, etc are also composite tokens )
-    5. `"match": "either"` :  match any of the tokens (analogous to a regex: `(t1 | t2 | t3..)` , where `t1`, `t2`, etc are also composite tokens )
-    6. `"match": "sequence"` :  match all the tokens in sequence (analogous to a regex: `(t1 t2 t3 ..)` , where `t1`, `t2`, etc are also composite tokens ) else error
+* types:
+    1. `"type":"repeat"`,`"repeat":[min, max]`,  match any of the tokens a minimum `min` times and a maximum `max` times else error (analogous to a regex: `(t1 | t2 | t3..){min, max}` , where `t1`, `t2`, etc are also composite tokens)
+    2. `"type":"zeroOrOne"`,  match any of the tokens `zero or one` times (analogous to a regex: `(t1 | t2 | t3..)?` , where `t1`, `t2`, etc are also composite tokens)
+    3. `"type":"zeroOrMore"`,  match any of the tokens `zero or more` times (analogous to a regex: `(t1 | t2 | t3..)*` , where `t1`, `t2`, etc are also composite tokens)
+    4. `"type":"oneOrMore"`,  match any of the tokens `one or more` times (analogous to a regex: `(t1 | t2 | t3..)+` , where `t1`, `t2`, etc are also composite tokens)
+    5. `"type":"alternation"`,  match any of the tokens (analogous to a regex: `(t1 | t2 | t3..)` , where `t1`, `t2`, etc are also composite tokens)
+    6. `"type":"sequence"`,  match all the tokens in sequence (analogous to a regex: `(t1 t2 t3 ..)` , where `t1`, `t2`, etc are also composite tokens) else error
 
 * a syntax token can contain (direct or indirect) `recursive references` to itself ( **note:** some rule factoring may be needed, to avoid grammar `left-recursion` or `ambiguity` )
 
-* a `"ngram"` or `"n-gram"` syntax token type, is similar to a `"group"` , `"match":"sequence"` type , with the difference that it is **only matched optionally** (suitable to be used in `grammar.Parser` part)
+* a `"ngram"` or `"n-gram"` syntax token type, is similar to a `"type":"sequence"` type, with the difference that it is **only matched optionally** (suitable to be used in `grammar.Parser` part)
+
+* a syntax token  in `Parser` that it wrapped in `[..]` (i.e as an `array`), is shorthand notation to interpret it as an `n-gram`-type token (for *convenience of notation*, one can see it in various example grammars)
 
 * It is recommended to have only `Lex.tokens` or `Syntax.ngrams` in ther `grammar.Parser` part and not `Syntax.group` tokens which are mostly *auxilliary*
 
@@ -287,8 +289,7 @@ Specificaly:
 "t": "t1 | t2 | t3"
 // is equivalent to =>
 "t": {
-    "type": "group",
-    "match": "either",
+    "type": "alternation",
     "tokens": ["t1", "t2", "t3"]
 }
 
@@ -296,8 +297,7 @@ Specificaly:
 "t": "t1*"
 // is equivalent to =>
 "t": {
-    "type": "group",
-    "match": "zeroOrMore",
+    "type": "zeroOrMore",
     "tokens": ["t1"]
 }
 
@@ -305,8 +305,7 @@ Specificaly:
 "t": "t1+"
 // is equivalent to =>
 "t": {
-    "type": "group",
-    "match": "oneOrMore",
+    "type": "oneOrMore",
     "tokens": ["t1"]
 }
 
@@ -314,8 +313,7 @@ Specificaly:
 "t": "t1?"
 // is equivalent to =>
 "t": {
-    "type": "group",
-    "match": "zeroOrOne",
+    "type": "zeroOrOne",
     "tokens": ["t1"]
 }
 
@@ -323,8 +321,8 @@ Specificaly:
 "t": "t1{1,3}"
 // is equivalent to =>
 "t": {
-    "type": "group",
-    "match": [1,3], // match minimum 1 times and maximum 3 times
+    "type": "repeat",
+    "repeat": [1,3], // match minimum 1 times and maximum 3 times
     "tokens": ["t1"]
 }
 
@@ -332,46 +330,65 @@ Specificaly:
 "t": "t1* | t2 | t3"
 // is equivalent to =>
 "t1*": {
-    "type": "group",
-    "match": "zeroOrMore",
+    "type": "zeroOrMore",
     "tokens": ["t1"]
 },
 "t": {
-    "type": "group",
-    "match": "either",
+    "type": "alternation",
     "tokens": ["t1*", "t2", "t3"]
 }
 
 "t": "t1* t2 | t3"
 // is equivalent to =>
 "t1*": {
-    "type": "group",
-    "match": "zeroOrMore",
+    "type": "zeroOrMore",
     "tokens": ["t1"]
 },
 "t1* t2": {
-    "type": "group",
-    "match": "sequence",
+    "type": "sequence",
     "tokens": ["t1*", "t2"]
 },
 "t": {
-    "type": "group",
-    "match": "either",
+    "type": "alternation",
     "tokens": ["t1* t2", "t3"]
 }
 
+// tokens can be grouped using parentheses
+"t": "(t1 t2)* | t3"
+// is equivalent to =>
+"t1 t2": {
+    "type": "sequence",
+    "tokens": ["t1", "t2"]
+}
+"(t1 t2)*": {
+    "type": "zeroOrMore",
+    "tokens": ["t1 t2"]
+}
+"t": {
+    "type": "alternation",
+    "tokens": ["(t1 t2)*", "t3"]
+}
+
+
 // literal tokens wrapped in quotes (' or ") (e.g 'abc') are equivalent to their literal value (i.e abc)
 
+// literal tokens wrapped in brackets (e.g [abc]) are equivalent to matching any of the enclosed characters (like in regular expressions)
+
+// note: LIKE REGULAR EXPRESSIONS having ^ first in a character selection, e.g [^abc] provides a NEGATIVE match
+// note2: the (PEG) negative lookahead feature might be added in future versions (along with positive lookahead feature)
+
+// regular expressions can also be defined inside a syntax rule, using /../[i] format, e.g /abc/,  /abc/i 
+// this will create a new simple token (with token_id=/abc/i) which is a regular expression
+// using a dotted-style modifier, on the regex defined this way, can style it dynamicaly (see below), e.g /abc/i.style1
+
 // empty literal token w/ quotes (i.e '') matches NON-SPACE production (i.e fails if space is encountered)
+// zero literal token w/o quotes (i.e 0) matches EMPTY production (i.e succeeds always)
 
-// zero 0 literal token w/o quotes matches EMPTY production (i.e succeeds always)
+// ^^ literal token w/o quotes (i.e ^^) matches SOF (i.e start-of-file, first line of code)
+// ^ literal token w/o quotes (i.e ^) matches SOL (i.e start-of-line, any line)
+// $ literal token w/o quotes (i.e $) matches EOL (i.e end-of-line, any line, along with any extra space)
 
-// ^ literal token w/o quotes matches SOL (i.e start-of-line, any line)
-// ^^ literal token w/o quotes matches SOF (i.e start-of-file, first line of code)
-
-// $ literal token w/o quotes matches EOL (i.e end-of-line, along with any extra space)
-// $$ literal token w/o quotes matches EOF (i.e end-of-file, end of line of last line of code) (currently NOT supported)
-
+// e.g
 "t": "t1 '=' t2"
 // is equivalent to =>
 "t_equal": {
@@ -379,8 +396,7 @@ Specificaly:
     "tokens": "="
 },
 "t": {
-    "type": "group",
-    "match": "sequence",
+    "type": "sequence",
     "tokens": ["t1", "t_equal", "t2"]
 }
 
@@ -402,29 +418,9 @@ Specificaly:
 
 // style modifier for composite tokens also works
 // i.e below both "t2" and "t3" tokens will be styled with "style1", if after "t1"
-// note: ".style1" overrides internal "t2.style2" as well
+// note: ".style1" overrides internal "t2.style2" modifier as well
 
 "t": "t1 (t2.style2 t3).style1"
-
-
-// tokens can be grouped using parentheses
-"t": "(t1 t2)* | t3"
-// is equivalent to =>
-"t1 t2": {
-    "type": "group",
-    "match": "sequence",
-    "tokens": ["t1", "t2"]
-}
-"(t1 t2)*": {
-    "type": "group",
-    "match": "zeroOrMore",
-    "tokens": ["t1 t2"]
-}
-"t": {
-    "type": "group",
-    "match": "either",
-    "tokens": ["(t1 t2)*", "t3"]
-}
 
 
 // and so on..
@@ -437,3 +433,5 @@ Specificaly:
 
 `Grammar.Parser` defines what to parse and in what order ( **only patterns** defined in this part of the `grammar` will **actually be parsed** , everything else is `auxilliary` )
 
+
+* a syntax token used in the `parser`, which is enclosed in brackets `[..]`, i.e as an `array`, is interpreted as an `n-gram`-type token (see syntax part, above). This is used for *convenience ans succintness of notation*, instead of creating  separate `n-gram` token(s), for use in the `parser` part

@@ -116,11 +116,6 @@ var js_grammar = {
         },
         
         "unique:action": {
-            "unique": ["prop", "$0"],
-            "msg": "Duplicate object property \"$0\"",
-            "in-context": true
-        },
-        "unique_str:action": {
             "unique": ["prop", "$1"],
             "msg": "Duplicate object property \"$0\"",
             "in-context": true
@@ -131,11 +126,11 @@ var js_grammar = {
     // Syntax model (optional)
     "Syntax" : {
         
-        "literalProperty" : "string unique_str | identifier.property unique | /[0-9]+/.number unique",
+        "literalProperty" : "string | /[0-9]*/ | identifier",
         
         "literalValue" : "atom | string | regex | number | identifier | literalArray | literalObject",
         
-        "literalPropertyValue" : "literalProperty ':' literalValue",
+        "literalPropertyValue" : "literalProperty.property unique ':' literalValue",
         
         // grammar recursion here
         "literalObject" : "'{' match_b ctx (literalPropertyValue (',' literalPropertyValue)*)? '}' \\match \\ctx",

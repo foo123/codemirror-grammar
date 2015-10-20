@@ -14,14 +14,14 @@ var State = Class({
             self.line = s.line;
             self.status = s.status;
             self.stack = s.stack.slice();
-            self.token = s.token;
             self.block = s.block;
             // keep extra state only if error handling is enabled
             if ( self.status & ERRORS )
             {
-                self.queu = s.queu/*.slice()*/;
-                self.symb = /*clone(*/ s.symb/*, 1 )*/;
-                self.ctx = s.ctx/*.slice()*/;
+                self.queu = s.queu;
+                self.symb = s.symb;
+                self.scop = s.scop;
+                self.ctx = s.ctx;
                 self.err = s.err;
             }
             // else dont use-up more space and clutter
@@ -29,6 +29,7 @@ var State = Class({
             {
                 self.queu = null;
                 self.symb = null;
+                self.scop = null;
                 self.ctx = null;
                 self.err = null;
             }
@@ -38,13 +39,13 @@ var State = Class({
             self.line = -1;
             self.status = s || 0;
             self.stack = [];
-            self.token = null;
             self.block = null;
             // keep extra state only if error handling is enabled
             if ( self.status & ERRORS )
             {
                 self.queu = [];
                 self.symb = {};
+                self.scop = {};
                 self.ctx = [];
                 self.err = {};
             }
@@ -53,6 +54,7 @@ var State = Class({
             {
                 self.queu = null;
                 self.symb = null;
+                self.scop = null;
                 self.ctx = null;
                 self.err = null;
             }
@@ -62,11 +64,11 @@ var State = Class({
     ,id: null
     ,line: 0
     ,status: 0
-    ,token: null
     ,block: null
     ,stack: null
     ,queu: null
     ,symb: null
+    ,scop: null
     ,ctx: null
     ,err: null
     
@@ -76,10 +78,10 @@ var State = Class({
         self.line = null;
         self.status = null;
         self.stack = null;
-        self.token = null;
         self.block = null;
         self.queu = null;
         self.symb = null;
+        self.scop = null;
         self.ctx = null;
         self.err = null;
         return self;
@@ -88,6 +90,6 @@ var State = Class({
     // make sure to generate a string which will cover most cases where state needs to be updated by the editor
     ,toString: function() {
         var self = this;
-        return self.id+'_'+self.line+'_'+(self.token?self.token.name:'0')+'_'+(self.block?self.block.name:'0');
+        return self.id+'_'+self.line+'_'+(self.block?self.block.name:'0');
     }
 });
