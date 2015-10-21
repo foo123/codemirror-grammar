@@ -22,7 +22,7 @@ See also: [ace-grammar](https://github.com/foo123/ace-grammar) , [prism-grammar]
 * [Features](#features)
 * [How To use](#how-to-use)
 * [API Reference](/api-reference.md)
-* [Grammar Reference](https://github.com/foo123/editor-grammar/grammar-reference.md)
+* [Grammar Reference](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md)
 * [Other Examples](#other-examples)
 
 [![Build your own syntax-highlight mode on the fly](/test/screenshot.png)](http://foo123.github.io/examples/codemirror-grammar)
@@ -35,13 +35,13 @@ Code Indentation is Codemirror default, looking for ways to add more elaborate i
 
 ###Features
 
-* A [`Grammar`](https://github.com/foo123/editor-grammar/grammar-reference.md) can **extend other `Grammars`** (so arbitrary `variations` and `dialects` can be handled more easily)
-* `Grammar` includes: [`Style Model`](https://github.com/foo123/editor-grammar/grammar-reference.md#style-model) , [`Lex Model`](https://github.com/foo123/editor-grammar/grammar-reference.md#lexical-model) and [`Syntax Model` (optional)](https://github.com/foo123/editor-grammar/grammar-reference.md#syntax-model), plus a couple of [*settings*](https://github.com/foo123/editor-grammar/grammar-reference.md#extra-settings) (see examples)
+* A [`Grammar`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md) can **extend other `Grammars`** (so arbitrary `variations` and `dialects` can be handled more easily)
+* `Grammar` includes: [`Style Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#style-model) , [`Lex Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#lexical-model) and [`Syntax Model` (optional)](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#syntax-model), plus a couple of [*settings*](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#extra-settings) (see examples)
 * **`Grammar` specification can be minimal**, defaults will be used (see example grammars)
-* [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/grammar-reference.md#syntax-model) can enable highlight in a more *context-specific* way, plus detect possible *syntax errors* and display appropriate *error messages* (see below)
-* [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/grammar-reference.md#syntax-model) can contain **recursive references** (see `/test/grammar-js-recursion.html`)
-* [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/grammar-reference.md#syntax-pegbnf-like-notations) can be (fully) specificed using [`PEG`](https://en.wikipedia.org/wiki/Parsing_expression_grammar)-like notation or [`BNF`](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_Form)-like notation  (**NEW feature**)
-* `Grammar` can define [*action* tokens](https://github.com/foo123/editor-grammar/grammar-reference.md#action-tokens) to perform *complex context-specific* parsing functionality, including **associated tag matching** and **duplicate identifiers** (see for example `xml.grammar` example) (**NEW feature**)
+* [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#syntax-model) can enable highlight in a more *context-specific* way, plus detect possible *syntax errors* and display appropriate *error messages* (see below)
+* [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#syntax-model) can contain **recursive references** (see `/test/grammar-js-recursion.html`)
+* [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#syntax-pegbnf-like-notations) can be (fully) specificed using [`PEG`](https://en.wikipedia.org/wiki/Parsing_expression_grammar)-like notation or [`BNF`](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_Form)-like notation  (**NEW feature**)
+* `Grammar` can define [*action* tokens](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#action-tokens) to perform *complex context-specific* parsing functionality, including **associated tag matching** and **duplicate identifiers** (see for example `xml.grammar` example) (**NEW feature**)
 * Generated highlight modes can support **toggle comments** and **keyword autocompletion** functionality if defined in the grammar
 * Generated highlight modes can support **lint-like syntax-annotation** functionality generated from the grammar
 * Generated parsers are **optimized for speed and size**
