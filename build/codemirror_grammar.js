@@ -153,14 +153,8 @@ function map( x, F, i0, i1 )
     if ( arguments.length < 3 ) i0 = 0;
     if ( i0 > i1 ) return [];
     else if ( i0 === i1 ) { return [F(x[i0], i0, i0, i1)]; }
-    l = i1-i0+1; Fx = new Array(l);
-    if ( 6 > l)
-    {
-        Fx[0] = F(x[i0], i0, i0, i1); Fx[1] = F(x[i0+1], i0+1, i0, i1);
-        for (k=i0+2; k<=i1; k++) Fx[k-i0] = F(x[k], k, i0, i1);
-        return Fx;
-    }
-    r=l&15; q=r&1; if ( q ) Fx[0] = F(x[i0], i0, i0, i1);
+    l = i1-i0+1; r=l&15; q=r&1; Fx = new Array(l);
+    if ( q ) Fx[0] = F(x[i0], i0, i0, i1);
     for (i=q; i<r; i+=2)
     { 
         k = i0+i;
@@ -198,14 +192,8 @@ function operate( x, F, F0, i0, i1 )
     if ( arguments.length < 4 ) i0 = 0;
     if ( i0 > i1 ) return Fv;
     else if ( i0 === i1 ) { return F(Fv,x[i0],i0); }
-    l = i1-i0+1;
-    if ( 6 > l)
-    {
-        Fv = F(F(Fv,x[i0],i0),x[i0+1],i0+1);
-        for (k=i0+2; k<=i1; k++) Fv = F(Fv,x[k],k);
-        return Fv;
-    }
-    r=l&15; q=r&1; if ( q ) Fv = F(Fv,x[i0],i0);
+    l = i1-i0+1; r=l&15; q=r&1;
+    if ( q ) Fv = F(Fv,x[i0],i0);
     for (i=q; i<r; i+=2)  { k = i0+i; Fv = F(F(Fv,x[k],k),x[k+1],k+1); }
     for (i=r; i<l; i+=16) { k = i0+i; Fv = F(F(F(F(F(F(F(F(F(F(F(F(F(F(F(F(Fv,x[k],k),x[k+1],k+1),x[k+2],k+2),x[k+3],k+3),x[k+4],k+4),x[k+5],k+5),x[k+6],k+6),x[k+7],k+7),x[k+8],k+8),x[k+9],k+9),x[k+10],k+10),x[k+11],k+11),x[k+12],k+12),x[k+13],k+13),x[k+14],k+14),x[k+15],k+15); }
     return Fv;
@@ -215,14 +203,7 @@ function iterate( F, i0, i1, F0 )
 {
     if ( i0 > i1 ) return F0;
     else if ( i0 === i1 ) { F(i0, F0, i0, i1); return F0; }
-    var l=i1-i0+1, i, k, r, q;
-    if ( 6 > l)
-    {
-        F(i0, F0, i0, i1); F(i0+1, F0, i0, i1);
-        for (k=i0+2; k<=i1; k++) F(k, F0, i0, i1);
-        return F0;
-    }
-    r=l&15; q=r&1;
+    var l=i1-i0+1, i, k, r=l&15, q=r&1;
     if ( q ) F(i0, F0, i0, i1);
     for (i=q; i<r; i+=2)
     { 
@@ -430,7 +411,7 @@ function del( o, p, soft )
     return o;
 }
 
-function get_id( ) { return ++_id_; }
+function get_id( ns ) { return (ns||'id_') + (++_id_); }
 
 function uuid( ns ) { return (ns||'uuid') + '_' + (++_id_) + '_' + (new Date().getTime()); }
 
@@ -1939,13 +1920,14 @@ function tokenizer( type, name, token, msg, modifier )
     self.$id = null;
 }
 
-function t_clone( t, required, modifier )
+function t_clone( t, required, modifier, $id )
 {
     var tt = new tokenizer( t.type, t.name, t.token, t.msg, t.modifier );
     tt.ci = t.ci; tt.mline = t.mline; tt.esc = t.esc; tt.inter = t.inter;
     tt.found = t.found; tt.min = t.min; tt.max = t.max;
     if ( required ) tt.status |= REQUIRED;
     if ( modifier ) tt.modifier = modifier;
+    if ( $id ) tt.$id = $id;
     return tt;
 }
 
@@ -2012,20 +1994,19 @@ function t_action( a, stream, state, token )
     if ( is_block && !token.block ) return true;
 
     action = action_def[ 0 ]; t = action_def[ 1 ]; in_ctx = action_def[ 2 ];
-    queu = state.queu; symb = state.symb; ctx = state.ctx;
-    msg = self.msg;
+    msg = self.msg; queu = state.queu; symb = state.symb; ctx = state.ctx;
     
     if ( is_block /*&& token.block*/ )
     {
         t_str = token.block.match || token.block.str;
-        l1 = token.block.pos[0][0];                          c1 = token.block.pos[0][1];
-        l2 = token.block.pos[token.block.pos.length-1][2];   c2 = token.block.pos[token.block.pos.length-1][3];
+        l1 = token.block.pos[0][0];     c1 = token.block.pos[0][1];
+        l2 = token.block.pos[0][2];     c2 = token.block.pos[0][3];
     }
     else
     {
         t_str = token.match || token.str;
-        l1 = token.pos[0];                                   c1 = token.pos[1];
-        l2 = token.pos[2];                                   c2 = token.pos[3];
+        l1 = token.pos[0];              c1 = token.pos[1];
+        l2 = token.pos[2];              c2 = token.pos[3];
     }
 
     if ( A_ERROR === action )
@@ -2064,28 +2045,25 @@ function t_action( a, stream, state, token )
             if ( ctx.length ) symb = ctx[0].symb;
             else return true;
         }
-        if ( token )
+        t0 = t[1]; ns = t[0];
+        t0 = group_replace( t0, t_str, true );
+        if ( case_insensitive ) t0 = t0[LOWER]();
+        if ( !symb[HAS](ns) ) symb[ns] = { };
+        if ( symb[ns][HAS](t0) )
         {
-            t0 = t[1]; ns = t[0];
-            t0 = group_replace( t0, t_str, true );
-            if ( case_insensitive ) t0 = t0[LOWER]();
-            if ( !symb[HAS](ns) ) symb[ns] = { };
-            if ( symb[ns][HAS](t0) )
-            {
-                // duplicate
-                self.$msg = msg
-                    ? group_replace( msg, t0, true )
-                    : 'Duplicate "'+t0+'"';
-                err = t_err( self );
-                error_( state, symb[ns][t0][0], symb[ns][t0][1], symb[ns][t0][2], symb[ns][t0][3], self, err );
-                error_( state, l1, c1, l2, c2, self, err );
-                self.status |= ERROR;
-                return false;
-            }
-            else
-            {
-                symb[ns][t0] = [l1, c1, l2, c2];
-            }
+            // duplicate
+            self.$msg = msg
+                ? group_replace( msg, t0, true )
+                : 'Duplicate "'+t0+'"';
+            err = t_err( self );
+            error_( state, symb[ns][t0][0], symb[ns][t0][1], symb[ns][t0][2], symb[ns][t0][3], self, err );
+            error_( state, l1, c1, l2, c2, self, err );
+            self.status |= ERROR;
+            return false;
+        }
+        else
+        {
+            symb[ns][t0] = [l1, c1, l2, c2];
         }
     }
 
@@ -2217,7 +2195,7 @@ function t_block( t, stream, state, token )
         esc_char = self.esc, is_escaped = !!esc_char, is_eol,
         already_inside, found, ended, continued, continue_to_next_line,
         block_start_pos, block_end_pos, block_inside_pos,
-        b_start = '', b_inside = '', b_inside_rest = '', b_end = '',
+        b_start = '', b_inside = '', b_inside_rest = '', b_end = '', b_block,
         char_escaped, next, ret, is_required, $id = self.$id || block,
         stack = state.stack, stream_pos, stream_pos0, stack_pos, line, pos
     ;
@@ -2354,14 +2332,13 @@ function t_block( t, stream, state, token )
         if ( !state.block )
         {
             // block is now completed
+            b_block = b_start + b_inside + b_end;
             token.block = {
-            str: b_start + b_inside + b_end,
-            match: [
-                b_start + b_inside + b_end,
-                b_inside, b_start, b_end
-            ],
-            part: [ b_start, b_inside, b_end ],
+            str: b_block,
+            match: [ b_block, b_inside, b_start, b_end ],
+            part: [ b_block, b_start, b_inside, b_end ],
             pos: [
+                [block_start_pos[0], block_start_pos[1], block_end_pos[0], block_end_pos[1]],
                 [block_start_pos[0], block_start_pos[1], block_inside_pos[0][0], block_inside_pos[0][1]],
                 [block_inside_pos[0][0], block_inside_pos[0][1], block_inside_pos[1][0], block_inside_pos[1][1]],
                 [block_inside_pos[1][0], block_inside_pos[1][1], block_end_pos[0], block_end_pos[1]]
@@ -2388,6 +2365,7 @@ function t_composite( t, stream, state, token )
     stream_pos = stream.pos; stack_pos = stack.length;
 
     tokens_required = 0; tokens_err = 0;
+    $id = self.$id || get_id( );
 
     if ( T_ALTERNATION === type )
     {
@@ -2396,7 +2374,7 @@ function t_composite( t, stream, state, token )
         
         for (i=0; i<n; i++)
         {
-            tokenizer = t_clone( tokens[ i ], 1, modifier );
+            tokenizer = t_clone( tokens[ i ], 1, modifier, $id );
             style = tokenize( tokenizer, stream, state, token );
             
             if ( tokenizer.status & REQUIRED )
@@ -2429,8 +2407,7 @@ function t_composite( t, stream, state, token )
         match_all = !!(type & T_SEQUENCE);
         if ( match_all ) self.status |= REQUIRED;
         else self.status &= CLEAR_REQUIRED;
-        $id = /*self.$id ||*/ name+'_'+get_id();
-        tokenizer = t_clone( tokens[ 0 ], match_all, modifier );
+        tokenizer = t_clone( tokens[ 0 ], match_all, modifier, $id );
         style = tokenize( tokenizer, stream, state, token );
         
         if ( false !== style )
@@ -2439,10 +2416,7 @@ function t_composite( t, stream, state, token )
             if ( true !== style || T_EMPTY !== tokenizer.type )
             {
                 for (i=n-1; i>0; i--)
-                {
-                    tt = t_clone( tokens[ i ], 1, modifier );
-                    push_at( stack, stack_pos+n-i-1, tt, '$id', $id );
-                }
+                    push_at( stack, stack_pos+n-i-1, t_clone( tokens[ i ], 1, modifier ), '$id', $id );
             }
                 
             return style;
@@ -2466,12 +2440,11 @@ function t_composite( t, stream, state, token )
     {
         found = self.found; min = self.min; max = self.max;
         self.status &= CLEAR_REQUIRED;
-        $id = /*self.$id ||*/ name+'_'+get_id();
         err = [];
         
         for (i=0; i<n; i++)
         {
-            tokenizer = t_clone( tokens[ i ], 1, modifier );
+            tokenizer = t_clone( tokens[ i ], 1, modifier, $id );
             style = tokenize( tokenizer, stream, state, token );
             
             if ( false !== style )
@@ -2791,8 +2764,8 @@ var Parser = Class({
         }
         
         
-        // unknown, bypass, next default token/char
-        if ( notfound )  stream.nxt( 1/*true*/ );
+        // unknown, bypass, next default char/token
+        if ( notfound )  stream.nxt( 1/*true*/ ) /*|| stream.spc( )*/;
         
         T[$value$] = stream.cur( 1 );
         if ( false !== type )
