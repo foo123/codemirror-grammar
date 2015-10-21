@@ -123,7 +123,7 @@ var xml_grammar = {
             "msg": "Tags \"$0\" and \"$1\" do not match"
         },
         "nomatch:action": {"pop":null},
-        "out_of_place:error": "\"$2>\" can only be at the beginning of XML document"
+        "out_of_place:error": "\"$2$3\" can only be at the beginning of XML document"
     },
     
     // Syntax model (optional)
@@ -131,7 +131,7 @@ var xml_grammar = {
         "tag_att": "'id'.att unique_att '=' string unique | att unique_att '=' (string | number)",
         "start_tag": "open_tag match ctx tag_att* (close_open_tag | auto_close_open_tag nomatch) \\ctx",
         "end_tag": "close_tag \\match",
-        "xml": "(^^ $* declaration? doctype?)? (declaration.error out_of_place | doctype.error out_of_place | comment | meta | cdata | start_tag | end_tag | atom | text)*"
+        "xml": "(^^1 declaration? doctype?) (declaration.error out_of_place | doctype.error out_of_place | comment | meta | cdata | start_tag | end_tag | atom | text)*"
     },
     
     // what to parse and in what order
@@ -160,14 +160,11 @@ Result:
 
 
 
-
 ###Other Examples:
 
 
-![js-grammar](/test/grammar-js.png)
-
-
 ![js-recursive-grammar](/test/grammar-js-recursion.png)
+![js-recursive-grammar](/test/grammar-js-recursion-2.png)
 
 
 ![css-grammar](/test/grammar-css.png)

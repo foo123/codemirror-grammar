@@ -33,6 +33,13 @@ else if ( !(name in root) )
 /* main code starts here */
 
 "use strict";
+/**
+*   EditorGrammar Codebase
+*   @version: 2.5.0
+*
+*   https://github.com/foo123/editor-grammar
+**/
+
 
 //
 // types
@@ -57,16 +64,17 @@ P_BLOCK = 8,
 
 // token types
 T_ACTION = 4,
-T_SOF = 8, T_EOL = 16/*=T_NULL*/, T_SOL = 32, T_EOF = 64,
+T_SOF = 8, T_FNBL = 9, T_EOL = 16/*=T_NULL*/, T_SOL = 32, T_EOF = 64,
 T_EMPTY = 128, T_NONSPACE = 256,
 T_SIMPLE = 512,
 T_BLOCK = 1024, T_COMMENT = 1025,
 T_ALTERNATION = 2048,
 T_SEQUENCE = 4096,
 T_REPEATED = 8192, T_ZEROORONE = 8193, T_ZEROORMORE = 8194, T_ONEORMORE = 8195,
-T_NGRAM = 16384,
+T_LOOKAHEAD = 16384, T_POSITIVE_LOOKAHEAD = T_LOOKAHEAD, T_NEGATIVE_LOOKAHEAD = 16385, 
+T_NGRAM = 32768,
 T_SEQUENCE_OR_NGRAM = T_SEQUENCE|T_NGRAM,
-T_COMPOSITE = T_ALTERNATION|T_SEQUENCE|T_REPEATED|T_NGRAM,
+T_COMPOSITE = T_ALTERNATION|T_SEQUENCE|T_REPEATED|T_LOOKAHEAD|T_NGRAM,
 
 // tokenizer types
 tokenTypes = {
@@ -76,10 +84,11 @@ block: T_BLOCK, comment: T_COMMENT,
 alternation: T_ALTERNATION,
 sequence: T_SEQUENCE,
 repeat: T_REPEATED, zeroorone: T_ZEROORONE, zeroormore: T_ZEROORMORE, oneormore: T_ONEORMORE,
+positivelookahead: T_POSITIVE_LOOKAHEAD, negativelookahead: T_NEGATIVE_LOOKAHEAD,
 ngram: T_NGRAM
 },
 
-$T_SOF$ = '$|SOF|$', $T_SOL$ = '$|SOL|$', $T_EOL$ = '$|EOL|$', $T_NULL$ = '$|ENDLINE|$',
+$T_SOF$ = '$|SOF|$', $T_FNBL$ = '$|NONBLANK|$', $T_SOL$ = '$|SOL|$', $T_EOL$ = '$|EOL|$', $T_NULL$ = '$|ENDLINE|$',
 $T_EMPTY$ = '$|EMPTY|$', $T_NONSPACE$ = '$|NONSPACE|$'
 //$T_SPACE$ = '$|SPACE|$'
 ;
@@ -376,30 +385,17 @@ function has_prefix( s, p )
     );
 }
 
-/*function peek( stack, index )
+function push_at( stack, pos, token )
 {
-    index = 2 > arguments.length ? -1 : index;
-    if ( stack.length )
-    {
-        if ( (0 > index) && (0 <= stack.length+index) )
-            return stack[ stack.length + index ];
-        else if ( 0 <= index && index < stack.length )
-            return stack[ index ];
-    }
-}*/
-
-function push_at( stack, pos, token, $id, id )
-{
-    if ( $id && id ) token[$id] = id;
     if ( pos < stack.length ) stack.splice( pos, 0, token );
     else stack.push( token );
     return stack;
 }
 
-function empty( stack, $id, id )
+function empty( stack, $id )
 {
-    if ( $id && id )
-        while ( stack.length && stack[stack.length-1] && stack[stack.length-1][$id] === id ) stack.pop();
+    if ( $id )
+        while ( stack.length && stack[stack.length-1] && stack[stack.length-1].$id === $id ) stack.pop();
     else
         stack.length = 0;
     return stack;
@@ -477,7 +473,8 @@ function Class( O, C )
 
 //
 // tokenizer helpers
-var escaped_re = /([.*+?^${}()|[\]\/\\\-])/g, peg_bnf_special_re = /^([.\[\]{}()*+?\/|'"]|\s)/;
+var escaped_re = /([.*+?^${}()|[\]\/\\\-])/g,
+    peg_bnf_special_re = /^([.!&\[\]{}()*+?\/|'"]|\s)/;
 
 function esc_re( s )
 {
@@ -1069,6 +1066,18 @@ function preprocess_grammar( grammar )
                 tok.tokens = tok['oneOrMore'];
                 del(tok,'oneOrMore');
             }
+            else if ( tok['positiveLookahead'] || tok['lookahead'] )
+            {
+                tok.type = "positiveLookahead";
+                tok.tokens = tok['positiveLookahead'] || tok['lookahead'];
+                if ( tok['lookahead'] ) del(tok,'lookahead'); else del(tok,'positiveLookahead');
+            }
+            else if ( tok['negativeLookahead'] )
+            {
+                tok.type = "negativeLookahead";
+                tok.tokens = tok['negativeLookahead'];
+                del(tok,'negativeLookahead');
+            }
         }
         else if ( tok.type )
         {
@@ -1125,6 +1134,10 @@ function preprocess_grammar( grammar )
             {
                 tok.type = "sequence";
             }
+            else if ( 'lookahead' === tl )
+            {
+                tok.type = "positiveLookahead";
+            }
         }
     }
     return grammar;
@@ -1144,7 +1157,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
 {
     var alternation, sequence, token, literal, repeat, entry, prev_entry,
         t, c, fl, prev_token, curr_token, stack, tmp,
-        modifier = false, lookahead = false, modifier_preset;
+        modifier = false, modifier_preset;
     
     modifier_preset = !!tok.modifier ? tok.modifier : null;
     t = new String( trim(tok) ); t.pos = 0;
@@ -1201,6 +1214,12 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                         if ( !Lex[$T_SOF$] ) Lex[$T_SOF$] = { type:"simple", tokens:T_SOF };
                         sequence.push( $T_SOF$ );
                     }
+                    else if ( '^^1' === token )
+                    {
+                        // interpret as FNBL tokenizer
+                        if ( !Lex[$T_FNBL$] ) Lex[$T_FNBL$] = { type:"simple", tokens:T_FNBL };
+                        sequence.push( $T_FNBL$ );
+                    }
                     else if ( '^' === token )
                     {
                         // interpret as SOL tokenizer
@@ -1223,7 +1242,10 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
             
                 if ( '.' === c )
                 {
-                    modifier = true;
+                    // a dot by itself, not specifying a modifier
+                    if ( sequence.length && t.pos < t.length && 
+                        !peg_bnf_special_re.test(t[CHAR](t.pos)) ) modifier = true;
+                    else token += c;
                 }
                 
                 else if ( '"' === c || "'" === c )
@@ -1242,67 +1264,6 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                         if ( !Lex[$T_NONSPACE$] ) Lex[$T_NONSPACE$] = { type:"simple", tokens:'' };
                         sequence.push( $T_NONSPACE$ );
                     }
-                }
-                
-                else if ( '/' === c )
-                {
-                    // literal regex token
-                    literal = get_delimited( t, c, '\\', true ); fl = '';
-                    if ( literal.length )
-                    {
-                        if ( t.pos < t.length && 'i' === t[CHAR](t.pos) ) { t.pos++; fl = 'i'; }
-                        curr_token = '/' + literal + '/' + fl;
-                        if ( !Lex[curr_token] ) Lex[curr_token] = { type:'simple', tokens:new_re("^("+literal+")",fl) };
-                        sequence.push( curr_token );
-                    }
-                }
-                
-                else if ( '*' === c || '+' === c || '?' === c )
-                {
-                    // repeat modifier, applies to token that comes before
-                    prev_token = sequence[sequence.length-1];
-                    curr_token = '' + prev_token + c;
-                    if ( !Syntax[ curr_token ] )
-                        Syntax[ curr_token ] = {
-                            type:'*' === c ? 'zeroOrMore' : ('+' === c ? 'oneOrMore' : 'zeroOrOne'),
-                            tokens:[prev_token]
-                        }
-                    sequence[sequence.length-1] = curr_token;
-                }
-                
-                else if ( '{' === c )
-                {
-                    // literal repeat modifier, applies to token that comes before
-                    repeat = get_delimited( t, '}', false );
-                    repeat = map( repeat.split( ',' ), trim );
-                    
-                    if ( !repeat[0].length ) repeat[0] = 0; // {,m} match 0 times or more
-                    else repeat[0] = parseInt(repeat[0], 10) || 0;// {n,m} match n times up to m times
-                    if ( 0 > repeat[0] ) repeat[0] = 0;
-                    
-                    if ( 2 > repeat.length ) repeat.push( repeat[0] ); // {n} match exactly n times
-                    else if ( !repeat[1].length ) repeat[1] = INF; // {n,} match n times or more (INF)
-                    else repeat[1] = parseInt(repeat[1], 10) || INF; // {n,m} match n times up to m times
-                    if ( 0 > repeat[1] ) repeat[1] = 0;
-                    
-                    prev_token = sequence[sequence.length-1];
-                    curr_token = '' + prev_token + [
-                        '{',
-                        repeat[0],
-                        ',',
-                        isFinite(repeat[1]) ? repeat[1] : '',
-                        '}'
-                    ].join('');
-                    if ( !Syntax[ curr_token ] )
-                        Syntax[ curr_token ] = { type:'repeat', repeat:[repeat[0], repeat[1]], tokens:[prev_token] }
-                    sequence[sequence.length-1] = curr_token;
-                }
-                
-                else if ( '}' === c )
-                {
-                    // literal repeat end modifier, should be handled in previous case
-                    // added here just for completeness
-                    continue;
                 }
                 
                 else if ( '[' === c )
@@ -1326,6 +1287,94 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     continue;
                 }
                 
+                else if ( '/' === c )
+                {
+                    // literal regex token
+                    literal = get_delimited( t, c, '\\', true ); fl = '';
+                    if ( literal.length )
+                    {
+                        if ( t.pos < t.length && 'i' === t[CHAR](t.pos) ) { t.pos++; fl = 'i'; }
+                        curr_token = '/' + literal + '/' + fl;
+                        if ( !Lex[curr_token] ) Lex[curr_token] = { type:'simple', tokens:new_re("^("+literal+")",fl) };
+                        sequence.push( curr_token );
+                    }
+                }
+                
+                else if ( '*' === c || '+' === c || '?' === c )
+                {
+                    // repeat modifier, applies to token that comes before
+                    if ( sequence.length )
+                    {
+                        prev_token = sequence[sequence.length-1];
+                        curr_token = '' + prev_token + c;
+                        if ( !Syntax[ curr_token ] )
+                            Syntax[ curr_token ] = {
+                                type:'*' === c ? 'zeroOrMore' : ('+' === c ? 'oneOrMore' : 'zeroOrOne'),
+                                tokens:[prev_token]
+                            }
+                        sequence[sequence.length-1] = curr_token;
+                    }
+                    else token += c;
+                }
+                
+                else if ( '{' === c )
+                {
+                    // literal repeat modifier, applies to token that comes before
+                    if ( sequence.length )
+                    {
+                        repeat = get_delimited( t, '}', false );
+                        repeat = map( repeat.split( ',' ), trim );
+                        
+                        if ( !repeat[0].length ) repeat[0] = 0; // {,m} match 0 times or more
+                        else repeat[0] = parseInt(repeat[0], 10) || 0;// {n,m} match n times up to m times
+                        if ( 0 > repeat[0] ) repeat[0] = 0;
+                        
+                        if ( 2 > repeat.length ) repeat.push( repeat[0] ); // {n} match exactly n times
+                        else if ( !repeat[1].length ) repeat[1] = INF; // {n,} match n times or more (INF)
+                        else repeat[1] = parseInt(repeat[1], 10) || INF; // {n,m} match n times up to m times
+                        if ( 0 > repeat[1] ) repeat[1] = 0;
+                        
+                        prev_token = sequence[sequence.length-1];
+                        curr_token = '' + prev_token + [
+                            '{',
+                            repeat[0],
+                            ',',
+                            isFinite(repeat[1]) ? repeat[1] : '',
+                            '}'
+                        ].join('');
+                        if ( !Syntax[ curr_token ] )
+                            Syntax[ curr_token ] = { type:'repeat', repeat:[repeat[0], repeat[1]], tokens:[prev_token] }
+                        sequence[sequence.length-1] = curr_token;
+                    }
+                    else token += c;
+                }
+                
+                else if ( '}' === c )
+                {
+                    // literal repeat end modifier, should be handled in previous case
+                    // added here just for completeness
+                    //continue;
+                    token += c;
+                }
+                
+                else if ( '&' === c || '!' === c )
+                {
+                    // TODO
+                    // lookahead modifier, applies to token that comes before
+                    /*if ( sequence.length )
+                    {
+                        prev_token = sequence[sequence.length-1];
+                        curr_token = '' + prev_token + c;
+                        if ( !Syntax[ curr_token ] )
+                            Syntax[ curr_token ] = {
+                                type:'&' === c ? 'positiveLookahead' : 'negativeLookahead',
+                                tokens:[prev_token]
+                            }
+                        sequence[sequence.length-1] = curr_token;
+                    }
+                    else*/ token += c;
+                }
+                
                 else if ( '|' === c )
                 {
                     modifier = false;
@@ -1342,7 +1391,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     }
                     else
                     {
-                        // ??
+                        token += c;
                     }
                     sequence = [];
                 }
@@ -1436,6 +1485,12 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 if ( !Lex[$T_SOF$] ) Lex[$T_SOF$] = { type:"simple", tokens:T_SOF };
                 sequence.push( $T_SOF$ );
             }
+            else if ( '^^1' === token )
+            {
+                // interpret as FNBL tokenizer
+                if ( !Lex[$T_FNBL$] ) Lex[$T_FNBL$] = { type:"simple", tokens:T_FNBL };
+                sequence.push( $T_FNBL$ );
+            }
             else if ( '^' === token )
             {
                 // interpret as SOL tokenizer
@@ -1498,10 +1553,15 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
 {
     var $token$ = null, $msg$ = null, $modifier$ = null, $type$, $tokens$, t, tt, token, combine;
     
-    if ( T_SOF === tokenID || T_SOL === tokenID || T_EOL === tokenID )
+    if ( T_SOF === tokenID || T_FNBL === tokenID || T_SOL === tokenID || T_EOL === tokenID )
     {
-        // SOF/SOL/EOL Token
-        return new tokenizer( tokenID, (T_SOF===tokenID?$T_SOF$:(T_SOL===tokenID?$T_SOL$:$T_EOL$)), tokenID, $msg$ );
+        // SOF/FNBL/SOL/EOL Token
+        return new tokenizer( tokenID, T_SOF === tokenID
+                                            ? $T_SOF$
+                                            : (T_FNBL === tokenID
+                                                ? $T_FBNL$
+                                                : (T_SOL === tokenID ? $T_SOL$ : $T_EOL$)
+                                            ), tokenID, $msg$ );
     }
     
     else if ( false === tokenID || 0/*T_EMPTY*/ === tokenID )
@@ -1547,18 +1607,11 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     
     if ( T_SIMPLE & $type$ )
     {
-        if ( T_SOF === $tokens$ || T_SOL === $tokens$ || T_EOL === $tokens$ )
+        if ( T_SOF === $tokens$ || T_FNBL === $tokens$ || T_SOL === $tokens$ || T_EOL === $tokens$ || 
+            false === $tokens$ || 0/*T_EMPTY*/ === $tokens$ )
         {
-            // SOF/SOL/EOL Token
-            $token$ = new tokenizer( $tokens$, tokenID, $tokens$, $msg$ );
-            // pre-cache tokenizer to handle recursive calls to same tokenizer
-            cachedTokens[ tokenID ] = $token$; return $token$;
-        }
-        
-        else if ( false === $tokens$ || 0/*T_EMPTY*/ === $tokens$ )
-        {
-            // EMPTY Token
-            $token$ = new tokenizer( T_EMPTY, tokenID, 0, $msg$ );
+            // SOF/FNBL/SOL/EOL/EMPTY Token
+            $token$ = new tokenizer( $tokens$ || T_EMPTY , tokenID, $tokens$ || 0, $msg$ );
             // pre-cache tokenizer to handle recursive calls to same tokenizer
             cachedTokens[ tokenID ] = $token$; return $token$;
         }
@@ -1679,7 +1732,12 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
             
             else
             {
-                if ( (T_REPEATED & $type$) && (T_ARRAY & get_type( token.repeat )) )
+                if ( T_POSITIVE_LOOKAHEAD === $type$ || T_NEGATIVE_LOOKAHEAD === $type$ )
+                {
+                    // TODO
+                    $token$ = new tokenizer( $type$, tokenID, null, $msg$, $modifier$ );
+                }
+                else if ( (T_REPEATED & $type$) && (T_ARRAY & get_type( token.repeat )) )
                 {
                     $token$ = new tokenizer( T_REPEATED, tokenID, null, $msg$, $modifier$ );
                     $token$.min = token.repeat[0]; $token$.max = token.repeat[1];
@@ -2138,7 +2196,9 @@ function t_simple( t, stream, state, token )
     self.$msg = self.msg || null;
     
     // match SOF (start-of-file, first line of source)
-    if ( T_SOF === type ) { ret = 0 === line; }
+    if ( T_SOF === type ) { ret = 0 === state.line; }
+    // match FNBL (first non-blank line of source)
+    else if ( T_FNBL === type ) { ret = state.bline+1 === state.line; }
     // match SOL (start-of-line)
     else if ( T_SOL === type ) { ret = stream.sol(); }
     // match EOL (end-of-line) ( with possible leading spaces )
@@ -2257,11 +2317,12 @@ function t_block( t, stream, state, token )
                 token.T = type; token.id = block; token.type = modifier || ret;
                 token.str = stream.sel(pos, stream_pos); token.match = null;
                 token.pos = [line, pos, line, stream_pos];
-                push_at( stack, stack_pos, t_clone( self, is_required ), '$id', $id );
+                push_at( stack, stack_pos, t_clone( self, is_required, 0, $id ) );
                 return modifier || ret;
             }
         }
         
+        stream_pos = stream.pos;
         ended = t_match( block_end, stream );
         continue_to_next_line = is_multiline;
         continued = 0;
@@ -2294,7 +2355,7 @@ function t_block( t, stream, state, token )
                         ret = block;
                         ended = 1;
                     }
-                    b_end = stream.cur().slice(b_inside_rest.length);
+                    b_end = stream.sel(stream_pos, stream.pos);
                     break;
                 }
                 else
@@ -2303,12 +2364,13 @@ function t_block( t, stream, state, token )
                     b_inside_rest += next;
                 }
                 char_escaped = is_escaped && !char_escaped && esc_char === next;
+                stream_pos = stream.pos;
             }
         }
         else
         {
             ret = is_eol ? block_interior : block;
-            b_end = stream.cur().slice(b_inside_rest.length);
+            b_end = stream.sel(stream_pos, stream.pos);
         }
         continue_to_next_line = is_multiline || (is_escaped && char_escaped);
         
@@ -2323,7 +2385,7 @@ function t_block( t, stream, state, token )
         {
             state.block.ip = block_inside_pos;  state.block.ep = block_end_pos;
             state.block.i = b_inside; state.block.e = b_end;
-            push_at( stack, stack_pos, t_clone( self, is_required ), '$id', $id );
+            push_at( stack, stack_pos, t_clone( self, is_required, 0, $id ) );
         }
         token.T = type; token.id = block; token.type = modifier || ret;
         token.str = stream.sel(pos, stream.pos); token.match = null;
@@ -2391,6 +2453,7 @@ function t_composite( t, stream, state, token )
             {
                 tokens_err++;
                 stream.bck( stream_pos );
+                stack.length = stack_pos;
             }
         }
         
@@ -2416,7 +2479,7 @@ function t_composite( t, stream, state, token )
             if ( true !== style || T_EMPTY !== tokenizer.type )
             {
                 for (i=n-1; i>0; i--)
-                    push_at( stack, stack_pos+n-i-1, t_clone( tokens[ i ], 1, modifier ), '$id', $id );
+                    push_at( stack, stack_pos+n-i-1, t_clone( tokens[ i ], 1, modifier, $id ) );
             }
                 
             return style;
@@ -2426,6 +2489,7 @@ function t_composite( t, stream, state, token )
             if ( match_all ) self.status |= ERROR;
             else self.status &= CLEAR_ERROR;
             stream.bck( stream_pos );
+            stack.length = stack_pos;
         }
         else if ( match_all && (tokenizer.status & REQUIRED) )
         {
@@ -2434,6 +2498,18 @@ function t_composite( t, stream, state, token )
         
         if ( self.status && !self.$msg ) self.$msg = t_err( tokenizer );
         return false;
+    }
+
+    else if ( T_POSITIVE_LOOKAHEAD === type )
+    {
+        // TODO
+        self.status = 0; return false;
+    }
+
+    else if ( T_NEGATIVE_LOOKAHEAD === type )
+    {
+        // TODO
+        self.status = 0; return false;
     }
 
     else //if ( T_REPEATED & type )
@@ -2454,7 +2530,7 @@ function t_composite( t, stream, state, token )
                 {
                     // push it to the stack for more
                     self.found = found;
-                    push_at( stack, stack_pos, t_clone( self ), '$id', $id );
+                    push_at( stack, stack_pos, t_clone( self, 0, 0, $id ) );
                     self.found = 0;
                     return style;
                 }
@@ -2465,7 +2541,7 @@ function t_composite( t, stream, state, token )
                 tokens_required++;
                 err.push( t_err( tokenizer ) );
             }
-            if ( tokenizer.status & ERROR ) stream.bck( stream_pos );
+            if ( tokenizer.status & ERROR ) { stream.bck( stream_pos ); stack.length = stack_pos; }
         }
         
         if ( found < min ) self.status |= REQUIRED;
@@ -2491,6 +2567,7 @@ function State( unique, s )
     {
         // clone
         self.line = s.line;
+        self.bline = s.bline;
         self.status = s.status;
         self.stack = s.stack.slice();
         self.block = s.block;
@@ -2512,11 +2589,12 @@ function State( unique, s )
             self.ctx = null;
             self.err = null;
         }
-        self.$eol$ = s.$eol$;
+        self.$eol$ = s.$eol$; self.$blank$ = s.$blank$;
     }
     else
     {
         self.line = -1;
+        self.bline = -1;
         self.status = s || 0;
         self.stack = [];
         self.block = null;
@@ -2538,11 +2616,11 @@ function State( unique, s )
             self.ctx = null;
             self.err = null;
         }
-        self.$eol$ = true;
+        self.$eol$ = true; self.$blank$ = true;
     }
     // make sure to generate a string which will cover most cases where state needs to be updated by the editor
     self.toString = function() {
-        return self.id+'_'+self.line+'_'+(self.block?self.block.name:'0');
+        return self.id+'_'+self.line+'_'+self.bline+'_'+(self.block?self.block.name:'0');
     };
 }
 
@@ -2550,6 +2628,7 @@ function state_dispose( state )
 {
     state.id = null;
     state.line = null;
+    state.bline = null;
     state.status = null;
     state.stack = null;
     state.block = null;
@@ -2671,27 +2750,35 @@ var Parser = Class({
             T = { }, $name$ = self.$n$, $type$ = self.$t$, $value$ = self.$v$, //$pos$ = 'pos',
             interleaved_tokens = grammar.$interleaved, tokens = grammar.$parser, 
             nTokens = tokens.length, niTokens = interleaved_tokens ? interleaved_tokens.length : 0,
-            tokenizer, action, token, type, err, stack, line, pos, i, ii, notfound
+            tokenizer, action, token, type, err, stack, line, pos, i, ii, notfound, just_space
         ;
         
         // state marks a new line
-        if ( state.$eol$ && stream.sol() ) { state.$eol$ = false; state.line++; }
+        if ( stream.sol() )
+        {
+            if ( state.$eol$ ) { state.$eol$ = false; state.line++; }
+            state.$blank$ = state.bline+1 === state.line;
+        }
         state.$actionerr$ = false;
         stack = state.stack; line = state.line; pos = stream.pos;
-        notfound = true; err = false; type = false;
+        notfound = true; err = false; type = false; just_space = false;
         
         // if EOL tokenizer is left on stack, pop it now
         if ( stack.length && T_EOL === stack[stack.length-1].type && stream.sol() ) stack.pop();
         
         // check for non-space tokenizer before parsing space
-        if ( (!stack.length || (T_NONSPACE !== stack[stack.length-1].type)) && stream.spc() ) notfound = false;
+        if ( (!stack.length || (T_NONSPACE !== stack[stack.length-1].type)) && stream.spc() )
+        {
+            notfound = false;
+            just_space = true;
+        }
         
         T[$name$] = null; T[$type$] = DEFAULT; T[$value$] = null;
         if ( notfound )
         {
             token = {
                 T:0, id:null, type:null,
-                match:null, str:'', pos:null
+                match:null, str:'', pos:null, block: null
             };
             
             i = 0;
@@ -2718,9 +2805,9 @@ var Parser = Class({
                     if ( tokenizer.status & REQUIRED_OR_ERROR )
                     {
                         // empty the stack of the syntax rule group of this tokenizer
-                        empty( stack, '$id', tokenizer.$id );
+                        empty( stack, tokenizer.$id );
                         // skip this
-                        stream.nxt( true ) || stream.spc( );
+                        if ( !stream.nxt( true ) ) { stream.spc( ); just_space = true; }
                         // generate error
                         err = true; notfound = false; break;
                     }
@@ -2764,7 +2851,7 @@ var Parser = Class({
         }
         
         
-        // unknown, bypass, next default char/token
+        // unknown, bypass, next char/token
         if ( notfound )  stream.nxt( 1/*true*/ ) /*|| stream.spc( )*/;
         
         T[$value$] = stream.cur( 1 );
@@ -2785,6 +2872,9 @@ var Parser = Class({
         }
         T[$type$] = type;
         state.$eol$ = stream.eol();
+        state.$blank$ = state.$blank$ && (just_space || state.$eol$);
+        // update num of blank lines at start of file
+        if ( state.$eol$ && state.$blank$ ) state.bline = state.line;
         
         return T;
     }
@@ -2792,7 +2882,7 @@ var Parser = Class({
     ,tokenize: function( stream, state, row ) {
         var self = this, tokens = [];
         //state.line = row || 0;
-        if ( stream.eol() ) { state.line++; /*state.$eol$ = true;*/ }
+        if ( stream.eol() ) { state.line++; if ( state.$blank$ ) state.bline++; }
         else while ( !stream.eol() ) tokens.push( self.token( stream, state ) );
         return tokens;
     }
@@ -2823,7 +2913,7 @@ var Parser = Class({
             iterate(function( i ) {
                 var stream = Stream( lines[i] );
                 //state.line = i;
-                if ( stream.eol() ) { state.line++; state.$eol$ = true; }
+                if ( stream.eol() ) { state.line++; if ( state.$blank$ ) state.bline++; }
                 else while ( !stream.eol() ) self.token( stream, state );
             }, 0, l-1);
         
