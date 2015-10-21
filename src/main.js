@@ -64,17 +64,17 @@ function get_mode( grammar, DEFAULT )
             */
             
             startState: function( ) { 
-                return cm_mode.$parser.state( );
+                return new State( );
             }
             
             ,copyState: function( state ) { 
-                return cm_mode.$parser.state( 0, state );
+                return new State( 0, state );
             }
             
             ,token: function( stream, state ) { 
-                var pstream = Stream._( stream ), 
+                var pstream = Stream( stream.string, stream.start, stream.pos ), 
                     token = cm_mode.$parser.token( pstream, state ).type;
-                stream.pos = pstream.pos; pstream.dispose();
+                stream.pos = pstream.pos;
                 return token;
             }
             

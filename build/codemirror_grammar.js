@@ -495,282 +495,6 @@ function Class( O, C )
     
 
 //
-// Stream Class
-// a wrapper-class to manipulate a string as a stream, based on Codemirror's StringStream
-var Stream = Class({
-    constructor: function Stream( line ) {
-        var self = this;
-        self._ = null;
-        self.s = line ? ''+line : '';
-        self.start = self.pos = 0;
-        self.lCP = self.lCV = 0;
-        self.lS = 0;
-    }
-
-    // abbreviations used for optimal minification
-    ,_: null
-    ,s: ''
-    ,start: 0
-    ,pos: 0
-    // last column pos
-    ,lCP: 0
-    // last column value
-    ,lCV: 0
-    // line start
-    ,lS: 0
-    
-    ,dispose: function( ) {
-        var self = this;
-        self._ = null;
-        self.s = null;
-        self.start = null;
-        self.pos = null;
-        self.lCP = null;
-        self.lCV = null;
-        self.lS = null;
-        return self;
-    }
-    
-    ,new_: function( line ) {
-        var self = this;
-        self.s = '' + line;
-        self.start = self.pos = 0;
-        self.lCP = self.lCV = 0;
-        self.lS = 0;
-        return self;
-    }
-    
-    // string start-of-line?
-    ,sol: function( ) { 
-        return 0 === this.pos; 
-    }
-    
-    // string end-of-line?
-    ,eol: function( ) { 
-        return this.pos >= this.s.length; 
-    }
-    
-    // skip to end
-    ,end: function( ) {
-        var self = this;
-        self.pos = self.s.length;
-        return self;
-    }
-
-    // move pointer forward/backward n steps
-    ,mov: function( n ) {
-        var self = this;
-        self.pos = 0 > n ? MAX(0, self.pos+n) : MIN(self.s.length, self.pos+n);
-        return self;
-    }
-    
-    // move pointer back to pos
-    ,bck: function( pos ) {
-        var self = this;
-        self.pos = MAX(0, pos);
-        return self;
-    }
-    
-    // move/shift stream
-    ,sft: function( ) {
-        var self = this;
-        self.start = self.pos;
-        return self;
-    }
-    
-    // next char(s) or whole token
-    ,nxt: function( num, re_token ) {
-        var self = this, c, s = self.s, token = '', n;
-        if ( true === num )
-        {
-            re_token = re_token || Stream.$RE_NONSPC$;
-            while ( self.pos<s.length && re_token.test(c=s.charAt(self.pos++)) ) token += c;
-        }
-        else
-        {
-            num = num||1; n = 0;
-            while ( n++ < num && self.pos<s.length ) token += s.charAt(self.pos++);
-        }
-        return token.length ? token : null;
-    }
-    
-    // current stream selection
-    ,cur: function( shift ) {
-        var self = this, ret = self.s.slice(self.start, self.pos);
-        if ( shift ) self.start = self.pos;
-        return ret;
-    }
-    
-    // stream selection
-    ,sel: function( p0, p1 ) {
-        return this.s.slice(p0, p1);
-    }
-    
-    // eat "space"
-    ,spc: function( eat, re_space ) {
-        var self = this, m, start = self.pos, s = self.s.slice(start);
-        if ( m = s.match( re_space||Stream.$RE_SPC$ ) ) 
-        {
-            if ( false !== eat ) self.mov( m[0].length );
-            return m[0];
-        }
-        return null;
-    }
-    
-    // get current column including tabs
-    ,col: function( tabSize ) {
-        var self = this;
-        tabSize = tabSize || 1;
-        if (self.lCP < self.start) 
-        {
-            self.lCV = Stream.col(self.s, self.start, tabSize, self.lCP, self.lCV);
-            self.lCP = self.start;
-            if ( self._ )
-            {
-                self._.start = self.start;
-                self._.lastColumnPos = self.lCP;
-                self._.lastColumnValue = self.lCV;
-                self._.lineStart = self.lS;
-            }
-        }
-        return self.lCV - (self.lS ? Stream.col(self.s, self.lS, tabSize) : 0);
-    }
-    
-    // get current indentation including tabs
-    ,ind: function( tabSize ) {
-        var self = this;
-        tabSize = tabSize || 1;
-        return Stream.col(self.s, null, tabSize) - (self.lS ? Stream.col(self.s, self.lS, tabSize) : 0);
-    }
-});
-
-Stream.$RE_SPC$ = /^[\s\u00a0]+/;
-Stream.$RE_NONSPC$ = /[^\s\u00a0]/;
-
-// Counts the column offset in a string, taking tabs into account.
-// Used mostly to find indentation.
-// adapted from CodeMirror
-Stream.col = function( string, end, tabSize, startIndex, startValue ) {
-    var i, n;
-    if ( null === end ) 
-    {
-        end = string.search( Stream.$RE_NONSPC$ );
-        if ( -1 === end ) end = string.length;
-    }
-    for (i = startIndex || 0, n = startValue || 0; i < end; ++i) 
-        n += ( "\t" === string.charAt(i) ) ? (tabSize - (n % tabSize)) : 1;
-    return n;
-};
-    
-// new Stream from another stream
-Stream._ = function( _ ) {
-    var stream = new Stream( );
-    stream._ = _;
-    stream.s = ''+_.string;
-    stream.start = _.start;
-    stream.pos = _.pos;
-    stream.lCP = _.lastColumnPos;
-    stream.lCV = _.lastColumnValue;
-    stream.lS = _.lineStart;
-    return stream;
-};
-
-//
-// State Class
-var State = Class({
-    constructor: function State( unique, s ) {
-        var self = this;
-        // this enables unique state "names"
-        // thus forces highlight to update
-        // however updates also occur when no update necessary ??
-        self.id = unique ? uuid("state") : "state";
-        if ( s instanceof State )
-        {
-            // clone
-            self.line = s.line;
-            self.status = s.status;
-            self.stack = s.stack.slice();
-            self.block = s.block;
-            // keep extra state only if error handling is enabled
-            if ( self.status & ERRORS )
-            {
-                self.queu = s.queu;
-                self.symb = s.symb;
-                self.scop = s.scop;
-                self.ctx = s.ctx;
-                self.err = s.err;
-            }
-            // else dont use-up more space and clutter
-            else
-            {
-                self.queu = null;
-                self.symb = null;
-                self.scop = null;
-                self.ctx = null;
-                self.err = null;
-            }
-        }
-        else
-        {
-            self.line = -1;
-            self.status = s || 0;
-            self.stack = [];
-            self.block = null;
-            // keep extra state only if error handling is enabled
-            if ( self.status & ERRORS )
-            {
-                self.queu = [];
-                self.symb = {};
-                self.scop = {};
-                self.ctx = [];
-                self.err = {};
-            }
-            // else dont use-up more space and clutter
-            else
-            {
-                self.queu = null;
-                self.symb = null;
-                self.scop = null;
-                self.ctx = null;
-                self.err = null;
-            }
-        }
-    }
-    
-    ,id: null
-    ,line: 0
-    ,status: 0
-    ,block: null
-    ,stack: null
-    ,queu: null
-    ,symb: null
-    ,scop: null
-    ,ctx: null
-    ,err: null
-    
-    ,dispose: function( ) {
-        var self = this;
-        self.id = null;
-        self.line = null;
-        self.status = null;
-        self.stack = null;
-        self.block = null;
-        self.queu = null;
-        self.symb = null;
-        self.scop = null;
-        self.ctx = null;
-        self.err = null;
-        return self;
-    }
-    
-    // make sure to generate a string which will cover most cases where state needs to be updated by the editor
-    ,toString: function() {
-        var self = this;
-        return self.id+'_'+self.line+'_'+(self.block?self.block.name:'0');
-    }
-});
-
-//
 // tokenizer helpers
 var escaped_re = /([.*+?^${}()|[\]\/\\\-])/g, peg_bnf_special_re = /^([.\[\]{}()*+?\/|'"]|\s)/;
 
@@ -1425,14 +1149,14 @@ function preprocess_grammar( grammar )
     return grammar;
 }
 
-function get_backreference( token, Lex, Syntax )
+function get_backreference( token, Lex, Syntax, only_key )
 {
     var entry;
     // handle trivial, back-references,
-    // i.e a token referencing another token and so on..
-    // until finding a non-trivial reference
+    // i.e a single token trivialy referencing another single token and so on..
+    // until finding a non-trivial reference or none
     while ( T_STR & get_type(entry=Lex[token]||Syntax[token]) ) token = entry;
-    return entry  || token;
+    return only_key ? token : Lex[token] || Syntax[token] || token;
 }
 
 function parse_peg_bnf_notation( tok, Lex, Syntax )
@@ -1441,7 +1165,6 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
         t, c, fl, prev_token, curr_token, stack, tmp,
         modifier = false, lookahead = false, modifier_preset;
     
-    //tok = get_backreference( tok, Lex, Syntax );
     modifier_preset = !!tok.modifier ? tok.modifier : null;
     t = new String( trim(tok) ); t.pos = 0;
     
@@ -1474,8 +1197,8 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                             entry = Lex[curr_token] || Syntax[curr_token];
                             if ( !entry )
                             {
-                                // in case it is just string, wrap it, to maintain the modifier reference
                                 prev_entry = get_backreference( prev_token, Lex, Syntax );
+                                // in case it is just string, wrap it, to maintain the modifier reference
                                 Syntax[ curr_token ] = T_STR & get_type( prev_entry )
                                                     ? new String( prev_entry )
                                                     : clone( prev_entry );
@@ -1681,7 +1404,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     
                     prev_token = curr_token;
                     curr_token = '(' + prev_token + ')';
-                    if ( !Syntax[curr_token] ) Syntax[curr_token] = clone( Lex[prev_token] || Syntax[prev_token] );
+                    if ( !Syntax[curr_token] ) Syntax[curr_token] = clone( get_backreference( prev_token, Lex, Syntax ) );
                     sequence.push( curr_token );
                 }
                 
@@ -1829,7 +1552,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     tokenID = '' + tokenID;
     if ( cachedTokens[ tokenID ] ) return cachedTokens[ tokenID ];
     
-    token = Lex[ tokenID ] || Syntax[ tokenID ] || tokenID;
+    token = get_backreference( tokenID, Lex, Syntax );
     if ( T_STR & get_type(token) )
     {
         token = parse_peg_bnf_notation( token, Lex, Syntax );
@@ -2162,7 +1885,7 @@ function t_match( t, stream, eat )
         }
         else if ( T_REGEX === type )
         {
-            m = stream.s.slice( stream.pos ).match( pattern[0] );
+            m = stream.slice( stream.pos ).match( pattern[0] );
             if ( m && 0 === m.index )
             {
                 if ( false !== eat ) stream.mov( m[ pattern[1]||0 ].length );
@@ -2171,7 +1894,7 @@ function t_match( t, stream, eat )
         }
         else if ( T_CHARLIST === type )
         {
-            m = stream.s[CHAR](stream.pos) || null;
+            m = stream[CHAR](stream.pos) || null;
             if ( m && (-1 < pattern.indexOf( m )) ) 
             {
                 if ( false !== eat ) stream.mov( 1 );
@@ -2180,7 +1903,7 @@ function t_match( t, stream, eat )
         }
         else if ( T_CHAR === type )
         {
-            m = stream.s[CHAR](stream.pos) || null;
+            m = stream[CHAR](stream.pos) || null;
             if ( pattern === m ) 
             {
                 if ( false !== eat ) stream.mov( 1 );
@@ -2190,7 +1913,7 @@ function t_match( t, stream, eat )
         else if ( T_STR === type ) // ?? some pattern is undefined !!!!!!!!!
         {
             n = pattern.length;
-            if ( pattern === stream.s.substr(stream.pos, n) ) 
+            if ( pattern === stream.substr(stream.pos, n) ) 
             {
                 if ( false !== eat ) stream.mov( n );
                 return [ key, pattern ];
@@ -2784,6 +2507,171 @@ function t_composite( t, stream, state, token )
 
 //
 // parser factory
+function State( unique, s )
+{
+    var self = this;
+    // this enables unique state "names"
+    // thus forces highlight to update
+    // however updates also occur when no update necessary ??
+    self.id = unique ? uuid("state") : "state";
+    if ( s instanceof State )
+    {
+        // clone
+        self.line = s.line;
+        self.status = s.status;
+        self.stack = s.stack.slice();
+        self.block = s.block;
+        // keep extra state only if error handling is enabled
+        if ( self.status & ERRORS )
+        {
+            self.queu = s.queu;
+            self.symb = s.symb;
+            self.scop = s.scop;
+            self.ctx = s.ctx;
+            self.err = s.err;
+        }
+        // else dont use-up more space and clutter
+        else
+        {
+            self.queu = null;
+            self.symb = null;
+            self.scop = null;
+            self.ctx = null;
+            self.err = null;
+        }
+        self.$eol$ = s.$eol$;
+    }
+    else
+    {
+        self.line = -1;
+        self.status = s || 0;
+        self.stack = [];
+        self.block = null;
+        // keep extra state only if error handling is enabled
+        if ( self.status & ERRORS )
+        {
+            self.queu = [];
+            self.symb = {};
+            self.scop = {};
+            self.ctx = [];
+            self.err = {};
+        }
+        // else dont use-up more space and clutter
+        else
+        {
+            self.queu = null;
+            self.symb = null;
+            self.scop = null;
+            self.ctx = null;
+            self.err = null;
+        }
+        self.$eol$ = true;
+    }
+    // make sure to generate a string which will cover most cases where state needs to be updated by the editor
+    self.toString = function() {
+        return self.id+'_'+self.line+'_'+(self.block?self.block.name:'0');
+    };
+}
+
+function state_dispose( state )
+{
+    state.id = null;
+    state.line = null;
+    state.status = null;
+    state.stack = null;
+    state.block = null;
+    state.queu = null;
+    state.symb = null;
+    state.scop = null;
+    state.ctx = null;
+    state.err = null;
+}
+
+// a wrapper to manipulate a string as a stream, based on Codemirror's StringStream
+function Stream( line, start, pos )
+{
+    var self = new String( line );
+    self.start = start || 0;
+    self.pos = pos || 0;
+    
+    // string start-of-line?
+    self.sol = function( ) { 
+        return 0 === self.pos; 
+    };
+    
+    // string end-of-line?
+    self.eol = function( ) { 
+        return self.pos >= self.length; 
+    };
+    
+    // skip to end
+    self.end = function( ) {
+        self.pos = self.length;
+        return self;
+    };
+
+    // move pointer forward/backward n steps
+    self.mov = function( n ) {
+        self.pos = 0 > n ? MAX(0, self.pos+n) : MIN(self.length, self.pos+n);
+        return self;
+    };
+    
+    // move pointer back to pos
+    self.bck = function( pos ) {
+        self.pos = MAX(0, pos);
+        return self;
+    };
+    
+    // move/shift stream
+    self.sft = function( ) {
+        self.start = self.pos;
+        return self;
+    };
+    
+    // next char(s) or whole token
+    self.nxt = function( num, re_token ) {
+        var c, token = '', n;
+        if ( true === num )
+        {
+            re_token = re_token || Stream.$RE_NONSPC$;
+            while ( self.pos<self.length && re_token.test(c=self[CHAR](self.pos++)) ) token += c;
+            return token.length ? token : null;
+        }
+        else
+        {
+            num = num||1; n = 0;
+            while ( n++ < num && self.pos<self.length ) token += self[CHAR](self.pos++);
+            return token;
+        }
+    };
+    
+    // current stream selection
+    self.cur = function( shift ) {
+        var ret = self.slice(self.start, self.pos);
+        if ( shift ) self.start = self.pos;
+        return ret;
+    };
+    
+    // stream selection
+    self.sel = function( p0, p1 ) {
+        return self.slice(p0, p1);
+    };
+    
+    // eat "space"
+    self.spc = function( eat, re_space ) {
+        var m;
+        if ( m = self.slice(self.pos).match( re_space||Stream.$RE_SPC$ ) ) 
+        {
+            if ( false !== eat ) self.mov( m[0].length );
+            return m[0];
+        }
+    };
+    return self;
+}
+Stream.$RE_SPC$ = /^[\s\u00a0]+/;
+Stream.$RE_NONSPC$ = /[^\s\u00a0]/;
+
+
 var Parser = Class({
     constructor: function Parser( grammar, DEFAULT, ERROR ) {
         var self = this;
@@ -2803,23 +2691,6 @@ var Parser = Class({
         self.$n$ = self.$t$ = self.$v$ = null;
         self.$DEF = self.$ERR = self.DEF = self.ERR = null;
         return self;
-    }
-    
-    ,state: function( unique, s ) { 
-        var state;
-        if ( arguments.length > 1 && s instanceof State )
-        {
-            // copy state
-            state = new State( unique, s );
-            state.$eol$ = s.$eol$;
-        }
-        else
-        {
-            // start state
-            state = new State( unique, s );
-            state.$eol$ = true;
-        }
-        return state;
     }
     
     ,token: function( stream, state ) {
@@ -2920,8 +2791,8 @@ var Parser = Class({
         }
         
         
-        // unknown, bypass, next default token
-        if ( notfound )  stream.nxt( true );
+        // unknown, bypass, next default token/char
+        if ( notfound )  stream.nxt( 1/*true*/ );
         
         T[$value$] = stream.cur( 1 );
         if ( false !== type )
@@ -2948,21 +2819,20 @@ var Parser = Class({
     ,tokenize: function( stream, state, row ) {
         var self = this, tokens = [];
         //state.line = row || 0;
-        if ( stream.eol() ) { state.line++; state.$eol$ = true; }
+        if ( stream.eol() ) { state.line++; /*state.$eol$ = true;*/ }
         else while ( !stream.eol() ) tokens.push( self.token( stream, state ) );
         return tokens;
     }
     
     ,parse: function( code, parse_type ) {
         var self = this, lines = (code||"").split(newline_re), l = lines.length,
-            linetokens = null, state, stream, parse_errors, parse_tokens, ret;
+            linetokens = null, state, parse_errors, parse_tokens, ret;
         
         parse_type = parse_type || TOKENS;
         parse_errors = !!(parse_type & ERRORS);
         parse_tokens = !!(parse_type & TOKENS);
-        state = self.state( 0, parse_type );
+        state = new State( 0, parse_type );
         state.$full_parse$ = true;
-        stream = new Stream( );
         
         // add back the newlines removed from split-ting
         iterate(function( i ){ lines[i] += "\n"; }, 0, l-2);
@@ -2970,15 +2840,15 @@ var Parser = Class({
         if ( parse_tokens ) 
             linetokens = iterate(parse_type & FLAT
             ? function( i, linetokens ) {
-                linetokens._ = linetokens._.concat( self.tokenize( stream.new_( lines[i] ), state, i ) );
+                linetokens._ = linetokens._.concat( self.tokenize( Stream( lines[i] ), state, i ) );
             }
             : function( i, linetokens ) {
-                linetokens._.push( self.tokenize( stream.new_( lines[i] ), state, i ) );
+                linetokens._.push( self.tokenize( Stream( lines[i] ), state, i ) );
             }, 0, l-1, {_:[]} )._;
         
         else 
             iterate(function( i ) {
-                stream.new_( lines[i] );
+                var stream = Stream( lines[i] );
                 //state.line = i;
                 if ( stream.eol() ) { state.line++; state.$eol$ = true; }
                 else while ( !stream.eol() ) self.token( stream, state );
@@ -2988,7 +2858,7 @@ var Parser = Class({
             ? {tokens:linetokens, errors:state.err}
             : (parse_tokens ? linetokens : state.err);
         
-        stream.dispose(); state.dispose();
+        state_dispose( state );
         return ret;
     }
     
@@ -3061,17 +2931,17 @@ function get_mode( grammar, DEFAULT )
             */
             
             startState: function( ) { 
-                return cm_mode.$parser.state( );
+                return new State( );
             }
             
             ,copyState: function( state ) { 
-                return cm_mode.$parser.state( 0, state );
+                return new State( 0, state );
             }
             
             ,token: function( stream, state ) { 
-                var pstream = Stream._( stream ), 
+                var pstream = Stream( stream.string, stream.start, stream.pos ), 
                     token = cm_mode.$parser.token( pstream, state ).type;
-                stream.pos = pstream.pos; pstream.dispose();
+                stream.pos = pstream.pos;
                 return token;
             }
             

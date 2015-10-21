@@ -89,7 +89,7 @@ function t_match( t, stream, eat )
         }
         else if ( T_REGEX === type )
         {
-            m = stream.s.slice( stream.pos ).match( pattern[0] );
+            m = stream.slice( stream.pos ).match( pattern[0] );
             if ( m && 0 === m.index )
             {
                 if ( false !== eat ) stream.mov( m[ pattern[1]||0 ].length );
@@ -98,7 +98,7 @@ function t_match( t, stream, eat )
         }
         else if ( T_CHARLIST === type )
         {
-            m = stream.s[CHAR](stream.pos) || null;
+            m = stream[CHAR](stream.pos) || null;
             if ( m && (-1 < pattern.indexOf( m )) ) 
             {
                 if ( false !== eat ) stream.mov( 1 );
@@ -107,7 +107,7 @@ function t_match( t, stream, eat )
         }
         else if ( T_CHAR === type )
         {
-            m = stream.s[CHAR](stream.pos) || null;
+            m = stream[CHAR](stream.pos) || null;
             if ( pattern === m ) 
             {
                 if ( false !== eat ) stream.mov( 1 );
@@ -117,7 +117,7 @@ function t_match( t, stream, eat )
         else if ( T_STR === type ) // ?? some pattern is undefined !!!!!!!!!
         {
             n = pattern.length;
-            if ( pattern === stream.s.substr(stream.pos, n) ) 
+            if ( pattern === stream.substr(stream.pos, n) ) 
             {
                 if ( false !== eat ) stream.mov( n );
                 return [ key, pattern ];

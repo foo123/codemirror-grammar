@@ -126,13 +126,14 @@ var js_grammar = {
     // Syntax model (optional)
     "Syntax" : {
         
-        "__literalProperty" : "string | /0|[1-9][0-9]*/ | identifier",
+        "literalProperty1" : "string | /0|[1-9][0-9]*/ | identifier",
         
         // back-reference, should be handled
-        "literalProperty" : "__literalProperty",
+        "literalProperty" : "literalProperty1",
         
         "literalValue" : "atom | string | regex | number | identifier | literalArray | literalObject",
         
+        // here, modifier should apply to all of "literalProperty1", via back-reference chain
         "literalPropertyValue" : "literalProperty.property unique ':' literalValue",
         
         // grammar recursion here
