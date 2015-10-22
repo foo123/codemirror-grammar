@@ -394,10 +394,24 @@ function push_at( stack, pos, token )
 
 function empty( stack, $id )
 {
-    if ( $id )
-        while ( stack.length && stack[stack.length-1] && stack[stack.length-1].$id === $id ) stack.pop();
-    else
-        stack.length = 0;
+    // http://dvolvr.davidwaterston.com/2013/06/09/restating-the-obvious-the-fastest-way-to-truncate-an-array-in-javascript/
+    var count = 0, total = stack.length;
+    if ( true === $id )
+    {
+        // empty whole stack
+        stack.length =  0;
+    }
+    else if ( $id )
+    {
+        // empty only entries associated to $id
+        while ( count < total && /*stack[total-count-1] &&*/ stack[total-count-1].$id === $id ) count++;
+        if ( count ) stack.length =  total-count;
+    }
+    /*else if ( count )
+    {
+        // just pop one
+        stack.length =  count-1;
+    }*/
     return stack;
 }
 
@@ -474,7 +488,9 @@ function Class( O, C )
 //
 // tokenizer helpers
 var escaped_re = /([.*+?^${}()|[\]\/\\\-])/g,
-    peg_bnf_special_re = /^([.!&\[\]{}()*+?\/|'"]|\s)/;
+    peg_bnf_special_re = /^([.!&\[\]{}()*+?\/|'"]|\s)/,
+    default_combine_delimiter = "\\b", 
+    combine_delimiter = "(\\s|\\W|$)" /* more flexible than \\b */;
 
 function esc_re( s )
 {
@@ -602,6 +618,7 @@ function get_combined_re( tokens, boundary, case_insensitive )
 {
     var b = "", combined;
     if ( T_STR & get_type(boundary) ) b = boundary;
+    else b = combine_delimiter;
     combined = map( tokens.sort( by_length ), esc_re ).join( "|" );
     return [ new_re("^(" + combined + ")"+b, case_insensitive ? "i": ""), 1 ];
 }
@@ -670,7 +687,7 @@ function get_compositematcher( name, tokens, RegExpID, combined, caseInsensitive
             }
         }
         
-        if ( is_char_list && ( !combined || !( T_STR & get_type(combined) ) ) )
+        if ( is_char_list && ( !combined /*|| !( T_STR & get_type(combined) )*/ ) )
         {
             tmp = tmp.slice().join('');
             tmp.isCharList = 1;
@@ -1017,7 +1034,7 @@ function preprocess_grammar( grammar )
         {
             tok.autocomplete = !!tok.autocomplete;
             tok.meta = tok.autocomplete && (T_STR & get_type(tok.meta)) ? tok.meta : null;
-            tok.combine = !tok[HAS]('combine') ? "\\b" : tok.combine;
+            tok.combine = !tok[HAS]('combine') ? true : tok.combine;
             tok.ci = !!(tok.caseInsesitive||tok.ci);
         }
     }
@@ -1153,6 +1170,28 @@ function get_backreference( token, Lex, Syntax, only_key )
     return only_key ? token : Lex[token] || Syntax[token] || token;
 }
 
+var trailing_repeat_re = /[*+]$/;
+function peg_simplify( expression, is_alternation_else_sequence )
+{
+    return expression.length > 1
+    ? iterate(is_alternation_else_sequence
+        // simplify e.g x | x .. | x => x etc.. in alternation
+        ? function( i, simplified ){
+            var current = simplified[simplified.length-1], next = expression[i];
+            if ( current === next ) { /* skip*/ }
+            else simplified.push( next );
+        }
+        // simplify e.g x x* => x+, x*x* => x* or x+x+ => x+ etc.. in sequence
+        : function( i, simplified ){
+            var current = simplified[simplified.length-1], next = expression[i];
+            //if ( current+'*' === next ) { simplified[simplified.length-1] = current+'+'; }
+            /*else*/ if ( trailing_repeat_re.test(next) && trailing_repeat_re.test(current) && current === next ) { /* skip*/ }
+            else simplified.push( next );
+        }, 1, expression.length-1, [expression[0]]
+    )
+    : expression;
+}
+
 function parse_peg_bnf_notation( tok, Lex, Syntax )
 {
     var alternation, sequence, token, literal, repeat, entry, prev_entry,
@@ -1269,6 +1308,8 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 else if ( '[' === c )
                 {
                     // start of character select
+                    /*if ( !token.length )
+                    {*/
                     literal = get_delimited( t, ']', '\\', true );
                     curr_token = '[' + literal + ']';
                     if ( !Lex[curr_token] )
@@ -1278,18 +1319,23 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                             //                                          negative match,      else   positive match
                         /*literal.split('')*/};
                     sequence.push( curr_token );
+                    /*}
+                    else token += c;*/
                 }
                 
                 else if ( ']' === c )
                 {
                     // end of character select, should be handled in previous case
                     // added here just for completeness
+                    token += c;
                     continue;
                 }
                 
                 else if ( '/' === c )
                 {
                     // literal regex token
+                    /*if ( !token.length )
+                    {*/
                     literal = get_delimited( t, c, '\\', true ); fl = '';
                     if ( literal.length )
                     {
@@ -1298,6 +1344,8 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                         if ( !Lex[curr_token] ) Lex[curr_token] = { type:'simple', tokens:new_re("^("+literal+")",fl) };
                         sequence.push( curr_token );
                     }
+                    /*}
+                    else token += c;*/
                 }
                 
                 else if ( '*' === c || '+' === c || '?' === c )
@@ -1353,8 +1401,8 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 {
                     // literal repeat end modifier, should be handled in previous case
                     // added here just for completeness
-                    //continue;
                     token += c;
+                    continue;
                 }
                 
                 else if ( '&' === c || '!' === c )
@@ -1379,6 +1427,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 {
                     modifier = false;
                     // alternation
+                    sequence = peg_simplify( sequence );
                     if ( sequence.length > 1 )
                     {
                         curr_token = '' + sequence.join( " " );
@@ -1406,6 +1455,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 else if ( ')' === c )
                 {
                     // end of grouped sub-sequence
+                    sequence = peg_simplify( sequence );
                     if ( sequence.length > 1 )
                     {
                         curr_token = '' + sequence.join( " " );
@@ -1418,6 +1468,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     }
                     sequence = [];
                     
+                    alternation = peg_simplify( alternation, 1 );
                     if ( alternation.length > 1 )
                     {
                         curr_token = '' + alternation.join( " | " );
@@ -1511,6 +1562,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
         }
         token = '';
         
+        sequence = peg_simplify( sequence );
         if ( sequence.length > 1 )
         {
             curr_token = '' + sequence.join( " " );
@@ -1527,6 +1579,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
         }
         sequence = [];
         
+        alternation = peg_simplify( alternation, 1 );
         if ( alternation.length > 1 )
         {
             curr_token = '' + alternation.join( " | " );
@@ -1678,8 +1731,8 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         {
             if ( token.autocomplete ) get_autocomplete( token, tokenID, keywords );
             
-            // combine by default if possible using word-boundary delimiter
-            combine = !token[HAS]('combine') ? "\\b" : token.combine;
+            // combine by default if possible using default word-boundary delimiter
+            combine = !token[HAS]('combine') ? true : token.combine;
             $token$ = new tokenizer( T_SIMPLE, tokenID,
                         get_compositematcher( tokenID, $tokens$.slice(), RegExpID, combine,
                         !!(token.caseInsensitive||token.ci), cachedRegexes, cachedMatchers ), 
@@ -2024,6 +2077,8 @@ function error_( state, l1, c1, l2, c2, t, err )
 
 function tokenize( t, stream, state, token )
 {
+    //console.log( t );
+    if ( !t ) return false;
     var T = t.type, 
         t_ = T_COMPOSITE & T
         ? t_composite
@@ -2039,7 +2094,7 @@ function t_action( a, stream, state, token )
 {
     var self = a, action_def = self.token || null,
     action, case_insensitive = self.ci, aid = self.name,
-    t, t0, ns, msg, queu, symb, scop, ctx,
+    t, t0, ns, msg, queu, symb, ctx,
     l1, c1, l2, c2, in_ctx, err, t_str, is_block,
     no_errors = !(state.status & ERRORS);
 
@@ -2093,7 +2148,7 @@ function t_action( a, stream, state, token )
 
     else if ( A_CTXSTART === action )
     {
-        ctx.unshift({symb:{},scop:{},queu:[]});
+        ctx.unshift({symb:{},queu:[]});
     }
 
     else if ( A_UNIQUE === action )
@@ -2418,13 +2473,14 @@ function t_composite( t, stream, state, token )
     var self = t, type = self.type, name = self.name, tokens = self.token, n = tokens.length,
         tokenizer, style, modifier = self.modifier, found, min, max,
         tokens_required, tokens_err, stream_pos, stack_pos,
-        i, tt, stack, err, $id, match_all;
+        i, i0, tt, stack, err, $id, is_sequence;
 
     self.status &= CLEAR_ERROR;
     self.$msg = self.msg || null;
 
     stack = state.stack;
-    stream_pos = stream.pos; stack_pos = stack.length;
+    stream_pos = stream.pos;
+    stack_pos = stack.length;
 
     tokens_required = 0; tokens_err = 0;
     $id = self.$id || get_id( );
@@ -2452,8 +2508,8 @@ function t_composite( t, stream, state, token )
             else if ( tokenizer.status & ERROR )
             {
                 tokens_err++;
-                stream.bck( stream_pos );
-                stack.length = stack_pos;
+                if ( stream.pos > stream_pos ) stream.bck( stream_pos );
+                if ( stack.length > stack_pos ) stack.length = stack_pos;
             }
         }
         
@@ -2467,18 +2523,22 @@ function t_composite( t, stream, state, token )
 
     else if ( T_SEQUENCE_OR_NGRAM & type )
     {
-        match_all = !!(type & T_SEQUENCE);
-        if ( match_all ) self.status |= REQUIRED;
+        is_sequence = !!(type & T_SEQUENCE);
+        if ( is_sequence ) self.status |= REQUIRED;
         else self.status &= CLEAR_REQUIRED;
-        tokenizer = t_clone( tokens[ 0 ], match_all, modifier, $id );
+        i0 = 0;
+        do {
+        tokenizer = t_clone( tokens[ i0++ ], is_sequence, modifier, $id );
         style = tokenize( tokenizer, stream, state, token );
+        // bypass failed but optional tokens in the sequence and get to then next ones
+        } while (is_sequence && i0 < n && false === style && !(tokenizer.status & REQUIRED_OR_ERROR));
         
         if ( false !== style )
         {
             // not empty token
             if ( true !== style || T_EMPTY !== tokenizer.type )
             {
-                for (i=n-1; i>0; i--)
+                for (i=n-1; i>=i0; i--)
                     push_at( stack, stack_pos+n-i-1, t_clone( tokens[ i ], 1, modifier, $id ) );
             }
                 
@@ -2486,12 +2546,12 @@ function t_composite( t, stream, state, token )
         }
         else if ( tokenizer.status & ERROR /*&& tokenizer.REQ*/ )
         {
-            if ( match_all ) self.status |= ERROR;
+            if ( is_sequence ) self.status |= ERROR;
             else self.status &= CLEAR_ERROR;
-            stream.bck( stream_pos );
-            stack.length = stack_pos;
+            if ( stream.pos > stream_pos ) stream.bck( stream_pos );
+            if ( stack.length > stack_pos ) stack.length = stack_pos;
         }
-        else if ( match_all && (tokenizer.status & REQUIRED) )
+        else if ( is_sequence && (tokenizer.status & REQUIRED) )
         {
             self.status |= ERROR;
         }
@@ -2541,7 +2601,11 @@ function t_composite( t, stream, state, token )
                 tokens_required++;
                 err.push( t_err( tokenizer ) );
             }
-            if ( tokenizer.status & ERROR ) { stream.bck( stream_pos ); stack.length = stack_pos; }
+            if ( tokenizer.status & ERROR )
+            {
+                if ( stream.pos > stream_pos ) stream.bck( stream_pos );
+                if ( stack.length > stack_pos ) stack.length = stack_pos;
+            }
         }
         
         if ( found < min ) self.status |= REQUIRED;
@@ -2576,7 +2640,6 @@ function State( unique, s )
         {
             self.queu = s.queu;
             self.symb = s.symb;
-            self.scop = s.scop;
             self.ctx = s.ctx;
             self.err = s.err;
         }
@@ -2585,7 +2648,6 @@ function State( unique, s )
         {
             self.queu = null;
             self.symb = null;
-            self.scop = null;
             self.ctx = null;
             self.err = null;
         }
@@ -2603,7 +2665,6 @@ function State( unique, s )
         {
             self.queu = [];
             self.symb = {};
-            self.scop = {};
             self.ctx = [];
             self.err = {};
         }
@@ -2612,7 +2673,6 @@ function State( unique, s )
         {
             self.queu = null;
             self.symb = null;
-            self.scop = null;
             self.ctx = null;
             self.err = null;
         }
@@ -2634,7 +2694,6 @@ function state_dispose( state )
     state.block = null;
     state.queu = null;
     state.symb = null;
-    state.scop = null;
     state.ctx = null;
     state.err = null;
 }
@@ -2750,7 +2809,8 @@ var Parser = Class({
             T = { }, $name$ = self.$n$, $type$ = self.$t$, $value$ = self.$v$, //$pos$ = 'pos',
             interleaved_tokens = grammar.$interleaved, tokens = grammar.$parser, 
             nTokens = tokens.length, niTokens = interleaved_tokens ? interleaved_tokens.length : 0,
-            tokenizer, action, token, type, err, stack, line, pos, i, ii, notfound, just_space
+            tokenizer, action, token, stack, line, pos, i, ii, stream_pos, stack_pos,
+            type, err, notfound, just_space, block_in_progress
         ;
         
         // state marks a new line
@@ -2761,13 +2821,16 @@ var Parser = Class({
         }
         state.$actionerr$ = false;
         stack = state.stack; line = state.line; pos = stream.pos;
-        notfound = true; err = false; type = false; just_space = false;
+        type = false; notfound = true; err = false; just_space = false;
+        block_in_progress = state.block ? state.block.name : undef;
         
         // if EOL tokenizer is left on stack, pop it now
         if ( stack.length && T_EOL === stack[stack.length-1].type && stream.sol() ) stack.pop();
         
-        // check for non-space tokenizer before parsing space
-        if ( (!stack.length || (T_NONSPACE !== stack[stack.length-1].type)) && stream.spc() )
+        // check for non-space tokenizer or partial-block-in-progress, before parsing any space/empty
+        if ( (!stack.length 
+            || (T_NONSPACE !== stack[stack.length-1].type && block_in_progress !== stack[stack.length-1].name)) 
+            && stream.spc() )
         {
             notfound = false;
             just_space = true;
@@ -2778,13 +2841,16 @@ var Parser = Class({
         {
             token = {
                 T:0, id:null, type:null,
-                match:null, str:'', pos:null, block: null
+                match:null, str:'',
+                pos:null, block: null
             };
             
             i = 0;
             while ( notfound && (stack.length || i<nTokens) && !stream.eol() )
             {
-                if ( niTokens )
+                stream_pos = stream.pos; stack_pos = stack.length;
+                // dont interleave tokens if partial block is in progress
+                if ( niTokens && !state.block )
                 {
                     for (ii=0; ii<niTokens; ii++)
                     {
@@ -2795,6 +2861,8 @@ var Parser = Class({
                     if ( !notfound ) break;
                 }
                 
+                // seems stack and/or ngrams can ran out while inside the loop !!  ?????
+                if ( !stack.length && i>=nTokens) break;
                 tokenizer = stack.length ? stack.pop() : tokens[i++];
                 type = tokenize( tokenizer, stream, state, token );
                 
@@ -2812,10 +2880,12 @@ var Parser = Class({
                         err = true; notfound = false; break;
                     }
                     // optional
-                    else
+                    /*else
                     {
+                        if ( stream.pos > stream_pos ) stream.bck( stream_pos );
+                        if ( stack.length > stack_pos ) stack.length = stack_pos;
                         continue;
-                    }
+                    }*/
                 }
                 // found token
                 else
@@ -2830,7 +2900,7 @@ var Parser = Class({
                             if ( action.status & ERROR ) state.$actionerr$ = true;
                         }
                     }
-                    // partial block, apply any action(s) following it
+                    // partial block, apply maybe any action(s) following it
                     else if ( stack.length > 1 && stream.eol() &&  
                         (T_BLOCK & stack[stack.length-1].type) && state.block &&
                         state.block.name === stack[stack.length-1].name 
@@ -2873,7 +2943,7 @@ var Parser = Class({
         T[$type$] = type;
         state.$eol$ = stream.eol();
         state.$blank$ = state.$blank$ && (just_space || state.$eol$);
-        // update num of blank lines at start of file
+        // update count of blank lines at start of file
         if ( state.$eol$ && state.$blank$ ) state.bline = state.line;
         
         return T;
