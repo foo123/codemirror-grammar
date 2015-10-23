@@ -38,6 +38,7 @@ Code Indentation (Codemirror default) and Code Folding is based on existing Code
 * handle arbitrary, user-defined, `(operator) precedence` relations in the `grammar` specification (e.g via `precedence action` tokens)
 * handle arbitrary, user-defined, `local/global/scoped` relations in the `grammar` specification (e.g via `scope action` tokens)
 * and so on..
+* enable grammar add-on to pre-compile a grammar specification directly into mode source code, so it can be used without the add-on as standalone mode [TODO, maybe]
 
 
 ###Features
