@@ -30,7 +30,14 @@ See also: [ace-grammar](https://github.com/foo123/ace-grammar) , [prism-grammar]
 
 ###Todo
 
-Code Indentation is Codemirror default, looking for ways to add more elaborate indentation and code folding rules to the grammar specification via "grammar action tokens" (see gramar reference)
+Code Indentation (Codemirror default) and Code Folding is based on existing Codemirror folders (if available)
+
+* handle arbitrary, user-defined, code `folding` in the `grammar` specification (e.g via `fold action` tokens)
+* handle arbitrary, user-defined, code `(de-)indentation` in the `grammar` specification (e.g via `indent action` tokens)
+* handle arbitrary, user-defined, code `matching` (e.g `brackets`, `tags`, etc..) in the `grammar` specification (e.g via `match action` tokens)
+* handle arbitrary, user-defined, `(operator) precedence` relations in the `grammar` specification (e.g via `precedence action` tokens)
+* handle arbitrary, user-defined, `local/global/scoped` relations in the `grammar` specification (e.g via `scope action` tokens)
+* and so on..
 
 
 ###Features
