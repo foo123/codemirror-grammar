@@ -1,152 +1,118 @@
-// 1. an almost complete javascript grammar in simple JSON format
+// 1. a partial javascript grammar in simple JSON format
 var js_grammar = {
         
-    // prefix ID for regular expressions used in the grammar
-    "RegExpID": "RE::",
+// prefix ID for regular expressions used in the grammar
+"RegExpID"                          : "RE::",
     
-    "Extra": {
-        "fold" : "brace"
-    },
+"Extra"                             : {
     
-    // Style model
-    "Style": {
-        // lang token type  -> Editor (style) tag
-        "comment"    : "comment",
-        "atom"       : "atom",
-        "keyword"    : "keyword",
-        "builtin"    : "builtin",
-        "operator"   : "operator",
-        "identifier" : "variable",
-        "property"   : "attribute",
-        "number"     : "number",
-        "string"     : "string",
-        "regex"      : "string-2"
-    },
-
-    // Lexical model
-    "Lex": {
-        // comments
-        "comment:comment" : {
-            "interleave": true,
-            "tokens" : [
-                // line comment
-                [  "//",  null ],
-                // block comments
-                [  "/*",   "*/" ]
-            ]
-        },
-        
-        // general identifiers, but property as well
-        "identifier" : "RE::/[_A-Za-z$][_A-Za-z0-9$]*/",
-        
-        // numbers, in order of matching
-        "number" : [
-            // floats
-            "RE::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?/",
-            "RE::/\\d+\\.\\d*/",
-            "RE::/\\.\\d+/",
-            // integers
-            // hex
-            "RE::/0x[0-9a-fA-F]+L?/",
-            // binary
-            "RE::/0b[01]+L?/",
-            // octal
-            "RE::/0o[0-7]+L?/",
-            // decimal
-            "RE::/[1-9]\\d*(e[\\+\\-]?\\d+)?L?/",
-            // just zero
-            "RE::/0(?![\\dx])/"
-        ],
-
-        // usual strings
-        "string:escaped-block" : [ "RE::/(['\"])/",   1 ],
-        
-        // literal regular expressions
-        "regex:escaped-line-block" : [ "/",    "RE::#/[gimy]{0,4}#" ],
-        
-        // atoms
-        "atom" : {
-            // enable autocompletion for these tokens, with their associated token ID
-            "autocomplete" : true,
-            "tokens" : [
-                "this",
-                "true", "false", 
-                "null", "undefined", 
-                "NaN", "Infinity"
-            ],
-            "meta": "JavaScript ATOM"
-        },
-
-        // keywords
-        "keyword" : {
-            // enable autocompletion for these tokens, with their associated token ID
-            "autocomplete" : true,
-            "tokens" : [ 
-                "if", "while", "with", "else", "do", "try", "finally",
-                "return", "break", "continue", "new", "delete", "throw",
-                "var", "const", "let", "function", "catch",
-                "for", "switch", "case", "default",
-                "in", "typeof", "instanceof"
-            ],
-            "meta": "JavaScript KEYWORD"
-        },
-        
-        // builtins
-        "builtin" : {
-            // enable autocompletion for these tokens, with their associated token ID
-            "autocomplete" : true,
-            "tokens" : [ 
-                "Object", "Function", "Array", "String", "Date", "Number", "RegExp", "Exception",
-                "setTimeout", "setInterval", "alert", "console", 'window', 'prototype', 'constructor'
-            ],
-            "meta": "JavaScript Builtins"
-        },
-        
-        "other" : "RE::/\\S+/",
-        
-        "ctx:action": {"context":true},
-        "\\ctx:action": {"context":false},
-        
-        "match_b:action": {"push": "}"},
-        "match_p:action": {"push": ")"},
-        "match_p2:action": {"push": "]"},
-        "\\match:action": {
-            "pop": "$0",
-            "msg": "Brackets do not match"
-        },
-        
-        "unique:action": {
-            "unique": ["prop", "$1"],
-            "msg": "Duplicate object property \"$0\"",
-            "in-context": true
-        }
-    },
+    "fold"                          : "brace"
     
-    //
-    // Syntax model (optional)
-    "Syntax" : {
-        
-        "literalProperty1" : "string | /0|[1-9][0-9]*/ | identifier",
-        
-        // back-reference, should be handled
-        "literalProperty" : "literalProperty1",
-        
-        "literalValue" : "atom | string | regex | number | identifier | literalArray | literalObject",
-        
-        // here, modifier should apply to all of "literalProperty1", via back-reference chain
-        "literalPropertyValue" : "literalProperty.property unique ':' literalValue",
-        
-        // grammar recursion here
-        "literalObject" : "'{' match_b ctx (literalPropertyValue (',' literalPropertyValue)*)? '}' \\match \\ctx",
-        
-        // grammar recursion here
-        "literalArray" : "'[' match_p2 (literalValue (',' literalValue)*)? ']' \\match",
-        
-        "brackets" : "'{' match_b | '}' \\match | '(' match_p | ')' \\match | '[' match_p2 | ']' \\match",
-        
-        "js" : "comment | number | string | regex | keyword | operator | atom | literalObject | literalArray | brackets | other"
-    },
+},
+    
+// Style model
+"Style"                             : {
+     
+     "comment"                      : "comment"
+    ,"atom"                         : "atom"
+    ,"keyword"                      : "keyword"
+    ,"builtin"                      : "keyword"
+    ,"operator"                     : "operator"
+    ,"identifier"                   : "variable"
+    ,"property"                     : "attribute"
+    ,"number"                       : "number"
+    ,"string"                       : "string"
+    ,"regex"                        : "string-2"
+    ,"operator"                     : "variable-2"
+    
+},
 
-    // what to parse and in what order
-    "Parser" : [ ["js"] ]
+// Lexical model
+"Lex"                               : {
+     
+     "comment:comment"              : {"interleave":true,"tokens":[
+                                    // line comment
+                                    [  "//",  null ],
+                                    // block comments
+                                    [  "/*",   "*/" ]
+                                    ]}
+    ,"identifier"                   : "RE::/[_A-Za-z$][_A-Za-z0-9$]*/"
+    ,"number"                       : [
+                                    // floats
+                                    "RE::/\\d*\\.\\d+(e[\\+\\-]?\\d+)?/",
+                                    "RE::/\\d+\\.\\d*/",
+                                    "RE::/\\.\\d+/",
+                                    // integers
+                                    // hex
+                                    "RE::/0x[0-9a-fA-F]+L?/",
+                                    // binary
+                                    "RE::/0b[01]+L?/",
+                                    // octal
+                                    "RE::/0o[0-7]+L?/",
+                                    // decimal
+                                    "RE::/[1-9]\\d*(e[\\+\\-]?\\d+)?L?/",
+                                    // just zero
+                                    "RE::/0(?![\\dx])/"
+                                    ]
+    ,"string:escaped-block"         : ["RE::/(['\"])/",   1]
+    ,"regex:escaped-line-block"     : ["/",    "RE::#/[gimy]{0,4}#"]
+    ,"atom"                         : {"autocomplete":true,"meta":"JavaScript Atom","tokens":[
+                                    "true", "false", 
+                                    "null", "undefined", 
+                                    "NaN", "Infinity"
+                                    ]}
+    ,"operator"                     : {"combine":false,"tokens":[
+                                    "+", "-", "++", "--", "%", ">>", "<<", ">>>",
+                                    "*", "/", "^", "|", "&", "!", "~",
+                                    ">", "<", "<=", ">=", "!=", "!==",
+                                    "=", "==", "===", "+=", "-=", "%=",
+                                    ">>=", ">>>=", "<<=", "*=", "/=", "|=", "&="
+                                    ]}
+    ,"keyword"                      : {"autocomplete":true,"meta":"JavaScript Keyword","tokens":[ 
+                                    "if", "while", "with", "else", "do", "try", "finally",
+                                    "return", "break", "continue", "new", "delete", "throw",
+                                    "var", "const", "let", "function", "catch", "void",
+                                    "for", "switch", "case", "default", "class", "import", "yield",
+                                    "in", "typeof", "instanceof", "?", ":"
+                                    ]}
+    ,"builtin"                      : {"autocomplete":true,"meta":"JavaScript Builtin","tokens":[ 
+                                    "Object", "Function", "Array", "String", 
+                                    "Date", "Number", "RegExp", "Math", "Exception",
+                                    "setTimeout", "setInterval", "parseInt", "parseFloat", 
+                                    "isFinite", "isNan", "alert", "prompt", "console", 
+                                    "window", "global", "this"
+                                    ]}
+    ,"builtin_property"             : {"autocomplete":true,"meta":"JavaScript Builtin Property","tokens":[ 
+                                    "prototype","constructor","toString"
+                                    ]}
+    ,"ctx:action"                   : {"context":true}
+    ,"\\ctx:action"                 : {"context":false}
+    ,"_match:action"                : {"push":"$0"}
+    ,"match_bra:action"               : {"pop":"{","msg":"Bracket \"$0\" does not match"}
+    ,"match_paren:action"               : {"pop":"(","msg":"Bracket \"$0\" does not match"}
+    ,"match_bpa:action"               : {"pop":"[","msg":"Bracket \"$0\" does not match"}
+    ,"unique_in_scope:action"       : {"unique":["prop","$1"],"in-context":true,"msg":"Duplicate object property \"$0\""}
+    
+},
+    
+// Syntax model (optional)
+"Syntax"                            : {
+     
+     "obj_property"                 : "string | /0|[1-9][0-9]*/.number | identifier"
+    ,"dot_property"                 : "'.' (builtin_property.builtin | identifier.property)"
+    ,"bra_property"                 : "'[' _match expression ']' match_bpa"
+    ,"with_property"                : "dot_property |  bra_property"
+    ,"value"                        : "builtin | string | regex | identifier | array | object"
+    ,"property_value"               : "(builtin_property.builtin | obj_property.property) unique_in_scope ':' expression"
+    ,"object"                       : "'{' ctx _match (property_value (',' property_value)*)? '}' match_bra \\ctx"
+    ,"array"                        : "'[' _match (expression (',' expression)*)? ']' match_bpa"
+    ,"brackets_matched"             : "'{' _match | '}' match_bra | '(' _match | ')' match_paren | '[' _match | ']' match_bpa"
+    ,"expression"                   : "('(' _match)? ((atom | number | value with_property*) (operator expression)?)? (')' match_paren)?"
+    ,"js"                           : "comment | keyword | expression | brackets_matched"
+    
+},
+
+// what to parse and in what order
+"Parser"                            : [ ["js"] ]
+
 };

@@ -39,7 +39,7 @@
     </head>
     <body>
         
-        <h3>CodeMirror (ver <span id="version">0</span>): Dynamic XML Grammar</h3>
+        <h3>CodeMirror (v.<span id="editor-version">0</span>) Grammar (v.<span id="grammar-version">0</span>): Dynamic XML Grammar</h3>
 <textarea id="code" name="code">&lt;?xml version="1.0" encoding="utf-8"?&gt;
 &lt;!doctype html&gt;
 &lt;html id="id1" id="id2" style = "color: green"&gt;
@@ -66,10 +66,7 @@
 
         <script>
         // <![CDATA[
-        
-        // use it!
         codemirror_grammar_demo(document.getElementById("code"), "xml", xml_grammar);
-        
         // ]]>
         </script>
     </body>

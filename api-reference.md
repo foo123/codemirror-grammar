@@ -76,3 +76,15 @@ This is the main method which transforms a `JSON grammar` into a `CodeMirror` sy
 `DEFAULT` is the default return value (`null` by default) for things that are skipped or not styled
 In general there is no need to set this value, unless you need to return something else
     
+
+
+__Parser Class__: `Parser`
+
+```javascript
+Parser = CodeMirrorGrammar.Parser;
+```
+
+The Parser Class used to instantiate a highlight parser, is available.
+The `getMode` method will instantiate this parser class, which can be overriden/extended if needed, as needed.
+In general there is no need to override/extend the parser, unless you definately need to.
+    

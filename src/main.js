@@ -5,6 +5,7 @@
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
+*   https://github.com/foo123/editor-grammar
 *
 **/
 
@@ -57,9 +58,7 @@ function get_mode( grammar, DEFAULT )
         return {
             /*
             // maybe needed in later versions..?
-            
-            blankLine: function( state ) { }
-            
+            ,blankLine: function( state ) { }
             ,innerMode: function( state ) { }
             */
             
@@ -92,13 +91,22 @@ function get_mode( grammar, DEFAULT )
             // eg. code folding, electriChars etc..
             ,electricInput: cm_mode.$parser.$grammar.$extra.electricInput || false
             ,electricChars: cm_mode.$parser.$grammar.$extra.electricChars || false
-            ,fold: cm_mode.$parser.$grammar.$extra.fold || false
+            ,fold: fold_mode
         };
-    };
+    }, fold_mode = false;
     
     cm_mode.$id = uuid("codemirror_grammar_mode");
     
-    cm_mode.$parser = new CodeMirrorParser( parse_grammar( grammar ), DEFAULT );
+    cm_mode.$parser = new CodeMirrorGrammar.Parser( parse_grammar( grammar ), DEFAULT );
+    
+    if ( cm_mode.$parser.$grammar.$extra.fold )
+    {
+        fold_mode = cm_mode.$parser.$grammar.$extra.fold[LOWER]();
+        if ( 'brace' === fold_mode || 'cstyle' === fold_mode ) fold_mode = "brace";
+        else if ( 'html' === fold_mode || 'xml' === fold_mode ) fold_mode = "xml";
+        else if ( 'indent' === fold_mode || 'indentation' === fold_mode ) fold_mode = "indent";
+        else fold_mode = false;
+    }
     
     cm_mode.supportGrammarAnnotations = false;
     // syntax, lint-like validator generated from grammar
@@ -142,7 +150,7 @@ function get_mode( grammar, DEFAULT )
         elt.style.position = 'relative'; elt.style.boxSizing = 'border-box';
         elt.style.width = '100%'; elt.style.maxWidth = '100%';
     };
-    cm_mode.autocomplete = function( cm, options ) {
+    cm_mode.autocompleter = function( cm, options ) {
         var list = [], Pos = $CodeMirror$.Pos,
             cur = cm.getCursor(), curLine,
             start0 = cur.ch, start = start0, end0 = start0, end = end0,
@@ -197,6 +205,7 @@ function get_mode( grammar, DEFAULT )
             to: Pos( cur.line, end )
         };
     };
+    cm_mode.autocomplete = cm_mode.autocompleter; // deprecated, for compatibility
     cm_mode.dispose = function( ) {
         if ( cm_mode.$parser ) cm_mode.$parser.dispose( );
         cm_mode.$parser = null;
@@ -296,5 +305,19 @@ var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
     * `DEFAULT` is the default return value (`null` by default) for things that are skipped or not styled
     * In general there is no need to set this value, unless you need to return something else
     [/DOC_MARKDOWN]**/
-    getMode: get_mode
+    getMode: get_mode,
+    
+    // make Parser class available
+    /**[DOC_MARKDOWN]
+    * __Parser Class__: `Parser`
+    *
+    * ```javascript
+    * Parser = CodeMirrorGrammar.Parser;
+    * ```
+    *
+    * The Parser Class used to instantiate a highlight parser, is available.
+    * The `getMode` method will instantiate this parser class, which can be overriden/extended if needed, as needed.
+    * In general there is no need to override/extend the parser, unless you definately need to.
+    [/DOC_MARKDOWN]**/
+    Parser: CodeMirrorParser
 };

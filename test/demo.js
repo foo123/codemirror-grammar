@@ -1,6 +1,7 @@
 function codemirror_grammar_demo(code, lang, grammar)
 {
-    document.getElementById('version').innerHTML = CodeMirrorGrammar.VERSION;
+    document.getElementById('editor-version').innerHTML = CodeMirror.version;
+    document.getElementById('grammar-version').innerHTML = CodeMirrorGrammar.VERSION;
     
     // 2. parse the grammar into a Codemirror syntax-highlight mode
     var mode = CodeMirrorGrammar.getMode(grammar);
@@ -13,7 +14,7 @@ function codemirror_grammar_demo(code, lang, grammar)
     // enable autocomplete, have a unique cmd to not interfere with any default autocompletes
     var autocomplete_cmd = 'autocomplete_grammar_'+lang;
     CodeMirror.commands[autocomplete_cmd] = function( cm ) {
-        CodeMirror.showHint(cm, mode.autocomplete);
+        CodeMirror.showHint(cm, mode.autocompleter, {prefixMatch:true,caseInsensitiveMatch:false});
     };
 
     // use it!

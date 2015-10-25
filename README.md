@@ -89,8 +89,7 @@ var xml_grammar = {
     ,"doctype"                      : "meta"
     ,"meta"                         : "meta"
     ,"cdata"                        : "atom"
-    ,"open_tag"                     : "tag"
-    ,"close_tag"                    : "tag"
+    ,"tag"                          : "tag"
     ,"attribute"                    : "attribute"
     ,"string"                       : "string"
     ,"atom"                         : "atom"
@@ -131,8 +130,8 @@ var xml_grammar = {
 "Syntax"                            : {
      
      "tag_att"                      : "'id'.attribute unique_att '=' string unique_id | attribute unique_att '=' (string | number)"
-    ,"start_tag"                    : "open_tag tag_ctx tag_opened tag_att* ('>'.tag | '/>'.tag tag_autoclosed) \\tag_ctx"
-    ,"end_tag"                      : "close_tag tag_closed"
+    ,"start_tag"                    : "open_tag.tag tag_ctx tag_opened tag_att* ('>'.tag | '/>'.tag tag_autoclosed) \\tag_ctx"
+    ,"end_tag"                      : "close_tag.tag tag_closed"
     ,"xml"                          : "(^^1 declaration? doctype?) (declaration.error out_of_place | doctype.error out_of_place | comment | meta | cdata | start_tag | end_tag | atom | text)*"
     
 },
@@ -159,8 +158,8 @@ var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
 
 Result:
 
-![xml-grammar-1](/test/grammar-xml-annotations-1.png)
-![xml-grammar-2](/test/grammar-xml-annotations-2.png)
+![xml-grammar-1](/test/grammar-xml.png)
+![xml-grammar-2](/test/grammar-xml-2.png)
 
 
 
@@ -168,14 +167,12 @@ Result:
 
 
 ![js-recursive-grammar](/test/grammar-js-recursion.png)
-![js-recursive-grammar](/test/grammar-js-recursion-2.png)
-
+![js-recursive-grammar-autocomplete](/test/grammar-js-recursion-2.png)
 
 ![css-grammar](/test/grammar-css.png)
 
-
 ![python-grammar](/test/grammar-python.png)
-
 
 ![php-grammar](/test/grammar-php.png)
 
+![scheme-grammar](/test/grammar-scheme.png)

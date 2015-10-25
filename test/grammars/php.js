@@ -17,13 +17,15 @@ var php_grammar = {
     ,"comment"              : "comment"
     ,"atom"                 : "atom"
     ,"keyword"              : "keyword"
+    ,"construct"            : "keyword"
     ,"builtin"              : "builtin"
     ,"operator"             : "operator"
     ,"identifier"           : "variable"
+    ,"global"               : "variable-3"
     ,"variable"             : "variable-2"
     ,"number"               : "number"
     ,"string"               : "string"
-    ,"heredoc"              : "keyword"
+    ,"heredoc"              : "atom"
     // allow block delims / interior to have different styles
     ,"heredoc.inside"       : "string"
 
@@ -62,19 +64,21 @@ var php_grammar = {
                             ";", "?", ":", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", 
                             "++", "--", "->", ">>=", "<<="
                             ]}
-    ,"atom"                 : {"autocomplete":true,"tokens":["true", "false", "null", "TRUE", "FALSE", 
-                            "NULL", "__CLASS__", "__DIR__", "__FILE__", "__LINE__", "__METHOD__", 
-                            "__FUNCTION__", "__NAMESPACE__"
+    ,"atom"                 : {"autocomplete":true,"tokens":[
+                            "true", "false", "null", "TRUE", "FALSE", "NULL", 
+                            "__CLASS__", "__DIR__", "__FILE__", "__LINE__", 
+                            "__METHOD__", "__FUNCTION__", "__NAMESPACE__"
+                            ]}
+    ,"global"               : {"autocomplete":true,"tokens":[
+                            "$GLOBALS", "$_SERVER", "$_GET", "$_POST", 
+                            "$_FILES", "$_REQUEST", "$_SESSION", "$_ENV", "$_COOKIE", 
+                            "$php_errormsg", "$HTTP_RAW_POST_DATA", "$http_response_header", "$argc", "$argv"
                             ]}
     ,"keyword"              : {"autocomplete":true,"tokens":[ 
-                            "abstract", "and", "array", "as", "break", "case", "catch", "class", "clone", 
-                            "const", "continue", "declare", "default", "do", "else", "elseif", "enddeclare", 
-                            "endfor", "endforeach", "endif", "endswitch", "endwhile", "extends", "final", "for", 
-                            "foreach", "function", "global", "goto", "if", "implements", "interface", "instanceof", 
-                            "namespace", "new", "or", "private", "protected", "public", "static", "switch", "throw", 
-                            "trait", "try", "use", "var", "while", "xor", "die", "echo", "empty", "exit", "eval", 
-                            "include", "include_once", "list", "require", "require_once", "return", "print", 
-                            "__halt_compiler", "self", "static", "parent"
+                            "abstract", "and", "array", "as", "break", "case", "catch", "class", "clone", "const", "continue", "declare", "default", "do", "else", "elseif", "enddeclare", "endfor", "endforeach", "endif", "endswitch", "endwhile", "extends", "final", "for", "foreach", "function", "global", "goto", "if", "implements", "interface", "instanceof", "namespace", "new", "or", "private", "protected", "public", "static", "switch", "throw", "try", "use", "var", "while", "xor"
+                            ]}
+    ,"construct"            : {"autocomplete":true,"tokens":[ 
+                            "die", "echo", "empty", "exit", "eval", "include", "include_once", "isset", "list", "require", "require_once", "return", "print", "unset"
                             ]}
     ,"builtin"              : {"autocomplete":true,"tokens":[ 
                             "func_num_args", "func_get_arg", "func_get_args", "strlen", "strcmp", "strncmp", "strcasecmp", 
@@ -160,8 +164,7 @@ var php_grammar = {
                             "pg_convert", "pg_insert", "pg_update", "pg_delete", "pg_select", "pg_exec", "pg_getlastoid", "pg_cmdtuples", 
                             "pg_errormessage", "pg_numrows", "pg_numfields", "pg_fieldname", "pg_fieldsize", "pg_fieldtype", "pg_fieldnum", 
                             "pg_fieldprtlen", "pg_fieldisnull", "pg_freeresult", "pg_result", "pg_loreadall", "pg_locreate", "pg_lounlink", 
-                            "pg_loopen", "pg_loclose", "pg_loread", "pg_lowrite", "pg_loimport", "pg_loexport", "echo", "print", "global", 
-                            "static", "exit", "array", "empty", "eval", "isset", "unset", "die", "include", "require", "include_once", "require_once"
+                            "pg_loopen", "pg_loclose", "pg_loread", "pg_lowrite", "pg_loimport", "pg_loexport", "global", "static", "array"
                             ]}
     
 },
@@ -169,7 +172,7 @@ var php_grammar = {
 // Syntax model (optional)
 "Syntax"                    : {
     
-     "php"                  : "comment | heredoc | number | string | keyword | builtin | operator | delimiter | atom | identifier | variable"
+     "php"                  : "comment | heredoc | number | string | construct | keyword | builtin | operator | delimiter | atom | identifier | global | variable"
 
 },
     
