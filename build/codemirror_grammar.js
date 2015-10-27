@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 2.5.0
+*   @version: 2.6.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -36,7 +36,7 @@ else if ( !(name in root) )
 "use strict";
 /**
 *   EditorGrammar Codebase
-*   @version: 2.5.0
+*   @version: 2.6.0
 *
 *   https://github.com/foo123/editor-grammar
 **/
@@ -49,7 +49,7 @@ TOKENS = 1, ERRORS = 2, FLAT = 32, REQUIRED = 4, ERROR = 8,
 CLEAR_REQUIRED = ~REQUIRED, CLEAR_ERROR = ~ERROR, REQUIRED_OR_ERROR = REQUIRED | ERROR,
 
 // action types
-A_ERROR = 4, A_UNIQUE = 8,
+A_NOP = 0, A_ERROR = 4, A_UNIQUE = 8,
 A_CTXSTART = 16, A_CTXEND = 17,
 A_MCHSTART = 32, A_MCHEND = 33,
 A_FOLDSTART = 64, A_FOLDEND = 65, /*TODO*/
@@ -207,6 +207,7 @@ function operate( x, F, F0, i0, i1 )
     return Fv;
 }
 
+// http://jsperf.com/functional-loop-with-try-catch
 function iterate( F, i0, i1, F0 )
 {
     if ( i0 > i1 ) return F0;
@@ -363,7 +364,17 @@ function extend(/* var args here.. */)
     }
     return o;
 }
-    
+
+function TRUE( )
+{
+    return true;
+}
+
+function FALSE( )
+{
+    return false;
+}
+
 function make_array( a, force )
 {
     return ( force || T_ARRAY !== get_type( a ) ) ? [ a ] : a;
@@ -863,6 +874,11 @@ function preprocess_grammar( grammar )
                             G[id].type = 'action';
                             G[id].error = tok;
                         }
+                        else if ( 'nop' === type )
+                        {
+                            G[id].type = 'action';
+                            G[id].nop = true;
+                        }
                         else if ( 'group' === type )
                         {
                             G[id].type = 'sequence';
@@ -1014,6 +1030,12 @@ function preprocess_grammar( grammar )
                 tok.type = "simple";
                 tok.tokens = tok['simple'];
                 del(tok,'simple');
+            }
+            else if ( tok['nop'] )
+            {
+                tok.type = "action";
+                tok.action = [ 'nop', tok.nop, false ];
+                tok.nop = true;
             }
             else if ( tok['error'] )
             {
@@ -1737,7 +1759,8 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     {
         if ( !token[HAS]('action') )
         {
-            if ( token[HAS]('error') ) token.action = [A_ERROR, token.error, !!token['in-context']];
+            if ( token[HAS]('nop') ) token.action = [A_NOP, token.nop, !!token['in-context']];
+            else if ( token[HAS]('error') ) token.action = [A_ERROR, token.error, !!token['in-context']];
             else if ( token[HAS]('context') ) token.action = [!!token.context?A_CTXSTART:A_CTXEND, token['context'], !!token['in-context']];
             else if ( token[HAS]('context-start') ) token.action = [A_CTXSTART, token['context-start'], !!token['in-context']];
             else if ( token[HAS]('context-end') ) token.action = [A_CTXEND, token['context-end'], !!token['in-context']];
@@ -1749,7 +1772,8 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         }
         else
         {
-            if ( 'error' === token.action[0] ) token.action[0] = A_ERROR;
+            if ( 'nop' === token.action[0] ) token.action[0] = A_NOP;
+            else if ( 'error' === token.action[0] ) token.action[0] = A_ERROR;
             else if ( 'context-start' === token.action[0] ) token.action[0] = A_CTXSTART;
             else if ( 'context-end' === token.action[0] ) token.action[0] = A_CTXEND;
             else if ( 'push' === token.action[0] ) token.action[0] = A_MCHSTART;
@@ -1758,6 +1782,8 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
             else if ( 'indent' === token.action[0] ) token.action[0] = A_INDENT;
             else if ( 'outdent' === token.action[0] ) token.action[0] = A_OUTDENT;
         }
+        // NOP action, no action
+        if ( token.nop ) token.action[0] = A_NOP;
         $token$ = new tokenizer( T_ACTION, tokenID, token.action.slice(), $msg$, $modifier$ );
         $token$.ci = !!token.caseInsensitive||token.ci;
         // pre-cache tokenizer to handle recursive calls to same tokenizer
@@ -1876,10 +1902,42 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     return cachedTokens[ tokenID ];
 }
 
+function get_block_types( grammar, the_styles )
+{
+    var Style = grammar.Style, Lex = grammar.Lex, Syntax = grammar.Syntax, t, T,
+        blocks = [], visited = {};
+    for (t in Style )
+    {
+        if ( !Style[HAS](t) ) continue;
+        T = Lex[t] || Syntax[t];
+        if ( T && ('block' == T.type || 'comment' === T.type) )
+        {
+            if ( the_styles && (Style[ t+'.inside' ]||Style[ t ]) )
+            {
+                t = Style[ t+'.inside' ] || Style[ t ];
+                if ( !visited[HAS](t) )
+                {
+                    blocks.push( t );
+                    visited[t] = 1;
+                }
+            }
+            else if ( !the_styles )
+            {
+                if ( !visited[HAS](t) )
+                {
+                    blocks.push( t );
+                    visited[t] = 1;
+                }
+            }
+        }
+    }
+    return blocks;
+}
+
 function parse_grammar( grammar ) 
 {
     var RegExpID, tokens,
-        Extra, Style, Lex, Syntax, 
+        Extra, Style, Fold, Lex, Syntax, 
         cachedRegexes, cachedMatchers, cachedTokens, 
         interleavedTokens, comments, keywords;
     
@@ -1890,6 +1948,7 @@ function parse_grammar( grammar )
     RegExpID = grammar.RegExpID || null;
     Extra = grammar.Extra ? clone(grammar.Extra) : { };
     Style = grammar.Style ? clone(grammar.Style) : { };
+    Fold = /*grammar.Fold ||*/ null;
     Lex = grammar.Lex ? clone(grammar.Lex) : { };
     Syntax = grammar.Syntax ? clone(grammar.Syntax) : { };
     
@@ -1900,6 +1959,7 @@ function parse_grammar( grammar )
     
     grammar = preprocess_grammar({
         Style           : Style,
+        Fold            : Fold,
         Lex             : Lex,
         Syntax          : Syntax,
         $parser         : null,
@@ -2156,8 +2216,8 @@ function t_action( a, stream, state, token )
     // do action only if state.status handles (action) errors, else dont clutter
     if ( no_errors || !action_def || !token || !token.pos ) return true;
     is_block = !!(T_BLOCK & token.T);
-    // partial block not completed yet, postpone
-    if ( is_block && !token.block ) return true;
+    // NOP action, return OR partial block not completed yet, postpone
+    if ( A_NOP === action_def[ 0 ] || is_block && !token.block ) return true;
 
     action = action_def[ 0 ]; t = action_def[ 1 ]; in_ctx = action_def[ 2 ];
     msg = self.msg; queu = state.queu; symb = state.symb; ctx = state.ctx;
@@ -2681,8 +2741,7 @@ function t_composite( t, stream, state, token )
 }
 
 
-//
-// parser factory
+
 function State( unique, s )
 {
     var self = this;
@@ -2846,15 +2905,18 @@ Stream.$RE_SPC$ = /^[\s\u00a0]+/;
 Stream.$RE_NONSPC$ = /[^\s\u00a0]/;
 
 
+// parser factories
 var Parser = Class({
     constructor: function Parser( grammar, DEFAULT, ERROR ) {
         var self = this;
         self.$grammar = grammar;
         self.$DEF = DEFAULT || null; self.$ERR = ERROR || null;
         self.DEF = self.$DEF; self.ERR = self.$ERR;
+        self.$folders = [];
     }
     
     ,$grammar: null
+    ,$folders: null
     ,$n$: 'name', $t$: 'type', $v$: 'token'
     ,$DEF: null, $ERR: null
     ,DEF: null, ERR: null
@@ -2862,6 +2924,7 @@ var Parser = Class({
     ,dispose: function( ) {
         var self = this;
         self.$grammar = null;
+        self.$folders = null;
         self.$n$ = self.$t$ = self.$v$ = null;
         self.$DEF = self.$ERR = self.DEF = self.ERR = null;
         return self;
@@ -3058,14 +3121,366 @@ var Parser = Class({
         state_dispose( state );
         return ret;
     }
-    
+
+    // overriden
+    ,iterator: function( ) { }
+    ,validate: function( ) { }
+    ,autocomplete: function( ) { }
     ,indent: function( ) { }
+    ,fold: function( ) { }
 });
+
+function Type( TYPE, positive )
+{
+    if ( T_STR_OR_ARRAY & get_type( TYPE ) )
+        TYPE = new RegExp( map( make_array( TYPE ).sort( by_length ), esc_re ).join( '|' ) );
+    return false === positive
+    ? function( type ) { return !TYPE.test( type ); }
+    : function( type ) { return TYPE.test( type ); };
+}
+
+// Counts the column offset in a string, taking tabs into account.
+// Used mostly to find indentation.
+// adapted from codemirror countColumn
+function count_column( string, end, tabSize, startIndex, startValue )
+{
+    var i, n, nextTab;
+    if ( null == end )
+    {
+        end = string.search(/[^\s\u00a0]/);
+        if ( -1 == end ) end = string.length;
+    }
+    for (i=startIndex||0,n=startValue||0 ;;)
+    {
+        nextTab = string.indexOf("\t", i);
+        if ( nextTab < 0 || nextTab >= end ) return n + (end - i);
+        n += nextTab - i;
+        n += tabSize - (n % tabSize);
+        i = nextTab + 1;
+    }
+}
+
+function next_tag( iter, T, M, L, R, S )
+{
+    for (;;)
+    {
+        M.lastIndex = iter.col;
+        var found = M.exec( iter.text );
+        if ( !found )
+        {
+            if ( iter.next( ) )
+            {
+                iter.text = iter.line( iter.row );
+                continue;
+            }
+            else return;
+        }
+        if ( !tag_at(iter, found.index+1, T) )
+        {
+            iter.col = found.index + 1;
+            continue;
+        }
+        iter.col = found.index + found[0].length;
+        return found;
+    }
+}
+/*
+function prev_tag( iter, T, M, L, R, S )
+{
+    for (;;)
+    {
+        var gt = iter.col ? iter.text.lastIndexOf( R, iter.col-1 ) : -1;
+        if ( -1 == gt )
+        {
+            if ( iter.prev( ) )
+            {
+                iter.text = iter.line( iter.row );
+                continue;
+            }
+            else return;
+        }
+        if ( !tag_at(iter, gt+1, T) )
+        {
+            iter.col = gt;
+            continue;
+        }
+        var lastSlash = iter.text.lastIndexOf( S, gt );
+        var selfClose = lastSlash > -1 && !/\S/.test(iter.text.slice(lastSlash + 1, gt));
+        iter.col = gt + 1;
+        return selfClose ? "autoclosed" : "regular";
+    }
+}
+*/
+function tag_end( iter, T, M, L, R, S )
+{
+    var gt, lastSlash, selfClose;
+    for (;;)
+    {
+        gt = iter.text.indexOf( R, iter.col );
+        if ( -1 == gt )
+        {
+            if ( iter.next( ) )
+            {
+                iter.text = iter.line(  iter.row );
+                continue;
+            }
+            else return;
+        }
+        if ( !tag_at(iter, gt + 1, T) )
+        {
+            iter.col = gt + 1;
+            continue;
+        }
+        lastSlash = iter.text.lastIndexOf( S, gt );
+        selfClose = lastSlash > -1 && !/\S/.test(iter.text.slice(lastSlash + 1, gt));
+        iter.col = gt + 1;
+        return selfClose ? "autoclosed" : "regular";
+    }
+}
+
+function tag_start( iter, T, M, L, R, S )
+{
+    var lt, match;
+    for (;;)
+    {
+        lt = iter.col ? iter.text.lastIndexOf( L, iter.col-1 ) : -1;
+        if ( -1 == lt )
+        {
+            if ( iter.prev( ) )
+            {
+                iter.text = iter.line( iter.row );
+                continue;
+            }
+            else return;
+        }
+        if ( !tag_at(iter, lt + 1, T) )
+        {
+            iter.col = lt;
+            continue;
+        }
+        M.lastIndex = lt;
+        iter.col = lt;
+        match = M.exec( iter.text );
+        if ( match && match.index == lt ) return match;
+    }
+}
+
+function tag_at( iter, ch, T )
+{
+    var type = iter.token(iter.row, ch);
+    return type && T( type );
+}
+
+
+function find_matching_close( iter, tag, T, M, L, R, S )
+{
+    var stack = [], next, end, startLine, startCh, i;
+    for (;;)
+    {
+        next = next_tag(iter, T, M, L, R, S);
+        startLine = iter.row; startCh = iter.col - (next ? next[0].length : 0);
+        if ( !next || !(end = tag_end(iter, T, M, L, R, S)) ) return;
+        if ( end == "autoclosed" ) continue;
+        if ( next[1] )
+        {
+            // closing tag
+            for (i=stack.length-1; i>=0; --i)
+            {
+                if ( stack[i] == next[2] )
+                {
+                    stack.length = i;
+                    break;
+                }
+            }
+            if ( i < 0 && (!tag || tag == next[2]) )
+                return {
+                    tag: next[2],
+                    pos: [startLine, startCh, iter.row, iter.col]
+                };
+        }
+        else
+        {
+            // opening tag
+            stack.push( next[2] );
+        }
+    }
+}
+/*
+function find_matching_open( iter, tag, T, M, L, R, S )
+{
+    var stack = [], prev, endLine, endCh, start, i;
+    for (;;)
+    {
+        prev = prev_tag(iter, T, M, L, R, S);
+        if ( !prev ) return;
+        if ( prev == "autoclosed" )
+        {
+            tag_start(iter, T, M, L, R, S);
+            continue;
+        }
+        endLine = iter.row, endCh = iter.col;
+        start = tag_start(iter, T, M, L, R, S);
+        if ( !start ) return;
+        if ( start[1] )
+        {
+            // closing tag
+            stack.push( start[2] );
+        }
+        else
+        {
+            // opening tag
+            for (i = stack.length-1; i>=0; --i)
+            {
+                if ( stack[i] == start[2] )
+                {
+                    stack.length = i;
+                    break;
+                }
+            }
+            if ( i < 0 && (!tag || tag == start[2]) )
+                return {
+                    tag: start[2],
+                    pos: [iter.row, iter.col, endLine, endCh]
+                };
+        }
+    }
+}
+*/
+
+// folder factories
+var Folder = {
+    // adapted from codemirror
+    
+     _: {
+        $notempty$: /\S/,
+        $spc$: /^\s*/,
+        $block$: /comment/,
+        $comment$: /comment/
+    }
+    
+    ,Indented: function( NOTEMPTY ) {
+        NOTEMPTY = NOTEMPTY || Folder._.$notempty$;
+        
+        return function( iter ) {
+            var first_line, first_indentation, cur_line, cur_indentation,
+                start_pos, end_pos, last_line_in_fold, i, end,
+                row = iter.row, col = iter.col;
+            
+            first_line = iter.line( );
+            if ( !NOTEMPTY.test( first_line ) ) return;
+            first_indentation = iter.indentation( first_line );
+            last_line_in_fold = null; start_pos = first_line.length;
+            for (i=row+1,end=iter.last( ); i<=end; ++i)
+            {
+                cur_line = iter.line( i ); cur_indentation = iter.indentation( cur_line );
+                if ( cur_indentation > first_indentation )
+                {
+                    // Lines with a greater indent are considered part of the block.
+                    last_line_in_fold = i;
+                    end_pos = cur_line.length;
+                }
+                else if ( !NOTEMPTY.test( cur_line ) )
+                {
+                    // Empty lines might be breaks within the block we're trying to fold.
+                }
+                else
+                {
+                    // A non-empty line at an indent equal to or less than ours marks the
+                    // start of another block.
+                    break;
+                }
+            }
+            // return a range
+            if ( last_line_in_fold ) return [row, start_pos, last_line_in_fold, end_pos];
+        };
+    }
+
+    ,Delimited: function( S, E, T ) {
+        if ( !S || !E ) return function( ){ };
+        T = T || TRUE;
+
+        return function( iter ) {
+            var line = iter.row, col = iter.col,
+                lineText, startCh, at, pass, found,
+                depth, lastLine, end, endCh, i, text, pos, nextOpen, nextClose;
+            
+            lineText = iter.line( line );
+            for (at=col,pass=0 ;;)
+            {
+                var found = at<=0 ? -1 : lineText.lastIndexOf( S, at-1 );
+                if ( -1 == found )
+                {
+                    if ( 1 == pass ) return;
+                    pass = 1;
+                    at = lineText.length;
+                    continue;
+                }
+                if ( 1 == pass && found < col ) return;
+                if ( T( iter.token( line, found+1 ) ) )
+                {
+                    startCh = found + S.length;
+                    break;
+                }
+                at = found-1;
+            }
+            depth = 1; lastLine = iter.last();
+            outer: for (i=line; i<=lastLine; ++i)
+            {
+                text = iter.line( i ); pos = i==line ? startCh : 0;
+                for (;;)
+                {
+                    nextOpen = text.indexOf( S, pos );
+                    nextClose = text.indexOf( E, pos );
+                    if ( nextOpen < 0 ) nextOpen = text.length;
+                    if ( nextClose < 0 ) nextClose = text.length;
+                    pos = MIN( nextOpen, nextClose );
+                    if ( pos == text.length ) break;
+                    if ( pos == nextOpen ) ++depth;
+                    else if ( !--depth ) { end = i; endCh = pos; break outer; }
+                    ++pos;
+                }
+            }
+            if ( null == end || (line === end && endCh === startCh) ) return;
+            return [line, startCh, end, endCh];
+        };
+    }
+    
+    ,Pattern: function( S, E, T ) {
+        // TODO
+        return function( ){ };
+    }
+    
+    ,Markup: function( T, L, R, S, M ) {
+        T = T || Type(/\btag\b/);
+        L = L || "<"; R = R || ">"; S = S || "/";
+        M = M || new RegExp(L+"("+S+"?)([a-zA-Z_][a-zA-Z0-9_\\-:]*)","g");
+
+        return function( iter ) {
+            iter.col = 0; iter.min = iter.first( ); iter.max = iter.last( );
+            iter.text = iter.line( iter.row );
+            var openTag, end, start, close, startLine = iter.row;
+            for (;;)
+            {
+                openTag = next_tag(iter, T, M, L, R, S);
+                if ( !openTag || iter.row != startLine || !(end = tag_end(iter, T, M, L, R, S)) ) return;
+                if ( !openTag[1] && end != "autoclosed" )
+                {
+                    start = [iter.row, iter.col];
+                    if ( close = find_matching_close(iter, openTag[2], T, M, L, R, S) )
+                    {
+                        return [start[0], start[1], close.pos[0], close.pos[1]];
+                    }
+                }
+            }
+        };
+    }
+
+};
 
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 2.5.0
+*   @version: 2.6.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -3084,7 +3499,7 @@ var $CodeMirror$ = CodeMirror || { Pass : { toString: function(){return "CodeMir
 // parser factories
 var CodeMirrorParser = Class(Parser, {
     constructor: function CodeMirrorParser( grammar, DEFAULT ) {
-        var self = this;
+        var self = this, FOLD = null, TYPE;
         
         Parser.call(self, grammar, null, "error");
         self.DEF = DEFAULT || self.$DEF;
@@ -3095,6 +3510,38 @@ var CodeMirrorParser = Class(Parser, {
         self.BCS = grammar.$comments.block ? grammar.$comments.block[0][0] : null;
         self.BCE = grammar.$comments.block ? grammar.$comments.block[0][1] : null;
         self.BCC = self.BCL = grammar.$comments.block ? grammar.$comments.block[0][2] : null;
+
+        // comment-block folding
+        if ( grammar.$comments.block && grammar.$comments.block.length )
+        {
+            TYPE = CodeMirrorParser.Type( 'comment' );
+            for(var i=0,l=grammar.$comments.block.length; i<l; i++)
+            {
+                self.$folders.push(CodeMirrorParser.Fold.Delimited(
+                    grammar.$comments.block[i][0],
+                    grammar.$comments.block[i][1],
+                    TYPE
+                ));
+            }
+        }
+        // user-defined folding
+        if ( grammar.Fold && (T_STR & get_type(grammar.Fold)) ) FOLD = grammar.Fold[LOWER]();
+        else if ( grammar.$extra.fold ) FOLD = grammar.$extra.fold[LOWER]();
+        if ( 'brace' === FOLD || 'cstyle' === FOLD )
+        {
+            var blocks = get_block_types( grammar, 1 );
+            TYPE = blocks.length ? CodeMirrorParser.Type( blocks, false ) : TRUE;
+            self.$folders.push( CodeMirrorParser.Fold.Delimited( '{', '}', TYPE ) );
+            self.$folders.push( CodeMirrorParser.Fold.Delimited( '[', ']', TYPE ) );
+        }
+        else if ( 'indent' === FOLD || 'indentation' === FOLD )
+        {
+            self.$folders.push( CodeMirrorParser.Fold.Indented( ) );
+        }
+        else if ( 'markup' === FOLD || 'html' === FOLD || 'xml' === FOLD )
+        {
+            self.$folders.push( CodeMirrorParser.Fold.Markup( ) );
+        }
     }
     
     ,LC: null
@@ -3109,118 +3556,38 @@ var CodeMirrorParser = Class(Parser, {
         return Parser[PROTO].dispose.call( self );
     }
     
-    ,indent: function( state, textAfter, fullLine, conf, parserConf ) {
-        var indentUnit = conf.indentUnit || 4, Pass = $CodeMirror$.Pass;
-        return Pass;
-    }
-});
-
-function get_mode( grammar, DEFAULT ) 
-{
-    // Codemirror-compatible Mode
-    var cm_mode = function cm_mode( conf, parserConf ) {
-        return {
-            /*
-            // maybe needed in later versions..?
-            ,blankLine: function( state ) { }
-            ,innerMode: function( state ) { }
-            */
-            
-            startState: function( ) { 
-                return new State( );
-            }
-            
-            ,copyState: function( state ) { 
-                return new State( 0, state );
-            }
-            
-            ,token: function( stream, state ) { 
-                var pstream = Stream( stream.string, stream.start, stream.pos ), 
-                    token = cm_mode.$parser.token( pstream, state ).type;
-                stream.pos = pstream.pos;
-                return token;
-            }
-            
-            ,indent: function( state, textAfter, fullLine ) { 
-                return cm_mode.$parser.indent( state, textAfter, fullLine, conf, parserConf ); 
-            }
-            
-            // support comments toggle functionality
-            ,lineComment: cm_mode.$parser.LC
-            ,blockCommentStart: cm_mode.$parser.BCS
-            ,blockCommentEnd: cm_mode.$parser.BCE
-            ,blockCommentContinue: cm_mode.$parser.BCC
-            ,blockCommentLead: cm_mode.$parser.BCL
-            // support extra functionality defined in grammar
-            // eg. code folding, electriChars etc..
-            ,electricInput: cm_mode.$parser.$grammar.$extra.electricInput || false
-            ,electricChars: cm_mode.$parser.$grammar.$extra.electricChars || false
-            ,fold: fold_mode
-        };
-    }, fold_mode = false;
-    
-    cm_mode.$id = uuid("codemirror_grammar_mode");
-    
-    cm_mode.$parser = new CodeMirrorGrammar.Parser( parse_grammar( grammar ), DEFAULT );
-    
-    if ( cm_mode.$parser.$grammar.$extra.fold )
-    {
-        fold_mode = cm_mode.$parser.$grammar.$extra.fold[LOWER]();
-        if ( 'brace' === fold_mode || 'cstyle' === fold_mode ) fold_mode = "brace";
-        else if ( 'html' === fold_mode || 'xml' === fold_mode ) fold_mode = "xml";
-        else if ( 'indent' === fold_mode || 'indentation' === fold_mode ) fold_mode = "indent";
-        else fold_mode = false;
-    }
-    
-    cm_mode.supportGrammarAnnotations = false;
-    // syntax, lint-like validator generated from grammar
-    // maybe use this as a worker (a-la ACE) ??
-    cm_mode.validator = function( code, options )  {
-        if ( !cm_mode.$parser || !cm_mode.supportGrammarAnnotations || !code || !code.length ) return [];
-        
-        var errors = [], err, msg, error, Pos = $CodeMirror$.Pos,
-            code_errors = cm_mode.$parser.parse( code, ERRORS );
+    ,validate: function( code, options, CodeMirror )  {
+        if ( !code || !code.length ) return [];
+        var parser = this, errors = [], err, msg, error,
+            err_type, err_msg, code_errors = parser.parse( code, ERRORS );
         if ( !code_errors ) return errors;
+        
+        options = options || {};
+        err_type = options[HAS]('type') ? options.type : "error";
+        err_msg = options[HAS]('msg') ? options.msg : "Syntax Error";
         
         for (err in code_errors)
         {
             if ( !code_errors[HAS](err) ) continue;
             error = code_errors[err];
             errors.push({
-                message: error[4] || "Syntax Error",
-                severity: "error",
-                from: Pos(error[0], error[1]),
-                to: Pos(error[2], error[3])
+                message: error[4] || err_msg,
+                severity: err_type,
+                from: CodeMirror.Pos( error[0], error[1] ),
+                to: CodeMirror.Pos( error[2], error[3] )
             });
         }
         return errors;
-    };
+    }
     
-    // autocompletion helper extracted from the grammar
     // adapted from codemirror anyword-hint helper
-    cm_mode.autocomplete_renderer = function( elt, data, cmpl ) {
-        var word = cmpl.text, type = cmpl.meta, p1 = cmpl.start, p2 = cmpl.end,
-            padding = data.list.maxlen-word.length-type.length+5;
-        elt.innerHTML = [
-            '<span class="cmg-autocomplete-keyword">', word.slice(0,p1),
-            '<strong class="cmg-autocomplete-keyword-match">', word.slice(p1,p2), '</strong>',
-            word.slice(p2), '</span>',
-            new Array(1+padding).join('&nbsp;'),
-            '<strong class="cmg-autocomplete-keyword-meta">', type, '</strong>',
-            '&nbsp;'
-        ].join('');
-        // adjust to fit keywords
-        elt.className = (elt.className&&elt.className.length ? elt.className+' ' : '') + 'cmg-autocomplete-keyword-hint';
-        elt.style.position = 'relative'; elt.style.boxSizing = 'border-box';
-        elt.style.width = '100%'; elt.style.maxWidth = '100%';
-    };
-    cm_mode.autocompleter = function( cm, options ) {
-        var list = [], Pos = $CodeMirror$.Pos,
+    ,autocomplete: function( cm, options, CodeMirror ) {
+        var parser = this, list = [],
             cur = cm.getCursor(), curLine,
             start0 = cur.ch, start = start0, end0 = start0, end = end0,
             token, token_i, len, maxlen = 0, word_re, renderer,
             case_insensitive_match, prefix_match;
-        if ( cm_mode.$parser && cm_mode.$parser.$grammar.$autocomplete )
+        if ( parser.$grammar.$autocomplete )
         {
             options = options || {};
             word_re = options.word || RE_W; curLine = cm.getLine(cur.line);
@@ -3231,7 +3598,7 @@ function get_mode( grammar, DEFAULT )
             if ( start < end )
             {
                 case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false;
-                renderer = options.renderer || cm_mode.autocomplete_renderer;
+                renderer = options.renderer || null;
                 token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
                 operate(cm_mode.$parser.$grammar.$autocomplete, function( list, word ){
                     var w = word.word, wl = w.length, 
@@ -3265,9 +3632,151 @@ function get_mode( grammar, DEFAULT )
         }
         return {
             list: list,
-            from: Pos( cur.line, start ),
-            to: Pos( cur.line, end )
+            from: CodeMirror.Pos( cur.line, start ),
+            to: CodeMirror.Pos( cur.line, end )
         };
+    }
+    
+    // adapted from codemirror
+    ,indent: function( state, textAfter, fullLine, conf, parserConf, CodeMirror ) {
+        //var indentUnit = conf.indentUnit || 4;
+        // TODO
+        return CodeMirror.Pass;
+    }
+    
+    ,iterator: function( cm, CodeMirror ) {
+        // adapted from codemirror
+        var tabSize = cm.getOption("tabSize");
+        return {
+         row: 0, col: 0, min: 0, max: 0
+        ,line: function( row ) { return cm.getLine( row ); }
+        //,nlines: function( ) { return cm.lineCount( ); }
+        ,first: function( ) { return cm.firstLine( ); }
+        ,last: function( ) { return cm.lastLine( ); }
+        ,next: function( ) {
+            var iter = this;
+            if ( iter.row >= iter.max ) return;
+            iter.col = 0; iter.row++;
+            return true;
+        }
+        ,prev: function( ) {
+            var iter = this;
+            if ( iter.row <= iter.min ) return;
+            iter.col = 0; iter.row--;
+            return true;
+        }
+        ,indentation: function( line ) { return count_column( line, null, tabSize ); }
+        ,token: function( row, col ) { return cm.getTokenTypeAt( CodeMirror.Pos( row, col ) ); }
+        };
+    }
+    
+    ,fold: function( cm, start, CodeMirror ) {
+        // adapted from codemirror
+        var self = this, folders = self.$folders, i, l = folders.length, iter, fold;
+        if ( l )
+        {
+            iter = self.iterator( cm, CodeMirror );
+            iter.row = start.line; iter.col = start.ch||0;
+            for (i=0; i<l; i++)
+                if ( fold = folders[ i ]( iter ) )
+                    return fold;
+        }
+    }
+});
+CodeMirrorParser.Type = Type;
+CodeMirrorParser.Fold = Folder;
+
+function get_mode( grammar, DEFAULT, CodeMirror ) 
+{
+    // Codemirror-compatible Mode
+    CodeMirror = CodeMirror || $CodeMirror$; /* pass CodeMirror reference if not already available */
+    var cm_mode = function cm_mode( conf, parserConf ) {
+        return {
+            /*
+            // maybe needed in later versions..?
+            ,blankLine: function( state ) { }
+            ,innerMode: function( state ) { }
+            */
+            startState: function( ) { 
+                return new State( );
+            }
+            
+            ,copyState: function( state ) { 
+                return new State( 0, state );
+            }
+            
+            ,token: function( stream, state ) { 
+                var pstream = Stream( stream.string, stream.start, stream.pos ), 
+                    token = cm_mode.$parser.token( pstream, state ).type;
+                stream.pos = pstream.pos;
+                return token;
+            }
+            
+            ,indent: function( state, textAfter, fullLine ) { 
+                return cm_mode.$parser.indent( $CodeMirror$, state, textAfter, fullLine, conf, parserConf, CodeMirror ); 
+            }
+            
+            // support comments toggle functionality
+            ,lineComment: cm_mode.$parser.LC
+            ,blockCommentStart: cm_mode.$parser.BCS
+            ,blockCommentEnd: cm_mode.$parser.BCE
+            ,blockCommentContinue: cm_mode.$parser.BCC
+            ,blockCommentLead: cm_mode.$parser.BCL
+            // support extra functionality defined in grammar
+            // eg. code folding, electriChars etc..
+            ,electricInput: cm_mode.$parser.$grammar.$extra.electricInput || false
+            ,electricChars: cm_mode.$parser.$grammar.$extra.electricChars || false
+            ,fold: cm_mode.foldType
+        };
+    };
+    cm_mode.$id = uuid("codemirror_grammar_mode");
+    cm_mode.foldType = "fold_"+cm_mode.$id;
+    cm_mode.$parser = new CodeMirrorGrammar.Parser( parse_grammar( grammar ), DEFAULT );
+    // custom, user-defined, code folding generated from grammar
+    cm_mode.supportCodeFolding = true;
+    cm_mode.folder = function( cm, start ) {
+        var fold;
+        if ( cm_mode.supportCodeFolding && cm_mode.$parser && (fold = cm_mode.$parser.fold( cm, start, CodeMirror )) )
+        {
+            return {
+                from: CodeMirror.Pos( fold[0], fold[1] ),
+                to: CodeMirror.Pos( fold[2], fold[3] )
+            };
+        }
+    };
+    // custom, user-defined, syntax lint-like validation/annotations generated from grammar
+    cm_mode.supportGrammarAnnotations = false;
+    cm_mode.validator = function( code, options )  {
+        return cm_mode.supportGrammarAnnotations && cm_mode.$parser && code && code.length
+        ? cm_mode.$parser.validate( code, options, CodeMirror )
+        : [];
+    };
+    cm_mode.linter = cm_mode.validator;
+    // custom, user-defined, autocompletions generated from grammar
+    cm_mode.supportAutoCompletion = true;
+    cm_mode.autocompleter = function( cm, options ) {
+        if ( cm_mode.supportAutoCompletion && cm_mode.$parser )
+        {
+            options = options || {};
+            if ( !options[HAS]('renderer') ) options.renderer = cm_mode.autocomplete_renderer;
+            return cm_mode.$parser.autocomplete( cm, options, CodeMirror );
+        }
+    };
+    cm_mode.autocomplete_renderer = function( elt, data, cmpl ) {
+        var word = cmpl.text, type = cmpl.meta, p1 = cmpl.start, p2 = cmpl.end,
+            padding = data.list.maxlen-word.length-type.length+5;
+        elt.innerHTML = [
+            '<span class="cmg-autocomplete-keyword">', word.slice(0,p1),
+            '<strong class="cmg-autocomplete-keyword-match">', word.slice(p1,p2), '</strong>',
+            word.slice(p2), '</span>',
+            new Array(1+padding).join('&nbsp;'),
+            '<strong class="cmg-autocomplete-keyword-meta">', type, '</strong>',
+            '&nbsp;'
+        ].join('');
+        // adjust to fit keywords
+        elt.className = (elt.className&&elt.className.length ? elt.className+' ' : '') + 'cmg-autocomplete-keyword-hint';
+        elt.style.position = 'relative'; elt.style.boxSizing = 'border-box';
+        elt.style.width = '100%'; elt.style.maxWidth = '100%';
     };
     cm_mode.autocomplete = cm_mode.autocompleter; // deprecated, for compatibility
     cm_mode.dispose = function( ) {
@@ -3298,7 +3807,7 @@ function get_mode( grammar, DEFAULT )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     
-    VERSION: "2.5.0",
+    VERSION: "2.6.0",
     
     // clone a grammar
     /**[DOC_MARKDOWN]
@@ -3362,12 +3871,14 @@ var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     * __Method__: `getMode`
     *
     * ```javascript
-    * mode = CodeMirrorGrammar.getMode( grammar [, DEFAULT] );
+    * mode = CodeMirrorGrammar.getMode( grammar [, DEFAULT, CodeMirror] );
     * ```
     *
     * This is the main method which transforms a `JSON grammar` into a `CodeMirror` syntax-highlight parser.
     * `DEFAULT` is the default return value (`null` by default) for things that are skipped or not styled
     * In general there is no need to set this value, unless you need to return something else
+    * The `CodeMirror` reference can also be passed as parameter, for example,
+    * if `CodeMirror` is not already available when the add-on is first loaded (e.g via an `async` callback)
     [/DOC_MARKDOWN]**/
     getMode: get_mode,
     

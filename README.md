@@ -30,7 +30,9 @@ See also: [ace-grammar](https://github.com/foo123/ace-grammar) , [prism-grammar]
 
 ###Todo
 
-Code Indentation (Codemirror default) and Code Folding is based on existing Codemirror folders (if available)
+Code Indentation is (Codemirror default) <del>and Code Folding is based on existing Codemirror folders (if available)</del>
+
+*generic code-folders implementations have been added, specified in grammar.Extra.fold option*
 
 see [Modularity and Future Directions](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#modularity-and-future-directions)
 

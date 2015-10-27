@@ -20,7 +20,7 @@ var $CodeMirror$ = CodeMirror || { Pass : { toString: function(){return "CodeMir
 // parser factories
 var CodeMirrorParser = Class(Parser, {
     constructor: function CodeMirrorParser( grammar, DEFAULT ) {
-        var self = this;
+        var self = this, FOLD = null, TYPE;
         
         Parser.call(self, grammar, null, "error");
         self.DEF = DEFAULT || self.$DEF;
@@ -31,6 +31,38 @@ var CodeMirrorParser = Class(Parser, {
         self.BCS = grammar.$comments.block ? grammar.$comments.block[0][0] : null;
         self.BCE = grammar.$comments.block ? grammar.$comments.block[0][1] : null;
         self.BCC = self.BCL = grammar.$comments.block ? grammar.$comments.block[0][2] : null;
+
+        // comment-block folding
+        if ( grammar.$comments.block && grammar.$comments.block.length )
+        {
+            TYPE = CodeMirrorParser.Type( 'comment' );
+            for(var i=0,l=grammar.$comments.block.length; i<l; i++)
+            {
+                self.$folders.push(CodeMirrorParser.Fold.Delimited(
+                    grammar.$comments.block[i][0],
+                    grammar.$comments.block[i][1],
+                    TYPE
+                ));
+            }
+        }
+        // user-defined folding
+        if ( grammar.Fold && (T_STR & get_type(grammar.Fold)) ) FOLD = grammar.Fold[LOWER]();
+        else if ( grammar.$extra.fold ) FOLD = grammar.$extra.fold[LOWER]();
+        if ( 'brace' === FOLD || 'cstyle' === FOLD )
+        {
+            var blocks = get_block_types( grammar, 1 );
+            TYPE = blocks.length ? CodeMirrorParser.Type( blocks, false ) : TRUE;
+            self.$folders.push( CodeMirrorParser.Fold.Delimited( '{', '}', TYPE ) );
+            self.$folders.push( CodeMirrorParser.Fold.Delimited( '[', ']', TYPE ) );
+        }
+        else if ( 'indent' === FOLD || 'indentation' === FOLD )
+        {
+            self.$folders.push( CodeMirrorParser.Fold.Indented( ) );
+        }
+        else if ( 'markup' === FOLD || 'html' === FOLD || 'xml' === FOLD )
+        {
+            self.$folders.push( CodeMirrorParser.Fold.Markup( ) );
+        }
     }
     
     ,LC: null
@@ -45,118 +77,38 @@ var CodeMirrorParser = Class(Parser, {
         return Parser[PROTO].dispose.call( self );
     }
     
-    ,indent: function( state, textAfter, fullLine, conf, parserConf ) {
-        var indentUnit = conf.indentUnit || 4, Pass = $CodeMirror$.Pass;
-        return Pass;
-    }
-});
-
-function get_mode( grammar, DEFAULT ) 
-{
-    // Codemirror-compatible Mode
-    var cm_mode = function cm_mode( conf, parserConf ) {
-        return {
-            /*
-            // maybe needed in later versions..?
-            ,blankLine: function( state ) { }
-            ,innerMode: function( state ) { }
-            */
-            
-            startState: function( ) { 
-                return new State( );
-            }
-            
-            ,copyState: function( state ) { 
-                return new State( 0, state );
-            }
-            
-            ,token: function( stream, state ) { 
-                var pstream = Stream( stream.string, stream.start, stream.pos ), 
-                    token = cm_mode.$parser.token( pstream, state ).type;
-                stream.pos = pstream.pos;
-                return token;
-            }
-            
-            ,indent: function( state, textAfter, fullLine ) { 
-                return cm_mode.$parser.indent( state, textAfter, fullLine, conf, parserConf ); 
-            }
-            
-            // support comments toggle functionality
-            ,lineComment: cm_mode.$parser.LC
-            ,blockCommentStart: cm_mode.$parser.BCS
-            ,blockCommentEnd: cm_mode.$parser.BCE
-            ,blockCommentContinue: cm_mode.$parser.BCC
-            ,blockCommentLead: cm_mode.$parser.BCL
-            // support extra functionality defined in grammar
-            // eg. code folding, electriChars etc..
-            ,electricInput: cm_mode.$parser.$grammar.$extra.electricInput || false
-            ,electricChars: cm_mode.$parser.$grammar.$extra.electricChars || false
-            ,fold: fold_mode
-        };
-    }, fold_mode = false;
-    
-    cm_mode.$id = uuid("codemirror_grammar_mode");
-    
-    cm_mode.$parser = new CodeMirrorGrammar.Parser( parse_grammar( grammar ), DEFAULT );
-    
-    if ( cm_mode.$parser.$grammar.$extra.fold )
-    {
-        fold_mode = cm_mode.$parser.$grammar.$extra.fold[LOWER]();
-        if ( 'brace' === fold_mode || 'cstyle' === fold_mode ) fold_mode = "brace";
-        else if ( 'html' === fold_mode || 'xml' === fold_mode ) fold_mode = "xml";
-        else if ( 'indent' === fold_mode || 'indentation' === fold_mode ) fold_mode = "indent";
-        else fold_mode = false;
-    }
-    
-    cm_mode.supportGrammarAnnotations = false;
-    // syntax, lint-like validator generated from grammar
-    // maybe use this as a worker (a-la ACE) ??
-    cm_mode.validator = function( code, options )  {
-        if ( !cm_mode.$parser || !cm_mode.supportGrammarAnnotations || !code || !code.length ) return [];
-        
-        var errors = [], err, msg, error, Pos = $CodeMirror$.Pos,
-            code_errors = cm_mode.$parser.parse( code, ERRORS );
+    ,validate: function( code, options, CodeMirror )  {
+        if ( !code || !code.length ) return [];
+        var parser = this, errors = [], err, msg, error,
+            err_type, err_msg, code_errors = parser.parse( code, ERRORS );
         if ( !code_errors ) return errors;
+        
+        options = options || {};
+        err_type = options[HAS]('type') ? options.type : "error";
+        err_msg = options[HAS]('msg') ? options.msg : "Syntax Error";
         
         for (err in code_errors)
         {
             if ( !code_errors[HAS](err) ) continue;
             error = code_errors[err];
             errors.push({
-                message: error[4] || "Syntax Error",
-                severity: "error",
-                from: Pos(error[0], error[1]),
-                to: Pos(error[2], error[3])
+                message: error[4] || err_msg,
+                severity: err_type,
+                from: CodeMirror.Pos( error[0], error[1] ),
+                to: CodeMirror.Pos( error[2], error[3] )
             });
         }
         return errors;
-    };
+    }
     
-    // autocompletion helper extracted from the grammar
     // adapted from codemirror anyword-hint helper
-    cm_mode.autocomplete_renderer = function( elt, data, cmpl ) {
-        var word = cmpl.text, type = cmpl.meta, p1 = cmpl.start, p2 = cmpl.end,
-            padding = data.list.maxlen-word.length-type.length+5;
-        elt.innerHTML = [
-            '<span class="cmg-autocomplete-keyword">', word.slice(0,p1),
-            '<strong class="cmg-autocomplete-keyword-match">', word.slice(p1,p2), '</strong>',
-            word.slice(p2), '</span>',
-            new Array(1+padding).join('&nbsp;'),
-            '<strong class="cmg-autocomplete-keyword-meta">', type, '</strong>',
-            '&nbsp;'
-        ].join('');
-        // adjust to fit keywords
-        elt.className = (elt.className&&elt.className.length ? elt.className+' ' : '') + 'cmg-autocomplete-keyword-hint';
-        elt.style.position = 'relative'; elt.style.boxSizing = 'border-box';
-        elt.style.width = '100%'; elt.style.maxWidth = '100%';
-    };
-    cm_mode.autocompleter = function( cm, options ) {
-        var list = [], Pos = $CodeMirror$.Pos,
+    ,autocomplete: function( cm, options, CodeMirror ) {
+        var parser = this, list = [],
             cur = cm.getCursor(), curLine,
             start0 = cur.ch, start = start0, end0 = start0, end = end0,
             token, token_i, len, maxlen = 0, word_re, renderer,
             case_insensitive_match, prefix_match;
-        if ( cm_mode.$parser && cm_mode.$parser.$grammar.$autocomplete )
+        if ( parser.$grammar.$autocomplete )
         {
             options = options || {};
             word_re = options.word || RE_W; curLine = cm.getLine(cur.line);
@@ -167,7 +119,7 @@ function get_mode( grammar, DEFAULT )
             if ( start < end )
             {
                 case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false;
-                renderer = options.renderer || cm_mode.autocomplete_renderer;
+                renderer = options.renderer || null;
                 token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
                 operate(cm_mode.$parser.$grammar.$autocomplete, function( list, word ){
                     var w = word.word, wl = w.length, 
@@ -201,9 +153,151 @@ function get_mode( grammar, DEFAULT )
         }
         return {
             list: list,
-            from: Pos( cur.line, start ),
-            to: Pos( cur.line, end )
+            from: CodeMirror.Pos( cur.line, start ),
+            to: CodeMirror.Pos( cur.line, end )
         };
+    }
+    
+    // adapted from codemirror
+    ,indent: function( state, textAfter, fullLine, conf, parserConf, CodeMirror ) {
+        //var indentUnit = conf.indentUnit || 4;
+        // TODO
+        return CodeMirror.Pass;
+    }
+    
+    ,iterator: function( cm, CodeMirror ) {
+        // adapted from codemirror
+        var tabSize = cm.getOption("tabSize");
+        return {
+         row: 0, col: 0, min: 0, max: 0
+        ,line: function( row ) { return cm.getLine( row ); }
+        //,nlines: function( ) { return cm.lineCount( ); }
+        ,first: function( ) { return cm.firstLine( ); }
+        ,last: function( ) { return cm.lastLine( ); }
+        ,next: function( ) {
+            var iter = this;
+            if ( iter.row >= iter.max ) return;
+            iter.col = 0; iter.row++;
+            return true;
+        }
+        ,prev: function( ) {
+            var iter = this;
+            if ( iter.row <= iter.min ) return;
+            iter.col = 0; iter.row--;
+            return true;
+        }
+        ,indentation: function( line ) { return count_column( line, null, tabSize ); }
+        ,token: function( row, col ) { return cm.getTokenTypeAt( CodeMirror.Pos( row, col ) ); }
+        };
+    }
+    
+    ,fold: function( cm, start, CodeMirror ) {
+        // adapted from codemirror
+        var self = this, folders = self.$folders, i, l = folders.length, iter, fold;
+        if ( l )
+        {
+            iter = self.iterator( cm, CodeMirror );
+            iter.row = start.line; iter.col = start.ch||0;
+            for (i=0; i<l; i++)
+                if ( fold = folders[ i ]( iter ) )
+                    return fold;
+        }
+    }
+});
+CodeMirrorParser.Type = Type;
+CodeMirrorParser.Fold = Folder;
+
+function get_mode( grammar, DEFAULT, CodeMirror ) 
+{
+    // Codemirror-compatible Mode
+    CodeMirror = CodeMirror || $CodeMirror$; /* pass CodeMirror reference if not already available */
+    var cm_mode = function cm_mode( conf, parserConf ) {
+        return {
+            /*
+            // maybe needed in later versions..?
+            ,blankLine: function( state ) { }
+            ,innerMode: function( state ) { }
+            */
+            startState: function( ) { 
+                return new State( );
+            }
+            
+            ,copyState: function( state ) { 
+                return new State( 0, state );
+            }
+            
+            ,token: function( stream, state ) { 
+                var pstream = Stream( stream.string, stream.start, stream.pos ), 
+                    token = cm_mode.$parser.token( pstream, state ).type;
+                stream.pos = pstream.pos;
+                return token;
+            }
+            
+            ,indent: function( state, textAfter, fullLine ) { 
+                return cm_mode.$parser.indent( $CodeMirror$, state, textAfter, fullLine, conf, parserConf, CodeMirror ); 
+            }
+            
+            // support comments toggle functionality
+            ,lineComment: cm_mode.$parser.LC
+            ,blockCommentStart: cm_mode.$parser.BCS
+            ,blockCommentEnd: cm_mode.$parser.BCE
+            ,blockCommentContinue: cm_mode.$parser.BCC
+            ,blockCommentLead: cm_mode.$parser.BCL
+            // support extra functionality defined in grammar
+            // eg. code folding, electriChars etc..
+            ,electricInput: cm_mode.$parser.$grammar.$extra.electricInput || false
+            ,electricChars: cm_mode.$parser.$grammar.$extra.electricChars || false
+            ,fold: cm_mode.foldType
+        };
+    };
+    cm_mode.$id = uuid("codemirror_grammar_mode");
+    cm_mode.foldType = "fold_"+cm_mode.$id;
+    cm_mode.$parser = new CodeMirrorGrammar.Parser( parse_grammar( grammar ), DEFAULT );
+    // custom, user-defined, code folding generated from grammar
+    cm_mode.supportCodeFolding = true;
+    cm_mode.folder = function( cm, start ) {
+        var fold;
+        if ( cm_mode.supportCodeFolding && cm_mode.$parser && (fold = cm_mode.$parser.fold( cm, start, CodeMirror )) )
+        {
+            return {
+                from: CodeMirror.Pos( fold[0], fold[1] ),
+                to: CodeMirror.Pos( fold[2], fold[3] )
+            };
+        }
+    };
+    // custom, user-defined, syntax lint-like validation/annotations generated from grammar
+    cm_mode.supportGrammarAnnotations = false;
+    cm_mode.validator = function( code, options )  {
+        return cm_mode.supportGrammarAnnotations && cm_mode.$parser && code && code.length
+        ? cm_mode.$parser.validate( code, options, CodeMirror )
+        : [];
+    };
+    cm_mode.linter = cm_mode.validator;
+    // custom, user-defined, autocompletions generated from grammar
+    cm_mode.supportAutoCompletion = true;
+    cm_mode.autocompleter = function( cm, options ) {
+        if ( cm_mode.supportAutoCompletion && cm_mode.$parser )
+        {
+            options = options || {};
+            if ( !options[HAS]('renderer') ) options.renderer = cm_mode.autocomplete_renderer;
+            return cm_mode.$parser.autocomplete( cm, options, CodeMirror );
+        }
+    };
+    cm_mode.autocomplete_renderer = function( elt, data, cmpl ) {
+        var word = cmpl.text, type = cmpl.meta, p1 = cmpl.start, p2 = cmpl.end,
+            padding = data.list.maxlen-word.length-type.length+5;
+        elt.innerHTML = [
+            '<span class="cmg-autocomplete-keyword">', word.slice(0,p1),
+            '<strong class="cmg-autocomplete-keyword-match">', word.slice(p1,p2), '</strong>',
+            word.slice(p2), '</span>',
+            new Array(1+padding).join('&nbsp;'),
+            '<strong class="cmg-autocomplete-keyword-meta">', type, '</strong>',
+            '&nbsp;'
+        ].join('');
+        // adjust to fit keywords
+        elt.className = (elt.className&&elt.className.length ? elt.className+' ' : '') + 'cmg-autocomplete-keyword-hint';
+        elt.style.position = 'relative'; elt.style.boxSizing = 'border-box';
+        elt.style.width = '100%'; elt.style.maxWidth = '100%';
     };
     cm_mode.autocomplete = cm_mode.autocompleter; // deprecated, for compatibility
     cm_mode.dispose = function( ) {
@@ -298,12 +392,14 @@ var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
     * __Method__: `getMode`
     *
     * ```javascript
-    * mode = CodeMirrorGrammar.getMode( grammar [, DEFAULT] );
+    * mode = CodeMirrorGrammar.getMode( grammar [, DEFAULT, CodeMirror] );
     * ```
     *
     * This is the main method which transforms a `JSON grammar` into a `CodeMirror` syntax-highlight parser.
     * `DEFAULT` is the default return value (`null` by default) for things that are skipped or not styled
     * In general there is no need to set this value, unless you need to return something else
+    * The `CodeMirror` reference can also be passed as parameter, for example,
+    * if `CodeMirror` is not already available when the add-on is first loaded (e.g via an `async` callback)
     [/DOC_MARKDOWN]**/
     getMode: get_mode,
     

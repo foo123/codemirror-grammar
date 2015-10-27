@@ -69,12 +69,14 @@ Already parsed grammars are NOT re-parsed when passed through the parse method a
 __Method__: `getMode`
 
 ```javascript
-mode = CodeMirrorGrammar.getMode( grammar [, DEFAULT] );
+mode = CodeMirrorGrammar.getMode( grammar [, DEFAULT, CodeMirror] );
 ```
 
 This is the main method which transforms a `JSON grammar` into a `CodeMirror` syntax-highlight parser.
 `DEFAULT` is the default return value (`null` by default) for things that are skipped or not styled
 In general there is no need to set this value, unless you need to return something else
+The `CodeMirror` reference can also be passed as parameter, for example,
+if `CodeMirror` is not already available when the add-on is first loaded (e.g via an `async` callback)
     
 
 

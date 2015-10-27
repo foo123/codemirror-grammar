@@ -10,12 +10,16 @@ function codemirror_grammar_demo(code, lang, grammar)
     CodeMirror.defineMode(lang, mode);
     // enable syntax validation
     mode.supportGrammarAnnotations = true;
-    CodeMirror.registerHelper("lint", lang, mode.validator);
+    CodeMirror.registerHelper("lint", lang, mode.linter);
     // enable autocomplete, have a unique cmd to not interfere with any default autocompletes
     var autocomplete_cmd = 'autocomplete_grammar_'+lang;
+    mode.supportAutoCompletion = true;
     CodeMirror.commands[autocomplete_cmd] = function( cm ) {
         CodeMirror.showHint(cm, mode.autocompleter, {prefixMatch:true,caseInsensitiveMatch:false});
     };
+    // enable code folding
+    mode.supportCodeFolding = true;
+    CodeMirror.registerHelper("fold", mode.foldType, mode.folder);
 
     // use it!
     var editor = CodeMirror.fromTextArea(code, {
