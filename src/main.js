@@ -61,7 +61,7 @@ var CodeMirrorParser = Class(Parser, {
         }
         else if ( 'markup' === FOLD || 'html' === FOLD || 'xml' === FOLD )
         {
-            self.$folders.push( CodeMirrorParser.Fold.Markup( ) );
+            self.$folders.push( CodeMirrorParser.Fold.MarkedUp( ) );
         }
     }
     
@@ -234,7 +234,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
             }
             
             ,indent: function( state, textAfter, fullLine ) { 
-                return cm_mode.$parser.indent( $CodeMirror$, state, textAfter, fullLine, conf, parserConf, CodeMirror ); 
+                return cm_mode.$parser.indent( state, textAfter, fullLine, conf, parserConf, CodeMirror ); 
             }
             
             // support comments toggle functionality
@@ -272,7 +272,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
         ? cm_mode.$parser.validate( code, options, CodeMirror )
         : [];
     };
-    cm_mode.linter = cm_mode.validator;
+    cm_mode.linter = cm_mode.validator; // alias
     // custom, user-defined, autocompletions generated from grammar
     cm_mode.supportAutoCompletion = true;
     cm_mode.autocompleter = function( cm, options ) {
@@ -283,6 +283,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
             return cm_mode.$parser.autocomplete( cm, options, CodeMirror );
         }
     };
+    cm_mode.autocomplete = cm_mode.autocompleter; // deprecated, for compatibility
     cm_mode.autocomplete_renderer = function( elt, data, cmpl ) {
         var word = cmpl.text, type = cmpl.meta, p1 = cmpl.start, p2 = cmpl.end,
             padding = data.list.maxlen-word.length-type.length+5;
@@ -299,7 +300,6 @@ function get_mode( grammar, DEFAULT, CodeMirror )
         elt.style.position = 'relative'; elt.style.boxSizing = 'border-box';
         elt.style.width = '100%'; elt.style.maxWidth = '100%';
     };
-    cm_mode.autocomplete = cm_mode.autocompleter; // deprecated, for compatibility
     cm_mode.dispose = function( ) {
         if ( cm_mode.$parser ) cm_mode.$parser.dispose( );
         cm_mode.$parser = null;
