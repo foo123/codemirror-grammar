@@ -15,8 +15,8 @@ var scheme_grammar = {
 "Style"                         : {
 
      "comment"                  : "comment"
-    ,"keyword"                  : "builtin"
-    ,"expression_keyword"       : "builtin"
+    ,"keyword"                  : "keyword"
+    ,"expression_keyword"       : "keyword"
     ,"identifier"               : "variable"
     ,"peculiar_identifier"      : "variable"
     ,"number"                   : "number"

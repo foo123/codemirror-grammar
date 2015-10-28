@@ -41,8 +41,7 @@
         
         <h3>CodeMirror (v.<span id="editor-version">0</span>) Grammar (v.<span id="grammar-version">0</span>): Dynamic Scheme Grammar</h3>
 
-<textarea id="code" name="code">
-; See if the input starts with a given symbol.
+<textarea id="code" name="code">; See if the input starts with a given symbol.
 (define (match-symbol input pattern)
   (cond ((null? (remain input)) #f)
 	((eqv? (car (remain input)) pattern) (r-cdr input))

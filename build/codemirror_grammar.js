@@ -3175,8 +3175,8 @@ function Type( TYPE, positive )
     if ( T_STR_OR_ARRAY & get_type( TYPE ) )
         TYPE = new_re( '\\b(' + map( make_array( TYPE ).sort( by_length ), esc_re ).join( '|' ) + ')\\b' );
     return false === positive
-    ? function( type ) { return !TYPE.test( type ); }
-    : function( type ) { return TYPE.test( type ); };
+    ? function( type ) { return !type || !TYPE.test( type ); }
+    : function( type ) { return !!type && TYPE.test( type ); };
 }
 
 function next_tag( iter, T, M, L, R, S )
@@ -3194,7 +3194,7 @@ function next_tag( iter, T, M, L, R, S )
             }
             else return;
         }
-        if ( !(type=iter.token(iter.row, found.index+1)) || !T( type ) )
+        if ( !T( iter.token(iter.row, found.index+1) ) )
         {
             iter.col = found.index + 1;
             continue;
@@ -3210,7 +3210,7 @@ function end_tag( iter, T, M, L, R, S )
     for (;;)
     {
         gt = iter.text.indexOf( R, iter.col );
-        if ( -1 == gt )
+        if ( -1 === gt )
         {
             if ( iter.next( ) )
             {
@@ -3219,7 +3219,7 @@ function end_tag( iter, T, M, L, R, S )
             }
             else return;
         }
-        if ( !(type=iter.token(iter.row, gt+1)) || !T( type ) )
+        if ( !T( iter.token(iter.row, gt+1) ) )
         {
             iter.col = gt + 1;
             continue;
@@ -3237,13 +3237,13 @@ var Folder = {
     
      Pattern: function( S, E, T ) {
         // TODO
-        return function( ){ };
+        return function fold_pattern( ){ };
     }
     
     ,Indented: function( NOTEMPTY ) {
         NOTEMPTY = NOTEMPTY || Stream.$NOTEMPTY$;
         
-        return function( iter ) {
+        return function fold_indentation( iter ) {
             var first_line, first_indentation, cur_line, cur_indentation,
                 start_line = iter.row, start_pos, last_line_in_fold, end_pos, i, end;
             
@@ -3280,24 +3280,24 @@ var Folder = {
         if ( !S || !E ) return function( ){ };
         T = T || TRUE;
 
-        return function( iter ) {
+        return function fold_delimiter( iter ) {
             var line = iter.row, col = iter.col,
-                lineText, startCh, at, pass, found,
+                lineText, startCh, at, pass, found, tokenType,
                 depth, lastLine, end, endCh, i, text, pos, nextOpen, nextClose;
             
             lineText = iter.line( line );
             for (at=col,pass=0 ;;)
             {
                 var found = at<=0 ? -1 : lineText.lastIndexOf( S, at-1 );
-                if ( -1 == found )
+                if ( -1 === found )
                 {
-                    if ( 1 == pass ) return;
+                    if ( 1 === pass ) return;
                     pass = 1;
                     at = lineText.length;
                     continue;
                 }
-                if ( 1 == pass && found < col ) return;
-                if ( T( iter.token( line, found+1 ) ) )
+                if ( 1 === pass && found < col ) return;
+                if ( T( tokenType = iter.token( line, found+1 ) ) )
                 {
                     startCh = found + S.length;
                     break;
@@ -3307,7 +3307,7 @@ var Folder = {
             depth = 1; lastLine = iter.last();
             outer: for (i=line; i<=lastLine; ++i)
             {
-                text = iter.line( i ); pos = i==line ? startCh : 0;
+                text = iter.line( i ); pos = i===line ? startCh : 0;
                 for (;;)
                 {
                     nextOpen = text.indexOf( S, pos );
@@ -3315,9 +3315,12 @@ var Folder = {
                     if ( nextOpen < 0 ) nextOpen = text.length;
                     if ( nextClose < 0 ) nextClose = text.length;
                     pos = MIN( nextOpen, nextClose );
-                    if ( pos == text.length ) break;
-                    if ( pos == nextOpen ) ++depth;
-                    else if ( !--depth ) { end = i; endCh = pos; break outer; }
+                    if ( pos >= text.length ) break;
+                    if ( iter.token(i, pos+1) == tokenType )
+                    {
+                        if ( pos === nextOpen ) ++depth;
+                        else if ( !--depth ) { end = i; endCh = pos; break outer; }
+                    }
                     ++pos;
                 }
             }
@@ -3331,43 +3334,45 @@ var Folder = {
         L = L || "<"; R = R || ">"; S = S || "/";
         M = M || new_re( esc_re(L) + "(" + esc_re(S) + "?)([a-zA-Z_\\-][a-zA-Z0-9_\\-:]*)", "g" );
 
-        return function( iter ) {
+        return function fold_markup( iter ) {
             iter.col = 0; iter.min = iter.first( ); iter.max = iter.last( );
             iter.text = iter.line( iter.row );
-            var openTag, end, start, close, tagName, startLine = iter.row;
+            var openTag, end, start, close, tagName, startLine = iter.row,
+                stack, next, startCh, i;
             for (;;)
             {
                 openTag = next_tag(iter, T, M, L, R, S);
-                if ( !openTag || iter.row != startLine || !(end = end_tag(iter, T, M, L, R, S)) ) return;
-                if ( !openTag[1] && end != "autoclosed" )
+                if ( !openTag || iter.row !== startLine || !(end = end_tag(iter, T, M, L, R, S)) ) return;
+                if ( !openTag[1] && "autoclosed" !== end  )
                 {
                     start = [iter.row, iter.col]; tagName = openTag[2]; close = null;
                     // start find_matching_close
-                    var stack = [], next, startCh, i;
+                    stack = [];
                     for (;;)
                     {
                         next = next_tag(iter, T, M, L, R, S);
                         startLine = iter.row; startCh = iter.col - (next ? next[0].length : 0);
                         if ( !next || !(end = end_tag(iter, T, M, L, R, S)) ) return;
-                        if ( end == "autoclosed" ) continue;
+                        if ( "autoclosed" === end  ) continue;
                         if ( next[1] )
                         {
                             // closing tag
                             for (i=stack.length-1; i>=0; --i)
                             {
-                                if ( stack[i] == next[2] )
+                                if ( stack[i] === next[2] )
                                 {
                                     stack.length = i;
                                     break;
                                 }
                             }
-                            if ( i < 0 && (!tagName || tagName == next[2]) )
+                            if ( i < 0 && (!tagName || tagName === next[2]) )
                             {
-                                close = {
+                                /*close = {
                                     tag: next[2],
                                     pos: [startLine, startCh, iter.row, iter.col]
                                 };
-                                break;
+                                break;*/
+                                return [start[0], start[1], startLine, startCh];
                             }
                         }
                         else
@@ -3377,10 +3382,10 @@ var Folder = {
                         }
                     }
                     // end find_matching_close
-                    if ( close )
+                    /*if ( close )
                     {
                         return [start[0], start[1], close.pos[0], close.pos[1]];
-                    }
+                    }*/
                 }
             }
         };
@@ -3519,7 +3524,7 @@ var CodeMirrorParser = Class(Parser, {
                 case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false;
                 renderer = options.renderer || null;
                 token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
-                operate(cm_mode.$parser.$grammar.$autocomplete, function( list, word ){
+                operate(parser.$grammar.$autocomplete, function( list, word ){
                     var w = word.word, wl = w.length, 
                         wm, case_insensitive_word,
                         pos, pos_i, m1, m2, case_insensitive;
@@ -3605,57 +3610,80 @@ var CodeMirrorParser = Class(Parser, {
 CodeMirrorParser.Type = Type;
 CodeMirrorParser.Fold = Folder;
 
+
+function autocomplete_renderer( elt, data, cmpl )
+{
+    var word = cmpl.text, type = cmpl.meta, p1 = cmpl.start, p2 = cmpl.end,
+        padding = data.list.maxlen-word.length-type.length+5;
+    elt.innerHTML = [
+        '<span class="cmg-autocomplete-keyword">', esc_html( word.slice(0,p1) ),
+        '<strong class="cmg-autocomplete-keyword-match">', esc_html( word.slice(p1,p2) ), '</strong>',
+        esc_html( word.slice(p2) ), '</span>',
+        new Array(1+padding).join('&nbsp;'),
+        '<strong class="cmg-autocomplete-keyword-meta">', esc_html( type ), '</strong>',
+        '&nbsp;'
+    ].join('');
+    // adjust to fit keywords
+    elt.className = (elt.className&&elt.className.length ? elt.className+' ' : '') + 'cmg-autocomplete-keyword-hint';
+    elt.style.position = 'relative'; //elt.style.boxSizing = 'border-box';
+    elt.style.width = '100%'; elt.style.maxWidth = '120%';
+}
+
 function get_mode( grammar, DEFAULT, CodeMirror ) 
 {
     // Codemirror-compatible Mode
     CodeMirror = CodeMirror || $CodeMirror$; /* pass CodeMirror reference if not already available */
-    var cm_mode = function cm_mode( conf, parserConf ) {
+    function CMode( conf, parserConf )
+    {
         return {
-            /*
-            // maybe needed in later versions..?
-            ,blankLine: function( state ) { }
-            ,innerMode: function( state ) { }
-            */
-            startState: function( ) { 
-                return new State( );
-            }
-            
-            ,copyState: function( state ) { 
-                return new State( 0, state );
-            }
-            
-            ,token: function( stream, state ) { 
-                var pstream = Stream( stream.string, stream.start, stream.pos ), 
-                    token = cm_mode.$parser.token( pstream, state ).type;
-                stream.pos = pstream.pos;
-                return token;
-            }
-            
-            ,indent: function( state, textAfter, fullLine ) { 
-                return cm_mode.$parser.indent( state, textAfter, fullLine, conf, parserConf, CodeMirror ); 
-            }
-            
-            // support comments toggle functionality
-            ,lineComment: cm_mode.$parser.LC
-            ,blockCommentStart: cm_mode.$parser.BCS
-            ,blockCommentEnd: cm_mode.$parser.BCE
-            ,blockCommentContinue: cm_mode.$parser.BCC
-            ,blockCommentLead: cm_mode.$parser.BCL
-            // support extra functionality defined in grammar
-            // eg. code folding, electriChars etc..
-            ,electricInput: cm_mode.$parser.$grammar.$extra.electricInput || false
-            ,electricChars: cm_mode.$parser.$grammar.$extra.electricChars || false
-            ,fold: cm_mode.foldType
+        startState: function( ) { 
+            return new State( );
+        }
+        
+        ,copyState: function( state ) { 
+            return new State( 0, state );
+        }
+        
+        ,token: function( stream, state ) { 
+            var pstream = Stream( stream.string, stream.start, stream.pos ), 
+                token = CMode.$parser.token( pstream, state ).type;
+            stream.pos = pstream.pos;
+            return token;
+        }
+        
+        ,indent: function( state, textAfter, fullLine ) { 
+            return CMode.$parser.indent( state, textAfter, fullLine, conf, parserConf, CodeMirror ); 
+        }
+        
+        // support comments toggle functionality
+        ,lineComment: CMode.$parser.LC
+        ,blockCommentStart: CMode.$parser.BCS
+        ,blockCommentEnd: CMode.$parser.BCE
+        ,blockCommentContinue: CMode.$parser.BCC
+        ,blockCommentLead: CMode.$parser.BCL
+        // support extra functionality defined in grammar
+        // eg. code folding, electriChars etc..
+        ,electricInput: CMode.$parser.$grammar.$extra.electricInput || false
+        ,electricChars: CMode.$parser.$grammar.$extra.electricChars || false
+        ,fold: CMode.foldType
         };
+    }
+    CMode.$id = uuid("codemirror_grammar_mode");
+    CMode.$parser = new CodeMirrorGrammar.Parser( parse_grammar( grammar ), DEFAULT );
+    // custom, user-defined, syntax lint-like validation/annotations generated from grammar
+    CMode.supportGrammarAnnotations = false;
+    CMode.validator = function validator( code, options )  {
+        return CMode.supportGrammarAnnotations && CMode.$parser && code && code.length
+        ? CMode.$parser.validate( code, validator.options||options||{}, CodeMirror )
+        : [];
     };
-    cm_mode.$id = uuid("codemirror_grammar_mode");
-    cm_mode.foldType = "fold_"+cm_mode.$id;
-    cm_mode.$parser = new CodeMirrorGrammar.Parser( parse_grammar( grammar ), DEFAULT );
+    CMode.linter = CMode.validator; // alias
     // custom, user-defined, code folding generated from grammar
-    cm_mode.supportCodeFolding = true;
-    cm_mode.folder = function( cm, start ) {
+    CMode.supportCodeFolding = true;
+    CMode.foldType = "fold_"+CMode.$id;
+    CMode.folder = function folder( cm, start ) {
         var fold;
-        if ( cm_mode.supportCodeFolding && cm_mode.$parser && (fold = cm_mode.$parser.fold( cm, start, CodeMirror )) )
+        if ( CMode.supportCodeFolding && CMode.$parser && (fold = CMode.$parser.fold( cm, start, CodeMirror )) )
         {
             return {
                 from: CodeMirror.Pos( fold[0], fold[1] ),
@@ -3663,46 +3691,23 @@ function get_mode( grammar, DEFAULT, CodeMirror )
             };
         }
     };
-    // custom, user-defined, syntax lint-like validation/annotations generated from grammar
-    cm_mode.supportGrammarAnnotations = false;
-    cm_mode.validator = function( code, options )  {
-        return cm_mode.supportGrammarAnnotations && cm_mode.$parser && code && code.length
-        ? cm_mode.$parser.validate( code, options, CodeMirror )
-        : [];
-    };
-    cm_mode.linter = cm_mode.validator; // alias
     // custom, user-defined, autocompletions generated from grammar
-    cm_mode.supportAutoCompletion = true;
-    cm_mode.autocompleter = function( cm, options ) {
-        if ( cm_mode.supportAutoCompletion && cm_mode.$parser )
+    CMode.supportAutoCompletion = true;
+    CMode.autocompleter = function autocompleter( cm, options ) {
+        if ( CMode.supportAutoCompletion && CMode.$parser )
         {
-            options = options || {};
-            if ( !options[HAS]('renderer') ) options.renderer = cm_mode.autocomplete_renderer;
-            return cm_mode.$parser.autocomplete( cm, options, CodeMirror );
+            options = autocompleter.options || options || {};
+            if ( !options[HAS]('renderer') ) options.renderer = autocompleter.renderer || autocomplete_renderer;
+            return CMode.$parser.autocomplete( cm, options, CodeMirror );
         }
     };
-    cm_mode.autocomplete = cm_mode.autocompleter; // deprecated, for compatibility
-    cm_mode.autocomplete_renderer = function( elt, data, cmpl ) {
-        var word = cmpl.text, type = cmpl.meta, p1 = cmpl.start, p2 = cmpl.end,
-            padding = data.list.maxlen-word.length-type.length+5;
-        elt.innerHTML = [
-            '<span class="cmg-autocomplete-keyword">', word.slice(0,p1),
-            '<strong class="cmg-autocomplete-keyword-match">', word.slice(p1,p2), '</strong>',
-            word.slice(p2), '</span>',
-            new Array(1+padding).join('&nbsp;'),
-            '<strong class="cmg-autocomplete-keyword-meta">', type, '</strong>',
-            '&nbsp;'
-        ].join('');
-        // adjust to fit keywords
-        elt.className = (elt.className&&elt.className.length ? elt.className+' ' : '') + 'cmg-autocomplete-keyword-hint';
-        elt.style.position = 'relative'; elt.style.boxSizing = 'border-box';
-        elt.style.width = '100%'; elt.style.maxWidth = '100%';
+    CMode.autocompleter.renderer = autocomplete_renderer;
+    CMode.autocomplete = CMode.autocompleter; // deprecated, alias for compatibility
+    CMode.dispose = function( ) {
+        if ( CMode.$parser ) CMode.$parser.dispose( );
+        CMode.$parser = CMode.validator = CMode.linter = CMode.autocompleter = CMode.autocomplete = CMode.folder = null;
     };
-    cm_mode.dispose = function( ) {
-        if ( cm_mode.$parser ) cm_mode.$parser.dispose( );
-        cm_mode.$parser = null;
-    };
-    return cm_mode;
+    return CMode;
 }
 
 //

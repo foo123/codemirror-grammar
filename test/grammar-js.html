@@ -33,6 +33,7 @@
         <script src="codemirror/addon/fold/comment-fold.js"></script>-->
         <script src="../build/codemirror_grammar.js"></script>
         <script src="grammars/javascript.js"></script>
+        <script src="grammars/json.js"></script>
         <script src="demo.js"></script>
         
         <title>CodeMirror: Dynamic JavaScript Grammar Demo</title>
@@ -63,7 +64,7 @@ getMode = function(grammar, DEFAULT) {
 
         <script>
         // <![CDATA[
-        codemirror_grammar_demo(document.getElementById("code"), "js", js_grammar);
+        codemirror_grammar_demo(document.getElementById("code"), "js", /\?json\b/.test(document.location.href) ? json_grammar : js_grammar);
         // ]]>
         </script>
     </body>

@@ -5,7 +5,7 @@ __Transform a JSON grammar into a CodeMirror syntax-highlight parser__
 
 
 
-A simple and light-weight (~ 30kB minified, ~ 11kB zipped) [CodeMirror](https://github.com/marijnh/codemirror) add-on
+A simple and light-weight (~ 37kB minified, ~ 13kB zipped) [CodeMirror](https://github.com/marijnh/codemirror) add-on
 
 to generate syntax-highlight parsers (codemirror modes) from a grammar specification in JSON format.
 
@@ -30,19 +30,16 @@ See also: [ace-grammar](https://github.com/foo123/ace-grammar) , [prism-grammar]
 
 ###Todo
 
-Code Indentation is (Codemirror default) <del>and Code Folding is based on existing Codemirror folders (if available)</del>
+Code Indentation is Codemirror default, see [Modularity and Future Directions](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#modularity-and-future-directions)
 
-*generic code-folders implementations have been added, specified in grammar.Extra.fold option*
 
-see [Modularity and Future Directions](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#modularity-and-future-directions)
-
-* handle arbitrary, user-defined, code `folding` in the `grammar` specification (e.g via `fold action` tokens)
 * handle arbitrary, user-defined, code `(de-)indentation` in the `grammar` specification (e.g via `indent action` tokens)
 * handle arbitrary, user-defined, code `matching` (e.g `brackets`, `tags`, etc..) in the `grammar` specification (e.g via `match action` tokens)
 * handle arbitrary, user-defined, `(operator) precedence` relations in the `grammar` specification (e.g via `precedence action` tokens)
 * handle arbitrary, user-defined, `local/global/scoped` relations in the `grammar` specification (e.g via `scope action` tokens)
 * and so on..
 * enable grammar add-on to pre-compile a grammar specification directly into mode source code, so it can be used without the add-on as standalone mode [TODO, maybe]
+
 
 
 ###Features
@@ -56,6 +53,7 @@ see [Modularity and Future Directions](https://github.com/foo123/editor-grammar/
 * `Grammar` can define [*action* tokens](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#action-tokens) to perform *complex context-specific* parsing functionality, including **associated tag matching** and **duplicate identifiers** (see for example `xml.grammar` example) (**NEW feature**)
 * Generated highlight modes can support **toggle comments** and **keyword autocompletion** functionality if defined in the grammar
 * Generated highlight modes can support **lint-like syntax-annotation** functionality generated from the grammar
+* Generated highlight modes can support custom, user-defined, **code folding** functionality from the [grammar `fold` model](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#code-folding)  (**NEW feature**)
 * Generated parsers are **optimized for speed and size**
 * Can generate a syntax-highlight parser from a grammar **interactively and on-the-fly** ( see example, http://foo123.github.io/examples/codemirror-grammar )
 * see also [Modularity and Future Directions](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#modularity-and-future-directions)
@@ -144,7 +142,7 @@ var xml_grammar = {
 };
         
 // 2. parse the grammar into a Codemirror syntax-highlight mode
-var xml_mode = CodeMirrorGrammar.getMode(xml_grammar);
+var xml_mode = CodeMirrorGrammar.getMode( xml_grammar );
 
 
 // 3. use it with Codemirror
@@ -159,11 +157,12 @@ xml_mode.supportGrammarAnnotations = true;
 CodeMirror.registerHelper("lint", "xml", xml_mode.validator);
 
 // enable user-defined autocompletion (if defined)
-var autocomplete_cmd = 'autocomplete_grammar_'+lang;
 xml_mode.supportAutoCompletion = true;
 CodeMirror.commands['my_autocompletion'] = function( cm ) {
-    CodeMirror.showHint(cm, xml_mode.autocompleter, {prefixMatch:true,caseInsensitiveMatch:false});
+    CodeMirror.showHint(cm, xml_mode.autocompleter, {prefixMatch:true, caseInsensitiveMatch:false});
 };
+// this also works (takes priority if set)
+xml_mode.autocompleter.options = {prefixMatch:true, caseInsensitiveMatch:false};
 
 var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
     mode: "xml",
