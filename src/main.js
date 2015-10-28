@@ -35,7 +35,7 @@ var CodeMirrorParser = Class(Parser, {
         // comment-block folding
         if ( grammar.$comments.block && grammar.$comments.block.length )
         {
-            TYPE = CodeMirrorParser.Type( 'comment' );
+            TYPE = CodeMirrorParser.Type('comment');
             for(var i=0,l=grammar.$comments.block.length; i<l; i++)
             {
                 self.$folders.push(CodeMirrorParser.Fold.Delimited(
@@ -48,20 +48,28 @@ var CodeMirrorParser = Class(Parser, {
         // user-defined folding
         if ( grammar.Fold && (T_STR & get_type(grammar.Fold)) ) FOLD = grammar.Fold[LOWER]();
         else if ( grammar.$extra.fold ) FOLD = grammar.$extra.fold[LOWER]();
-        if ( 'brace' === FOLD || 'cstyle' === FOLD )
+        if ( FOLD )
         {
-            var blocks = get_block_types( grammar, 1 );
-            TYPE = blocks.length ? CodeMirrorParser.Type( blocks, false ) : TRUE;
-            self.$folders.push( CodeMirrorParser.Fold.Delimited( '{', '}', TYPE ) );
-            self.$folders.push( CodeMirrorParser.Fold.Delimited( '[', ']', TYPE ) );
-        }
-        else if ( 'indent' === FOLD || 'indentation' === FOLD )
-        {
-            self.$folders.push( CodeMirrorParser.Fold.Indented( ) );
-        }
-        else if ( 'markup' === FOLD || 'html' === FOLD || 'xml' === FOLD )
-        {
-            self.$folders.push( CodeMirrorParser.Fold.MarkedUp( ) );
+            FOLD = FOLD.split('+');  // can use multiple folders, separated by '+'
+            iterate(function( i, FOLDER ) {
+            var FOLD = trim(FOLDER[i]);
+            if ( 'brace' === FOLD || 'cstyle' === FOLD )
+            {
+                var blocks = get_block_types( grammar, 1 );
+                TYPE = blocks.length ? CodeMirrorParser.Type(blocks, false) : TRUE;
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '{', '}', TYPE ) );
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '[', ']', TYPE ) );
+            }
+            else if ( 'indent' === FOLD || 'indentation' === FOLD )
+            {
+                self.$folders.push( CodeMirrorParser.Fold.Indented( ) );
+            }
+            else if ( 'markup' === FOLD || 'html' === FOLD || 'xml' === FOLD )
+            {
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '<![CDATA[', ']]>', CodeMirrorParser.Type(['comment','tag'], false) ) );
+                self.$folders.push( CodeMirrorParser.Fold.MarkedUp( CodeMirrorParser.Type('tag'), '<', '>', '/' ) );
+            }
+            }, 0, FOLD.length-1, FOLD);
         }
     }
     

@@ -146,13 +146,34 @@ var xml_grammar = {
 // 2. parse the grammar into a Codemirror syntax-highlight mode
 var xml_mode = CodeMirrorGrammar.getMode(xml_grammar);
 
+
 // 3. use it with Codemirror
 CodeMirror.defineMode("xml", xml_mode);
+
+// enable user-defined code folding in the specification (new feature)
+xml_mode.supportCodeFolding = true;
+CodeMirror.registerHelper("fold", xml_mode.foldType, xml_mode.folder);
+
+// enable syntax lint-like validation in the grammar
+xml_mode.supportGrammarAnnotations = true;
+CodeMirror.registerHelper("lint", "xml", xml_mode.validator);
+
+// enable user-defined autocompletion (if defined)
+var autocomplete_cmd = 'autocomplete_grammar_'+lang;
+xml_mode.supportAutoCompletion = true;
+CodeMirror.commands['my_autocompletion'] = function( cm ) {
+    CodeMirror.showHint(cm, xml_mode.autocompleter, {prefixMatch:true,caseInsensitiveMatch:false});
+};
+
 var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
     mode: "xml",
     lineNumbers: true,
     indentUnit: 4,
-    indentWithTabs: false
+    indentWithTabs: false,
+    lint: true,  // enable lint validation
+    extraKeys: {"Ctrl-Space": 'my_autocompletion', "Ctrl-L": "toggleComment"},
+    foldGutter: true,
+    gutters: ["CodeMirror-lint-markers", "CodeMirror-linenumbers", "CodeMirror-foldgutter"]
 });
 
 ```

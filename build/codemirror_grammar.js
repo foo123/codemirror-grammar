@@ -2184,7 +2184,7 @@ function t_err( t )
 function error_( state, l1, c1, l2, c2, t, err )
 {
     //if ( state.err )
-    state.err[ l1+'_'+c1+'_'+l2+'_'+c2+'_'+t.name ] = [ l1, c1, l2, c2, err || t_err( t ) ];
+    state.err[ l1+'_'+c1+'_'+l2+'_'+c2+'_'+(t?t.name:'ERROR') ] = [ l1, c1, l2, c2, err || t_err( t ) ];
     //return state;
 }
 
@@ -2330,7 +2330,12 @@ function t_action( a, stream, state, token )
         }
         t = group_replace( t, t_str );
         if ( case_insensitive ) t = t[LOWER]();
-        queu.unshift( [t, l1, c1, l2, c2] );
+        self.$msg = msg
+            ? group_replace( msg, t, true )
+            : 'Token does not match "'+t+'"';
+        // used when end-of-file is reached and unmatched tokens exist in the queue
+        // to generate error message, if needed, as needed
+        queu.unshift( [t, l1, c1, l2, c2, t_err( self )] );
     }
 
     else if ( A_UNIQUE === action )
@@ -3109,7 +3114,7 @@ var Parser = Class({
     
     ,parse: function( code, parse_type ) {
         var self = this, lines = (code||"").split(newline_re), l = lines.length,
-            linetokens = null, state, parse_errors, parse_tokens, ret;
+            linetokens = null, state, parse_errors, parse_tokens, err, ret;
         
         parse_type = parse_type || TOKENS;
         parse_errors = !!(parse_type & ERRORS);
@@ -3137,6 +3142,17 @@ var Parser = Class({
                 else while ( !stream.eol() ) self.token( stream, state );
             }, 0, l-1);
         
+        
+        if ( parse_errors && state.queu && state.queu.length )
+        {
+            // generate errors for unmatched tokens, if needed
+            while( state.queu.length )
+            {
+                err = state.queu.shift( );
+                error_( state, err[1], err[2], err[3], err[4], null, err[5] );
+            }
+        }
+        
         ret = parse_tokens && parse_errors
             ? {tokens:linetokens, errors:state.err}
             : (parse_tokens ? linetokens : state.err);
@@ -3157,7 +3173,7 @@ var Parser = Class({
 function Type( TYPE, positive )
 {
     if ( T_STR_OR_ARRAY & get_type( TYPE ) )
-        TYPE = new_re( map( make_array( TYPE ).sort( by_length ), esc_re ).join( '|' ) );
+        TYPE = new_re( '\\b(' + map( make_array( TYPE ).sort( by_length ), esc_re ).join( '|' ) + ')\\b' );
     return false === positive
     ? function( type ) { return !TYPE.test( type ); }
     : function( type ) { return TYPE.test( type ); };
@@ -3168,7 +3184,7 @@ function next_tag( iter, T, M, L, R, S )
     for (;;)
     {
         M.lastIndex = iter.col;
-        var found = M.exec( iter.text );
+        var found = M.exec( iter.text ), type;
         if ( !found )
         {
             if ( iter.next( ) )
@@ -3178,7 +3194,7 @@ function next_tag( iter, T, M, L, R, S )
             }
             else return;
         }
-        if ( !tag_at(iter, found.index+1, T) )
+        if ( !(type=iter.token(iter.row, found.index+1)) || !T( type ) )
         {
             iter.col = found.index + 1;
             continue;
@@ -3188,9 +3204,9 @@ function next_tag( iter, T, M, L, R, S )
     }
 }
 
-function tag_end( iter, T, M, L, R, S )
+function end_tag( iter, T, M, L, R, S )
 {
-    var gt, lastSlash, selfClose;
+    var gt, lastSlash, selfClose, type;
     for (;;)
     {
         gt = iter.text.indexOf( R, iter.col );
@@ -3203,7 +3219,7 @@ function tag_end( iter, T, M, L, R, S )
             }
             else return;
         }
-        if ( !tag_at(iter, gt + 1, T) )
+        if ( !(type=iter.token(iter.row, gt+1)) || !T( type ) )
         {
             iter.col = gt + 1;
             continue;
@@ -3215,54 +3231,13 @@ function tag_end( iter, T, M, L, R, S )
     }
 }
 
-function tag_at( iter, ch, T )
-{
-    var type = iter.token(iter.row, ch);
-    return type && T( type );
-}
-
-
-function find_matching_close( iter, tag, T, M, L, R, S )
-{
-    var stack = [], next, end, startLine, startCh, i;
-    for (;;)
-    {
-        next = next_tag(iter, T, M, L, R, S);
-        startLine = iter.row; startCh = iter.col - (next ? next[0].length : 0);
-        if ( !next || !(end = tag_end(iter, T, M, L, R, S)) ) return;
-        if ( end == "autoclosed" ) continue;
-        if ( next[1] )
-        {
-            // closing tag
-            for (i=stack.length-1; i>=0; --i)
-            {
-                if ( stack[i] == next[2] )
-                {
-                    stack.length = i;
-                    break;
-                }
-            }
-            if ( i < 0 && (!tag || tag == next[2]) )
-                return {
-                    tag: next[2],
-                    pos: [startLine, startCh, iter.row, iter.col]
-                };
-        }
-        else
-        {
-            // opening tag
-            stack.push( next[2] );
-        }
-    }
-}
-
 // folder factories
 var Folder = {
     // adapted from codemirror
     
-     _: {
-        $block$: /comment/,
-        $comment$: /comment/
+     Pattern: function( S, E, T ) {
+        // TODO
+        return function( ){ };
     }
     
     ,Indented: function( NOTEMPTY ) {
@@ -3351,28 +3326,58 @@ var Folder = {
         };
     }
     
-    ,Pattern: function( S, E, T ) {
-        // TODO
-        return function( ){ };
-    }
-    
     ,MarkedUp: function( T, L, R, S, M ) {
-        T = T || Type(/\btag\b/);
+        T = T || TRUE;
         L = L || "<"; R = R || ">"; S = S || "/";
-        M = M || new_re( L + "(" + S + "?)([a-zA-Z_\\-][a-zA-Z0-9_\\-:]*)", "g" );
+        M = M || new_re( esc_re(L) + "(" + esc_re(S) + "?)([a-zA-Z_\\-][a-zA-Z0-9_\\-:]*)", "g" );
 
         return function( iter ) {
             iter.col = 0; iter.min = iter.first( ); iter.max = iter.last( );
             iter.text = iter.line( iter.row );
-            var openTag, end, start, close, startLine = iter.row;
+            var openTag, end, start, close, tagName, startLine = iter.row;
             for (;;)
             {
                 openTag = next_tag(iter, T, M, L, R, S);
-                if ( !openTag || iter.row != startLine || !(end = tag_end(iter, T, M, L, R, S)) ) return;
+                if ( !openTag || iter.row != startLine || !(end = end_tag(iter, T, M, L, R, S)) ) return;
                 if ( !openTag[1] && end != "autoclosed" )
                 {
-                    start = [iter.row, iter.col];
-                    if ( close = find_matching_close(iter, openTag[2], T, M, L, R, S) )
+                    start = [iter.row, iter.col]; tagName = openTag[2]; close = null;
+                    // start find_matching_close
+                    var stack = [], next, startCh, i;
+                    for (;;)
+                    {
+                        next = next_tag(iter, T, M, L, R, S);
+                        startLine = iter.row; startCh = iter.col - (next ? next[0].length : 0);
+                        if ( !next || !(end = end_tag(iter, T, M, L, R, S)) ) return;
+                        if ( end == "autoclosed" ) continue;
+                        if ( next[1] )
+                        {
+                            // closing tag
+                            for (i=stack.length-1; i>=0; --i)
+                            {
+                                if ( stack[i] == next[2] )
+                                {
+                                    stack.length = i;
+                                    break;
+                                }
+                            }
+                            if ( i < 0 && (!tagName || tagName == next[2]) )
+                            {
+                                close = {
+                                    tag: next[2],
+                                    pos: [startLine, startCh, iter.row, iter.col]
+                                };
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            // opening tag
+                            stack.push( next[2] );
+                        }
+                    }
+                    // end find_matching_close
+                    if ( close )
                     {
                         return [start[0], start[1], close.pos[0], close.pos[1]];
                     }
@@ -3420,7 +3425,7 @@ var CodeMirrorParser = Class(Parser, {
         // comment-block folding
         if ( grammar.$comments.block && grammar.$comments.block.length )
         {
-            TYPE = CodeMirrorParser.Type( 'comment' );
+            TYPE = CodeMirrorParser.Type('comment');
             for(var i=0,l=grammar.$comments.block.length; i<l; i++)
             {
                 self.$folders.push(CodeMirrorParser.Fold.Delimited(
@@ -3433,20 +3438,28 @@ var CodeMirrorParser = Class(Parser, {
         // user-defined folding
         if ( grammar.Fold && (T_STR & get_type(grammar.Fold)) ) FOLD = grammar.Fold[LOWER]();
         else if ( grammar.$extra.fold ) FOLD = grammar.$extra.fold[LOWER]();
-        if ( 'brace' === FOLD || 'cstyle' === FOLD )
+        if ( FOLD )
         {
-            var blocks = get_block_types( grammar, 1 );
-            TYPE = blocks.length ? CodeMirrorParser.Type( blocks, false ) : TRUE;
-            self.$folders.push( CodeMirrorParser.Fold.Delimited( '{', '}', TYPE ) );
-            self.$folders.push( CodeMirrorParser.Fold.Delimited( '[', ']', TYPE ) );
-        }
-        else if ( 'indent' === FOLD || 'indentation' === FOLD )
-        {
-            self.$folders.push( CodeMirrorParser.Fold.Indented( ) );
-        }
-        else if ( 'markup' === FOLD || 'html' === FOLD || 'xml' === FOLD )
-        {
-            self.$folders.push( CodeMirrorParser.Fold.MarkedUp( ) );
+            FOLD = FOLD.split('+');  // can use multiple folders, separated by '+'
+            iterate(function( i, FOLDER ) {
+            var FOLD = trim(FOLDER[i]);
+            if ( 'brace' === FOLD || 'cstyle' === FOLD )
+            {
+                var blocks = get_block_types( grammar, 1 );
+                TYPE = blocks.length ? CodeMirrorParser.Type(blocks, false) : TRUE;
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '{', '}', TYPE ) );
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '[', ']', TYPE ) );
+            }
+            else if ( 'indent' === FOLD || 'indentation' === FOLD )
+            {
+                self.$folders.push( CodeMirrorParser.Fold.Indented( ) );
+            }
+            else if ( 'markup' === FOLD || 'html' === FOLD || 'xml' === FOLD )
+            {
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '<![CDATA[', ']]>', CodeMirrorParser.Type(['comment','tag'], false) ) );
+                self.$folders.push( CodeMirrorParser.Fold.MarkedUp( CodeMirrorParser.Type('tag'), '<', '>', '/' ) );
+            }
+            }, 0, FOLD.length-1, FOLD);
         }
     }
     
