@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 2.6.0
+*   @version: 2.6.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -36,7 +36,7 @@ else if ( !(name in root) )
 "use strict";
 /**
 *   EditorGrammar Codebase
-*   @version: 2.6.0
+*   @version: 2.6.1
 *
 *   https://github.com/foo123/editor-grammar
 **/
@@ -1934,6 +1934,39 @@ function get_block_types( grammar, the_styles )
     return blocks;
 }
 
+function preprocess_and_parse_grammar( grammar )
+{
+    var processed = {}; // for recursive references
+    grammar.Lex = grammar.Lex || {}; grammar.Syntax = grammar.Syntax || {};
+    grammar = preprocess_grammar( grammar );
+    if ( grammar.Parser && grammar.Parser.length )
+    {
+        iterate( function process( i, T ) {
+            var id = T[ i ], t, token, type, tokens;
+            if ( processed[id] ) return;
+            if ( T_ARRAY & get_type( id ) )
+            {
+                // literal n-gram as array
+                t = id; id = "NGRAM_" + t.join("_");
+                if ( !grammar.Syntax[ id ] ) grammar.Syntax[ id ] = {type:"ngram", tokens:t};
+            }
+            token = get_backreference( id, grammar.Lex, grammar.Syntax );
+            if ( T_STR & get_type( token ) )
+            {
+                token = parse_peg_bnf_notation( token, grammar.Lex, grammar.Syntax );
+                token = grammar.Lex[ token ] || grammar.Syntax[ token ] || null;
+            }
+            if ( token )
+            {
+                processed[id] = token;
+                type = token.type ? tokenTypes[ token.type[LOWER]( ).replace( dashes_re, '' ) ] || T_SIMPLE : T_SIMPLE;
+                if ( T_COMPOSITE & type ) iterate( process, 0, token.tokens.length-1, token.tokens );
+            }
+        }, 0, grammar.Parser.length-1, grammar.Parser );
+    }
+    return grammar;
+}
+
 function parse_grammar( grammar ) 
 {
     var RegExpID, tokens,
@@ -3396,7 +3429,7 @@ var Folder = {
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 2.6.0
+*   @version: 2.6.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -3406,7 +3439,7 @@ var Folder = {
 
 
 // codemirror supposed to be available
-var $CodeMirror$ = CodeMirror || { Pass : { toString: function(){return "CodeMirror.Pass";} } },
+var $CodeMirror$ = 'undefined' !== typeof CodeMirror ? CodeMirror : { Pass : { toString: function(){return "CodeMirror.Pass";} } },
     // used for autocompletion
     RE_W = /[\w$]/, by_score = function( a, b ) { return b.score-a.score }
 ;
@@ -3719,7 +3752,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 * __For node:__
 *
 * ```javascript
-* CodeMirrorGrammar = require('build/codemirror_grammar.js').CodeMirrorGrammar;
+* CodeMirrorGrammar = require('build/codemirror_grammar.js');
 * ```
 *
 * __For browser:__
@@ -3731,14 +3764,14 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     
-    VERSION: "2.6.0",
+    VERSION: "2.6.1",
     
     // clone a grammar
     /**[DOC_MARKDOWN]
     * __Method__: `clone`
     *
     * ```javascript
-    * cloned = CodeMirrorGrammar.clone( grammar [, deep=true] );
+    * cloned_grammar = CodeMirrorGrammar.clone( grammar [, deep=true] );
     * ```
     *
     * Clone (deep) a `grammar`
@@ -3752,7 +3785,7 @@ var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     * __Method__: `extend`
     *
     * ```javascript
-    * extendedgrammar = CodeMirrorGrammar.extend( grammar, basegrammar1 [, basegrammar2, ..] );
+    * extended_grammar = CodeMirrorGrammar.extend( grammar, basegrammar1 [, basegrammar2, ..] );
     * ```
     *
     * Extend a `grammar` with `basegrammar1`, `basegrammar2`, etc..
@@ -3766,21 +3799,21 @@ var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     * __Method__: `pre_process`
     *
     * ```javascript
-    * CodeMirrorGrammar.pre_process( grammar );
+    * pre_processed_grammar = CodeMirrorGrammar.pre_process( grammar );
     * ```
     *
     * This is used internally by the `CodeMirrorGrammar` Class `parse` method
-    * In order to pre-process, in-place, a `JSON grammar` 
-    * to transform any shorthand configurations to full object configurations and provide defaults.
+    * In order to pre-process a `JSON grammar` (in-place) to transform any shorthand configurations to full object configurations and provide defaults.
+    * It also parses `PEG`/`BNF` (syntax) notations into full (syntax) configuration objects, so merging with other grammars can be easier, if needed.
     [/DOC_MARKDOWN]**/
-    pre_process: preprocess_grammar,
+    pre_process: preprocess_and_parse_grammar,
     
     // parse a grammar
     /**[DOC_MARKDOWN]
     * __Method__: `parse`
     *
     * ```javascript
-    * parsedgrammar = CodeMirrorGrammar.parse( grammar );
+    * parsed_grammar = CodeMirrorGrammar.parse( grammar );
     * ```
     *
     * This is used internally by the `CodeMirrorGrammar` Class

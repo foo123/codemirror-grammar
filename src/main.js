@@ -11,7 +11,7 @@
 
 
 // codemirror supposed to be available
-var $CodeMirror$ = CodeMirror || { Pass : { toString: function(){return "CodeMirror.Pass";} } },
+var $CodeMirror$ = 'undefined' !== typeof CodeMirror ? CodeMirror : { Pass : { toString: function(){return "CodeMirror.Pass";} } },
     // used for autocompletion
     RE_W = /[\w$]/, by_score = function( a, b ) { return b.score-a.score }
 ;
@@ -324,7 +324,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 * __For node:__
 *
 * ```javascript
-* CodeMirrorGrammar = require('build/codemirror_grammar.js').CodeMirrorGrammar;
+* CodeMirrorGrammar = require('build/codemirror_grammar.js');
 * ```
 *
 * __For browser:__
@@ -343,7 +343,7 @@ var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
     * __Method__: `clone`
     *
     * ```javascript
-    * cloned = CodeMirrorGrammar.clone( grammar [, deep=true] );
+    * cloned_grammar = CodeMirrorGrammar.clone( grammar [, deep=true] );
     * ```
     *
     * Clone (deep) a `grammar`
@@ -357,7 +357,7 @@ var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
     * __Method__: `extend`
     *
     * ```javascript
-    * extendedgrammar = CodeMirrorGrammar.extend( grammar, basegrammar1 [, basegrammar2, ..] );
+    * extended_grammar = CodeMirrorGrammar.extend( grammar, basegrammar1 [, basegrammar2, ..] );
     * ```
     *
     * Extend a `grammar` with `basegrammar1`, `basegrammar2`, etc..
@@ -371,21 +371,21 @@ var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
     * __Method__: `pre_process`
     *
     * ```javascript
-    * CodeMirrorGrammar.pre_process( grammar );
+    * pre_processed_grammar = CodeMirrorGrammar.pre_process( grammar );
     * ```
     *
     * This is used internally by the `CodeMirrorGrammar` Class `parse` method
-    * In order to pre-process, in-place, a `JSON grammar` 
-    * to transform any shorthand configurations to full object configurations and provide defaults.
+    * In order to pre-process a `JSON grammar` (in-place) to transform any shorthand configurations to full object configurations and provide defaults.
+    * It also parses `PEG`/`BNF` (syntax) notations into full (syntax) configuration objects, so merging with other grammars can be easier, if needed.
     [/DOC_MARKDOWN]**/
-    pre_process: preprocess_grammar,
+    pre_process: preprocess_and_parse_grammar,
     
     // parse a grammar
     /**[DOC_MARKDOWN]
     * __Method__: `parse`
     *
     * ```javascript
-    * parsedgrammar = CodeMirrorGrammar.parse( grammar );
+    * parsed_grammar = CodeMirrorGrammar.parse( grammar );
     * ```
     *
     * This is used internally by the `CodeMirrorGrammar` Class

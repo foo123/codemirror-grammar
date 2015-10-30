@@ -4,7 +4,7 @@ function codemirror_grammar_demo(code, lang, grammar)
     document.getElementById('grammar-version').innerHTML = CodeMirrorGrammar.VERSION;
     
     // 2. parse the grammar into a Codemirror syntax-highlight mode
-    var mode = CodeMirrorGrammar.getMode(grammar);
+    var mode = CodeMirrorGrammar.getMode( grammar );
     
     // 3. register the mode with Codemirror
     CodeMirror.defineMode(lang, mode);

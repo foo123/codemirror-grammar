@@ -5,7 +5,7 @@
 __For node:__
 
 ```javascript
-CodeMirrorGrammar = require('build/codemirror_grammar.js').CodeMirrorGrammar;
+CodeMirrorGrammar = require('build/codemirror_grammar.js');
 ```
 
 __For browser:__
@@ -20,7 +20,7 @@ __For browser:__
 __Method__: `clone`
 
 ```javascript
-cloned = CodeMirrorGrammar.clone( grammar [, deep=true] );
+cloned_grammar = CodeMirrorGrammar.clone( grammar [, deep=true] );
 ```
 
 Clone (deep) a `grammar`
@@ -32,7 +32,7 @@ Utility to clone objects efficiently
 __Method__: `extend`
 
 ```javascript
-extendedgrammar = CodeMirrorGrammar.extend( grammar, basegrammar1 [, basegrammar2, ..] );
+extended_grammar = CodeMirrorGrammar.extend( grammar, basegrammar1 [, basegrammar2, ..] );
 ```
 
 Extend a `grammar` with `basegrammar1`, `basegrammar2`, etc..
@@ -44,19 +44,19 @@ This way arbitrary `dialects` and `variations` can be handled more easily
 __Method__: `pre_process`
 
 ```javascript
-CodeMirrorGrammar.pre_process( grammar );
+pre_processed_grammar = CodeMirrorGrammar.pre_process( grammar );
 ```
 
 This is used internally by the `CodeMirrorGrammar` Class `parse` method
-In order to pre-process, in-place, a `JSON grammar` 
-to transform any shorthand configurations to full object configurations and provide defaults.
+In order to pre-process a `JSON grammar` (in-place) to transform any shorthand configurations to full object configurations and provide defaults.
+It also parses `PEG`/`BNF` (syntax) notations into full (syntax) configuration objects, so merging with other grammars can be easier, if needed.
     
 
 
 __Method__: `parse`
 
 ```javascript
-parsedgrammar = CodeMirrorGrammar.parse( grammar );
+parsed_grammar = CodeMirrorGrammar.parse( grammar );
 ```
 
 This is used internally by the `CodeMirrorGrammar` Class
