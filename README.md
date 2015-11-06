@@ -10,7 +10,7 @@ A simple and light-weight (~ 37kB minified, ~ 13kB zipped) [CodeMirror](https://
 to generate syntax-highlight parsers (codemirror modes) from a grammar specification in JSON format.
 
 
-See also: [ace-grammar](https://github.com/foo123/ace-grammar) , [prism-grammar](https://github.com/foo123/prism-grammar)
+See also: [ace-grammar](https://github.com/foo123/ace-grammar), [prism-grammar](https://github.com/foo123/prism-grammar), [syntaxhighlighter-grammar](https://github.com/foo123/syntaxhighlighter-grammar)
 
 **Note:** The invariant codebase for all the `*-grammar` add-ons resides at [editor-grammar](https://github.com/foo123/editor-grammar) repository (used as a `git submodule`)
 
