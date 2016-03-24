@@ -52,6 +52,7 @@ Code Indentation is Codemirror default, see [Modularity and Future Directions](h
 * [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#syntax-pegbnf-like-notations) can be (fully) specificed using [`PEG`](https://en.wikipedia.org/wiki/Parsing_expression_grammar)-like notation or [`BNF`](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_Form)-like notation  (**NEW feature**)
 * `Grammar` can define [*action* tokens](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#action-tokens) to perform *complex context-specific* parsing functionality, including **associated tag matching** and **duplicate identifiers** (see for example `xml.grammar` example) (**NEW feature**)
 * Generated highlight modes can support **toggle comments** and **keyword autocompletion** functionality if defined in the grammar
+* **Context-sensitive autocompletion** extracted directly from the grammar specification  (**NEW feature**)
 * Generated highlight modes can support **lint-like syntax-annotation** functionality generated from the grammar
 * Generated highlight modes can support custom, user-defined, **code folding** functionality from the [grammar `fold` model](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#code-folding)  (**NEW feature**)
 * Generated parsers are **optimized for speed and size**
@@ -163,6 +164,8 @@ CodeMirror.commands['my_autocompletion'] = function( cm ) {
 };
 // this also works (takes priority if set)
 xml_mode.autocompleter.options = {prefixMatch:true, caseInsensitiveMatch:false};
+// or for context-sensitive autocompletion, extracted from the grammar
+xml_mode.autocompleter.options = {prefixMatch:true, caseInsensitiveMatch:false, inContext:true};
 
 var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
     mode: "xml",

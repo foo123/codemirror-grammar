@@ -115,24 +115,35 @@ var CodeMirrorParser = Class(Parser, {
             cur = cm.getCursor(), curLine,
             start0 = cur.ch, start = start0, end0 = start0, end = end0,
             token, token_i, len, maxlen = 0, word_re, renderer,
-            case_insensitive_match, prefix_match;
-        if ( parser.$grammar.$autocomplete )
+            case_insensitive_match, prefix_match, in_context, suggestions, state = null;
+        if ( !!parser.$grammar.$autocomplete )
         {
             options = options || {};
             word_re = options.word || RE_W; curLine = cm.getLine(cur.line);
             prefix_match = options[HAS]('prefixMatch') ? !!options.prefixMatch : true;
+            in_context = options[HAS]('inContext')? !!options.inContext : false;
+            case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false;
             while (start && word_re.test(curLine[CHAR](start - 1))) --start;
             // operate similar to current ACE autocompleter equivalent
             if ( !prefix_match ) while (end < curLine.length && word_re.test(curLine[CHAR](end))) ++end;
-            if ( start < end )
+            token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
+            renderer = options.renderer || null;
+            if ( in_context )
             {
-                case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false;
-                renderer = options.renderer || null;
-                token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
-                operate(parser.$grammar.$autocomplete, function( list, word ){
-                    var w = word.word, wl = w.length, 
-                        wm, case_insensitive_word,
-                        pos, pos_i, m1, m2, case_insensitive;
+                state = cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state;
+                suggestions = parser.autocompletion(state.stack.length ? [state.token,state.stack[state.stack.length-1]] : [state.token]);
+                if ( !suggestions.length ) suggestions = parser.$grammar.$autocomplete;
+            }
+            else
+            {
+                suggestions = parser.$grammar.$autocomplete;
+            }
+            operate(suggestions, function( list, word ){
+                var w = word.word, wl = w.length, 
+                    wm, case_insensitive_word,
+                    pos, pos_i, m1, m2, case_insensitive;
+                if ( len )
+                {
                     if ( wl >= len )
                     {
                         wm = word.meta;  case_insensitive_word = !!w.ci;
@@ -153,11 +164,23 @@ var CodeMirrorParser = Class(Parser, {
                             });
                         }
                     }
-                    return list;
-                }, list);
-                if ( list.length ) list = list.sort( by_score );
-                list.maxlen = maxlen; 
-            }
+                }
+                else
+                {
+                    wm = word.meta;
+                    list.push({
+                        text: w, name: w, meta: wm,
+                        start: 0, end: 0, match: '',
+                        displayText: w + "\t\t["+wm+"]",
+                        render: renderer,
+                        // longer matches have lower match score
+                        score: 1000 - 10*(wl)
+                    });
+                }
+                return list;
+            }, list);
+            if ( list.length ) list = list.sort( by_score );
+            list.maxlen = maxlen; 
         }
         return {
             list: list,

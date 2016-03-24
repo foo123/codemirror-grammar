@@ -17,7 +17,7 @@ function codemirror_grammar_demo(code, lang, grammar)
     // enable autocomplete, have a unique cmd to not interfere with any default autocompletes
     var autocomplete_cmd = 'autocomplete_grammar_'+lang;
     mode.supportAutoCompletion = true;
-    mode.autocompleter.options =  {prefixMatch:true, caseInsensitiveMatch:false};
+    mode.autocompleter.options =  {prefixMatch:true, caseInsensitiveMatch:false, inContext:true};
     CodeMirror.commands[autocomplete_cmd] = function( cm ) {
         CodeMirror.showHint(cm, mode.autocompleter);
     };

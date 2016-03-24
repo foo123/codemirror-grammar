@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 2.6.1
+*   @version: 3.0.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -9,34 +9,24 @@
 *
 **/!function( root, name, factory ) {
 "use strict";
-
-//
-// export the module, umd-style (no other dependencies)
-var isCommonJS = ("object" === typeof(module)) && module.exports, 
-    isAMD = ("function" === typeof(define)) && define.amd, m;
-
-// CommonJS, node, etc..
-if ( isCommonJS ) 
-    module.exports = (module.$deps = module.$deps || {})[ name ] = module.$deps[ name ] || (factory.call( root, {NODE:module} ) || 1);
-
-// AMD, requireJS, etc..
-else if ( isAMD && ("function" === typeof(require)) && ("function" === typeof(require.specified)) && require.specified(name) ) 
-    define( name, ['require', 'exports', 'module'], function( require, exports, module ){ return factory.call( root, {AMD:module} ); } );
-
-// browser, web worker, etc.. + AMD, other loaders
-else if ( !(name in root) ) 
-    (root[ name ] = (m=factory.call( root, {} ) || 1)) && isAMD && define( name, [], function( ){ return m; } );
-
+var m;
+if ( ('object'===typeof module)&&module.exports ) /* CommonJS */
+    module.exports = factory.call( root, {} );
+else if ( ('undefined'!==typeof System)&&('function'===typeof System.register)&&('function'===typeof System['import']) ) /* ES6 module */
+    System.register(name,[],function($__export){$__export(name, factory.call(root,{}));});
+else if ( ('function'===typeof define)&&define.amd&&('function'===typeof require)&&('function'===typeof require.specified)&&require.specified(name) ) /* AMD */
+    define(name,['require','exports','module'],function(){return factory.call(root,{});});
+else if ( !(name in root) ) /* Browser/WebWorker/.. */
+    (root[ name ] = (m=factory.call(root,{})))&&('function'===typeof(define))&&define.amd&&define(function(){return m;} );
 }(  /* current root */          this, 
     /* module name */           "CodeMirrorGrammar",
     /* module factory */        function( exports ) {
-    
 /* main code starts here */
 
 "use strict";
 /**
 *   EditorGrammar Codebase
-*   @version: 2.6.1
+*   @version: 3.0.0
 *
 *   https://github.com/foo123/editor-grammar
 **/
@@ -627,11 +617,14 @@ function group_replace( pattern, token, raw )
     return replaced;
 }
 
-function get_re( r, rid, cachedRegexes )
+function get_re( r, rid, cachedRegexes, boundary )
 {
     if ( !r || ((T_NUM|T_REGEX) & get_type(r)) ) return r;
     
-    var l = rid ? (rid.length||0) : 0, i;
+    var l = rid ? (rid.length||0) : 0, i, b = "";
+
+    if ( T_STR & get_type(boundary) ) b = boundary;
+    else if ( !!boundary ) b = combine_delimiter;
     
     if ( l && rid === r.substr(0, l) ) 
     {
@@ -650,6 +643,19 @@ function get_re( r, rid, cachedRegexes )
         }
         regexBody = regexSource.substring(1, i);
         regexID = "^(" + regexBody + ")";
+        
+        if ( !cachedRegexes[ regexID ] )
+        {
+            regex = new_re( regexID, flags );
+            // shared, light-weight
+            cachedRegexes[ regexID ] = regex;
+        }
+        
+        return cachedRegexes[ regexID ];
+    }
+    else if ( !!b )
+    {
+        regexID = "^(" + esc_re( r ) + ")"+b;
         
         if ( !cachedRegexes[ regexID ] )
         {
@@ -710,7 +716,7 @@ function get_compositematcher( name, tokens, RegExpID, combined, caseInsensitive
     
     if ( 1 === l )
     {
-        mtcher = get_simplematcher( name, get_re( tmp[0], RegExpID, cachedRegexes ), 0, cachedMatchers );
+        mtcher = get_simplematcher( name, get_re( tmp[0], RegExpID, cachedRegexes, combined ), 0, cachedMatchers );
     }
     else if ( 1 < l /*combined*/ )
     {   
@@ -826,13 +832,14 @@ function get_comments( tok, comments )
     }, 0, tmp.length-1);
 }
 
-function get_autocomplete( tok, type, keywords ) 
+function get_autocomplete( tok, autocompletions, type, keywords ) 
 {
     var meta = tok.meta || type, case_insesitive = !!(tok.caseInsesitive||tok.ci),
-        kws = map(make_array( tok.tokens ), function( word ) {
+        kws = map(autocompletions, function( word ) {
             return {word:word, meta:meta, ci:case_insesitive};
         });
     keywords.autocomplete = (keywords.autocomplete || []).concat( kws );
+    return kws;
 }
 
 function preprocess_grammar( grammar )
@@ -900,7 +907,7 @@ function preprocess_grammar( grammar )
                 if ( T_STR_OR_ARRAY_OR_REGEX & get_type(G[id]) )
                 {
                     // simple token given as literal token, wrap it
-                    G[id] = {type:"simple", tokens:G[id]};
+                    G[id] = {type:'simple', tokens:G[id]};
                 }
                 //if ( !G[id].type ) G[id].type = 'simple';
                 tok = G[id];
@@ -948,7 +955,7 @@ function preprocess_grammar( grammar )
                 // tokens given directly, no token configuration object, wrap it
                 if ( T_STR_OR_ARRAY_OR_REGEX & get_type( xtok ) )
                 {
-                    xtok = Lex[ xtends ] = {type:"simple", tokens:xtok};
+                    xtok = Lex[ xtends ] = {type:'simple', tokens:xtok};
                 }
                 //if ( !xtok.type ) xtok.type = 'simple';
                 tok = extend( xtok, tok );
@@ -990,7 +997,7 @@ function preprocess_grammar( grammar )
         {
             if ( tok['escaped-line-block'] )
             {
-                tok.type = "block";
+                tok.type = 'block';
                 tok.multiline = false;
                 if ( !tok.escape ) tok.escape = '\\';
                 tok.tokens = tok['escaped-line-block'];
@@ -998,7 +1005,7 @@ function preprocess_grammar( grammar )
             }
             else if ( tok['escaped-block'] )
             {
-                tok.type = "block";
+                tok.type = 'block';
                 tok.multiline = true;
                 if ( !tok.escape ) tok.escape = '\\';
                 tok.tokens = tok['escaped-block'];
@@ -1006,7 +1013,7 @@ function preprocess_grammar( grammar )
             }
             else if ( tok['line-block'] )
             {
-                tok.type = "block";
+                tok.type = 'block';
                 tok.multiline = false;
                 tok.escape = false;
                 tok.tokens = tok['line-block'];
@@ -1014,74 +1021,74 @@ function preprocess_grammar( grammar )
             }
             else if ( tok['comment'] )
             {
-                tok.type = "comment";
+                tok.type = 'comment';
                 tok.escape = false;
                 tok.tokens = tok['comment'];
                 del(tok,'comment');
             }
             else if ( tok['block'] )
             {
-                tok.type = "block";
+                tok.type = 'block';
                 tok.tokens = tok['block'];
                 del(tok,'block');
             }
             else if ( tok['simple'] )
             {
-                tok.type = "simple";
+                tok.type = 'simple';
                 tok.tokens = tok['simple'];
                 del(tok,'simple');
             }
             else if ( tok['nop'] )
             {
-                tok.type = "action";
+                tok.type = 'action';
                 tok.action = [ 'nop', tok.nop, false ];
                 tok.nop = true;
             }
             else if ( tok['error'] )
             {
-                tok.type = "action";
+                tok.type = 'action';
                 tok.action = [ 'error', tok.error, !!tok['in-context'] ];
                 del(tok,'error');
             }
             else if ( tok[HAS]('context') )
             {
-                tok.type = "action";
+                tok.type = 'action';
                 tok.action = [ !!tok.context ? 'context-start' : 'context-end', tok['context'], !!tok['in-context'] ];
                 del(tok,'context');
             }
             else if ( tok['indent'] )
             {
-                tok.type = "action";
+                tok.type = 'action';
                 tok.action = [ 'indent', tok.indent, !!tok['in-context'] ];
                 del(tok,'indent');
             }
             else if ( tok['outdent'] )
             {
-                tok.type = "action";
+                tok.type = 'action';
                 tok.action = [ 'outdent', tok.outdent, !!tok['in-context'] ];
                 del(tok,'outdent');
             }
             else if ( tok['unique'] )
             {
-                tok.type = "action";
+                tok.type = 'action';
                 tok.action = [ 'unique', T_STR&get_type(tok.unique) ? ['_DEFAULT_', tok.unique] : tok.unique, !!tok['in-context'] ];
                 del(tok,'unique');
             }
             else if ( tok['push'] )
             {
-                tok.type = "action";
+                tok.type = 'action';
                 tok.action = [ 'push', tok.push, !!tok['in-context'] ];
                 del(tok,'push');
             }
             else if ( tok[HAS]('pop') )
             {
-                tok.type = "action";
+                tok.type = 'action';
                 tok.action = [ 'pop', tok.pop, !!tok['in-context'] ];
                 del(tok,'pop');
             }
             else
             {
-                tok.type = "simple";
+                tok.type = 'simple';
             }
         }
         if ( 'action' === tok.type )
@@ -1095,9 +1102,9 @@ function preprocess_grammar( grammar )
         }
         else if ( 'simple' === tok.type )
         {
-            tok.autocomplete = !!tok.autocomplete;
-            tok.meta = tok.autocomplete && (T_STR & get_type(tok.meta)) ? tok.meta : null;
-            tok.combine = !tok[HAS]('combine') ? true : tok.combine;
+            //tok.autocomplete = !!tok.autocomplete;
+            tok.meta = !!tok.autocomplete && (T_STR & get_type(tok.meta)) ? tok.meta : null;
+            //tok.combine = !tok[HAS]('combine') ? true : tok.combine;
             tok.ci = !!(tok.caseInsesitive||tok.ci);
         }
     }
@@ -1112,49 +1119,49 @@ function preprocess_grammar( grammar )
         {
             if ( tok['ngram'] || tok['n-gram'] )
             {
-                tok.type = "ngram";
+                tok.type = 'ngram';
                 tok.tokens = tok['ngram'] || tok['n-gram'];
                 if ( tok['n-gram'] ) del(tok,'n-gram'); else del(tok,'ngram');
             }
             else if ( tok['sequence'] || tok['all']  )
             {
-                tok.type = "sequence";
+                tok.type = 'sequence';
                 tok.tokens = tok['sequence'] || tok['all'];
                 if ( tok['all'] ) del(tok,'all'); else del(tok,'sequence');
             }
             else if ( tok['alternation'] || tok['either'] )
             {
-                tok.type = "alternation";
+                tok.type = 'alternation';
                 tok.tokens = tok['alternation'] || tok['either'];
                 if ( tok['either'] ) del(tok,'either'); else del(tok,'alternation');
             }
             else if ( tok['zeroOrOne'] )
             {
-                tok.type = "zeroOrOne";
+                tok.type = 'zeroOrOne';
                 tok.tokens = tok['zeroOrOne'];
                 del(tok,'zeroOrOne');
             }
             else if ( tok['zeroOrMore'] )
             {
-                tok.type = "zeroOrMore";
+                tok.type = 'zeroOrMore';
                 tok.tokens = tok['zeroOrMore'];
                 del(tok,'zeroOrMore');
             }
             else if ( tok['oneOrMore'] )
             {
-                tok.type = "oneOrMore";
+                tok.type = 'oneOrMore';
                 tok.tokens = tok['oneOrMore'];
                 del(tok,'oneOrMore');
             }
             else if ( tok['positiveLookahead'] || tok['lookahead'] )
             {
-                tok.type = "positiveLookahead";
+                tok.type = 'positiveLookahead';
                 tok.tokens = tok['positiveLookahead'] || tok['lookahead'];
                 if ( tok['lookahead'] ) del(tok,'lookahead'); else del(tok,'positiveLookahead');
             }
             else if ( tok['negativeLookahead'] )
             {
-                tok.type = "negativeLookahead";
+                tok.type = 'negativeLookahead';
                 tok.tokens = tok['negativeLookahead'];
                 del(tok,'negativeLookahead');
             }
@@ -1201,26 +1208,73 @@ function preprocess_grammar( grammar )
                 }
                 else if ( T_ARRAY & T )
                 {
-                    tok.type = "repeat";
+                    tok.type = 'repeat';
                     tok.repeat = tok.match;
                     del(tok,'match');
                 }
             }
             else if ( 'either' === tl )
             {
-                tok.type = "alternation";
+                tok.type = 'alternation';
             }
             else if ( 'all' === tl )
             {
-                tok.type = "sequence";
+                tok.type = 'sequence';
             }
             else if ( 'lookahead' === tl )
             {
-                tok.type = "positiveLookahead";
+                tok.type = 'positiveLookahead';
             }
         }
     }
     return grammar;
+}
+
+function generate_autocompletion( token, follows )
+{
+    follows = follows || [];
+    if ( !token || !token.length ) return follows;
+    var i, l, j, m, tok, tok2, toks, i0;
+    for(i=0,l=token.length; i<l; i++)
+    {
+        tok = token[i];
+        if ( !tok ) continue;
+        if ( T_SIMPLE === tok.type )
+        {
+            if ( !!tok.autocompletions )
+            {
+                follows.push.apply( follows, tok.autocompletions );
+            }
+            else if ( (T_STR === tok.token.ptype) && (tok.token.pattern.length > 1) )
+            {
+                follows.push( {word:''+tok.token.pattern, meta:tok.name, ci:!!tok.ci} );
+            }
+            /*else if ( T_CHARLIST === tok.token.ptype )
+            {
+                follows.push.apply( follows, tok.token.pattern.split('') );
+            }
+            else if ( T_REGEX === tok.token.ptype )
+            {
+                follows.push( tok.token.pattern[0].source );
+            }*/
+        }
+        else if ( T_ALTERNATION === tok.type )
+        {
+            generate_autocompletion( tok.token, follows );
+        }
+        else if ( T_SEQUENCE_OR_NGRAM & tok.type )
+        {
+            j = 0; m = tok.token.length;
+            do{
+            generate_autocompletion( [tok2 = tok.token[j++]], follows );
+            }while(j < m && (((T_REPEATED & tok2.type) && 0 === tok2.min) || T_ACTION === tok2.type));
+        }
+        else if ( T_REPEATED & tok.type )
+        {
+            generate_autocompletion( [tok.token[0]], follows );
+        }
+    }
+    return follows;
 }
 
 function get_backreference( token, Lex, Syntax, only_key )
@@ -1267,7 +1321,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
     if ( 1 === t.length )
     {
         curr_token = '' + tok;
-        if ( !Lex[ curr_token ] && !Syntax[ curr_token ] ) Lex[ curr_token ] = { type:"simple", tokens:tok };
+        if ( !Lex[ curr_token ] && !Syntax[ curr_token ] ) Lex[ curr_token ] = { type:'simple', tokens:tok };
         tok = curr_token;
     }
     else
@@ -1307,31 +1361,31 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     else if ( '0' === token )
                     {
                         // interpret as empty tokenizer
-                        if ( !Lex[$T_EMPTY$] ) Lex[$T_EMPTY$] = { type:"simple", tokens:0/*T_EMPTY*/ };
+                        if ( !Lex[$T_EMPTY$] ) Lex[$T_EMPTY$] = { type:'simple', tokens:0/*T_EMPTY*/ };
                         sequence.push( $T_EMPTY$ );
                     }
                     else if ( '^^' === token )
                     {
                         // interpret as SOF tokenizer
-                        if ( !Lex[$T_SOF$] ) Lex[$T_SOF$] = { type:"simple", tokens:T_SOF };
+                        if ( !Lex[$T_SOF$] ) Lex[$T_SOF$] = { type:'simple', tokens:T_SOF };
                         sequence.push( $T_SOF$ );
                     }
                     else if ( '^^1' === token )
                     {
                         // interpret as FNBL tokenizer
-                        if ( !Lex[$T_FNBL$] ) Lex[$T_FNBL$] = { type:"simple", tokens:T_FNBL };
+                        if ( !Lex[$T_FNBL$] ) Lex[$T_FNBL$] = { type:'simple', tokens:T_FNBL };
                         sequence.push( $T_FNBL$ );
                     }
                     else if ( '^' === token )
                     {
                         // interpret as SOL tokenizer
-                        if ( !Lex[$T_SOL$] ) Lex[$T_SOL$] = { type:"simple", tokens:T_SOL };
+                        if ( !Lex[$T_SOL$] ) Lex[$T_SOL$] = { type:'simple', tokens:T_SOL };
                         sequence.push( $T_SOL$ );
                     }
                     else if ( '$' === token )
                     {
                         // interpret as EOL tokenizer
-                        if ( !Lex[$T_EOL$] ) Lex[$T_EOL$] = { type:"simple", tokens:T_EOL };
+                        if ( !Lex[$T_EOL$] ) Lex[$T_EOL$] = { type:'simple', tokens:T_EOL };
                         sequence.push( $T_EOL$ );
                     }
                     else
@@ -1363,7 +1417,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     else
                     {
                         // interpret as non-space tokenizer
-                        if ( !Lex[$T_NONSPACE$] ) Lex[$T_NONSPACE$] = { type:"simple", tokens:'' };
+                        if ( !Lex[$T_NONSPACE$] ) Lex[$T_NONSPACE$] = { type:'simple', tokens:'' };
                         sequence.push( $T_NONSPACE$ );
                     }
                 }
@@ -1399,7 +1453,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     // literal regex token
                     /*if ( !token.length )
                     {*/
-                    literal = get_delimited( t, c, '\\', true ); fl = '';
+                    literal = get_delimited( t, c, '\\', false ); fl = '';
                     if ( literal.length )
                     {
                         if ( t.pos < t.length && 'i' === t[CHAR](t.pos) ) { t.pos++; fl = 'i'; }
@@ -1493,7 +1547,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     sequence = peg_simplify( sequence );
                     if ( sequence.length > 1 )
                     {
-                        curr_token = '' + sequence.join( " " );
+                        curr_token = '' + sequence.join( ' ' );
                         if ( !Syntax[curr_token] ) Syntax[curr_token] = { type:'sequence', tokens:sequence };
                         alternation.push( curr_token );
                     }
@@ -1521,7 +1575,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     sequence = peg_simplify( sequence );
                     if ( sequence.length > 1 )
                     {
-                        curr_token = '' + sequence.join( " " );
+                        curr_token = '' + sequence.join( ' ' );
                         if ( !Syntax[curr_token] ) Syntax[curr_token] = { type:'sequence', tokens:sequence };
                         alternation.push( curr_token );
                     }
@@ -1590,31 +1644,31 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
             else if ( '0' === token )
             {
                 // interpret as empty tokenizer
-                if ( !Lex[$T_EMPTY$] ) Lex[$T_EMPTY$] = { type:"simple", tokens:0/*T_EMPTY*/ };
+                if ( !Lex[$T_EMPTY$] ) Lex[$T_EMPTY$] = { type:'simple', tokens:0/*T_EMPTY*/ };
                 sequence.push( $T_EMPTY$ );
             }
             else if ( '^^' === token )
             {
                 // interpret as SOF tokenizer
-                if ( !Lex[$T_SOF$] ) Lex[$T_SOF$] = { type:"simple", tokens:T_SOF };
+                if ( !Lex[$T_SOF$] ) Lex[$T_SOF$] = { type:'simple', tokens:T_SOF };
                 sequence.push( $T_SOF$ );
             }
             else if ( '^^1' === token )
             {
                 // interpret as FNBL tokenizer
-                if ( !Lex[$T_FNBL$] ) Lex[$T_FNBL$] = { type:"simple", tokens:T_FNBL };
+                if ( !Lex[$T_FNBL$] ) Lex[$T_FNBL$] = { type:'simple', tokens:T_FNBL };
                 sequence.push( $T_FNBL$ );
             }
             else if ( '^' === token )
             {
                 // interpret as SOL tokenizer
-                if ( !Lex[$T_SOL$] ) Lex[$T_SOL$] = { type:"simple", tokens:T_SOL };
+                if ( !Lex[$T_SOL$] ) Lex[$T_SOL$] = { type:'simple', tokens:T_SOL };
                 sequence.push( $T_SOL$ );
             }
             else if ( '$' === token )
             {
                 // interpret as EOL tokenizer
-                if ( !Lex[$T_EOL$] ) Lex[$T_EOL$] = { type:"simple", tokens:T_EOL };
+                if ( !Lex[$T_EOL$] ) Lex[$T_EOL$] = { type:'simple', tokens:T_EOL };
                 sequence.push( $T_EOL$ );
             }
             else
@@ -1645,7 +1699,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
         alternation = peg_simplify( alternation, 1 );
         if ( alternation.length > 1 )
         {
-            curr_token = '' + alternation.join( " | " );
+            curr_token = '' + alternation.join( ' | ' );
             if ( !Syntax[curr_token] ) Syntax[curr_token] = { type:'alternation', tokens:alternation };
             tok = curr_token;
         }
@@ -1667,7 +1721,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
                     cachedRegexes, cachedMatchers, cachedTokens, 
                     interleavedTokens, comments, keywords ) 
 {
-    var $token$ = null, $msg$ = null, $modifier$ = null, $type$, $tokens$, t, tt, token, combine;
+    var $token$ = null, $msg$ = null, $modifier$ = null, $type$, $tokens$, t, tt, token, combine, autocompletions;
     
     if ( T_SOF === tokenID || T_FNBL === tokenID || T_SOL === tokenID || T_EOL === tokenID )
     {
@@ -1703,7 +1757,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         // literal n-gram as array
         t = tokenID;
         tokenID = "NGRAM_" + t.join("_");
-        if ( !Syntax[ tokenID ] ) Syntax[ tokenID ] = { type:"ngram", tokens:t };
+        if ( !Syntax[ tokenID ] ) Syntax[ tokenID ] = { type:'ngram', tokens:t };
     }
     
     tokenID = '' + tokenID;
@@ -1796,17 +1850,46 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         
         if ( T_SIMPLE & $type$ )
         {
-            if ( token.autocomplete ) get_autocomplete( token, tokenID, keywords );
+            if ( !!token.autocomplete )
+            {
+                autocompletions = get_autocomplete(
+                    token,
+                    make_array( T_STR_OR_ARRAY & get_type(token.autocomplete) ? token.autocomplete : token.tokens ),
+                    tokenID,
+                    keywords
+                );
+            }
+            else
+            {
+                autocompletions = null;
+            }
             
             // combine by default if possible using default word-boundary delimiter
-            combine = !token[HAS]('combine') ? true : token.combine;
+            combine = 'undefined' !== typeof token.combine ? token.combine : (T_ARRAY&get_type(token.tokens) ? true : false);
             $token$ = new tokenizer( T_SIMPLE, tokenID,
                         get_compositematcher( tokenID, $tokens$.slice(), RegExpID, combine,
                         !!(token.caseInsensitive||token.ci), cachedRegexes, cachedMatchers ), 
-                        $msg$, $modifier$
+                        $msg$, $modifier$, null, autocompletions
                     );
             // pre-cache tokenizer to handle recursive calls to same tokenizer
             cachedTokens[ tokenID ] = $token$;
+            
+            // token has excepted matches/tokens, e.g keywords
+            if ( null != token.except )
+            {
+                var token_except = make_array( token.except ), i, l = token_except.length, except = [ ], tok_exce;
+                for(i=0; i<l; i++)
+                {
+                    if ( !!token_except[i] )
+                    {
+                        tok_exce = get_tokenizer( token_except[i], RegExpID, Lex, Syntax, Style, 
+                                                cachedRegexes, cachedMatchers, cachedTokens, 
+                                                interleavedTokens, comments, keywords );
+                        if ( tok_exce ) except.push( tok_exce );
+                    }
+                }
+                if ( except.length ) $token$.except = except;
+            }
         }
         
         else if ( T_BLOCK & $type$ )
@@ -1948,7 +2031,7 @@ function preprocess_and_parse_grammar( grammar )
             {
                 // literal n-gram as array
                 t = id; id = "NGRAM_" + t.join("_");
-                if ( !grammar.Syntax[ id ] ) grammar.Syntax[ id ] = {type:"ngram", tokens:t};
+                if ( !grammar.Syntax[ id ] ) grammar.Syntax[ id ] = {type:'ngram', tokens:t};
             }
             token = get_backreference( id, grammar.Lex, grammar.Syntax );
             if ( T_STR & get_type( token ) )
@@ -2059,7 +2142,7 @@ function matcher( type, name, pattern, ptype, key )
     t.key = null;
 }*/
 
-function t_match( t, stream, eat )
+function t_match( t, stream, eat, any_match )
 {
     var self = t, PT = self.type, name, type,
         pattern = self.pattern, key = self.key,
@@ -2073,7 +2156,7 @@ function t_match( t, stream, eat )
         
         // matches start of block using startMatcher
         // and returns the associated endBlock matcher
-        if ( match = t_match( start, stream, eat ) )
+        if ( match = t_match( start, stream, eat, any_match ) )
         {
             // use the token key to get the associated endMatcher
             end = ends[ match[0] ];
@@ -2096,7 +2179,7 @@ function t_match( t, stream, eat )
         for (i=0,n=pattern.length; i<n; i++)
         {
             // each one is a matcher in its own
-            m = t_match( pattern[ i ], stream, eat );
+            m = t_match( pattern[ i ], stream, eat, any_match );
             if ( m ) return key ? [ i, m[1] ] : m;
         }
     }
@@ -2120,42 +2203,89 @@ function t_match( t, stream, eat )
         }
         else if ( T_CHARLIST === type )
         {
-            m = stream[CHAR](stream.pos) || null;
-            if ( m && (-1 < pattern.indexOf( m )) ) 
+            if ( true === any_match )
             {
-                if ( false !== eat ) stream.mov( 1 );
-                return [ key, m ];
+                m = -1;
+                var mm, cc;
+                for(n=pattern.length-1; n>=0; n--)
+                {
+                    mm = stream.indexOf(pattern[CHAR](n), stream.pos);
+                    if ( -1 < mm && (-1 === m || mm < m) ) 
+                    {
+                        m = mm; cc = pattern[CHAR](n);
+                    }
+                }
+                if ( -1 < m ) 
+                {
+                    if ( false !== eat ) stream.pos = m+1;
+                    return [ key, cc ];
+                }
+            }
+            else
+            {
+                m = stream[CHAR](stream.pos) || null;
+                if ( m && (-1 < pattern.indexOf( m )) ) 
+                {
+                    if ( false !== eat ) stream.mov( 1 );
+                    return [ key, m ];
+                }
             }
         }
         else if ( T_CHAR === type )
         {
-            m = stream[CHAR](stream.pos) || null;
-            if ( pattern === m ) 
+            if ( true === any_match )
             {
-                if ( false !== eat ) stream.mov( 1 );
-                return [ key, m ];
+                m = stream.indexOf(pattern, stream.pos);
+                if ( -1 < m ) 
+                {
+                    if ( false !== eat ) stream.pos = m+1;
+                    return [ key, pattern ];
+                }
+            }
+            else
+            {
+                m = stream[CHAR](stream.pos) || null;
+                if ( pattern === m ) 
+                {
+                    if ( false !== eat ) stream.mov( 1 );
+                    return [ key, m ];
+                }
             }
         }
         else if ( T_STR === type ) // ?? some pattern is undefined !!!!!!!!!
         {
             n = pattern.length;
-            if ( pattern === stream.substr(stream.pos, n) ) 
+            if ( true === any_match )
             {
-                if ( false !== eat ) stream.mov( n );
-                return [ key, pattern ];
+                m = stream.indexOf(pattern, stream.pos);
+                if ( -1 < m ) 
+                {
+                    if ( false !== eat ) stream.pos = m+n;
+                    return [ key, pattern ];
+                }
+            }
+            else
+            {
+                if ( pattern === stream.substr(stream.pos, n) ) 
+                {
+                    if ( false !== eat ) stream.mov( n );
+                    return [ key, pattern ];
+                }
             }
         }
     }
     return false;
 }
 
-function tokenizer( type, name, token, msg, modifier )
+function tokenizer( type, name, token, msg, modifier, except, autocompletions )
 {
     var self = this;
     self.type = type;
     self.name = name;
     self.token = token;
     self.modifier = modifier || null;
+    self.except = except || null;
+    self.autocompletions = autocompletions || null;
     self.pos = null;
     self.msg = msg || null;
     self.$msg = null;
@@ -2179,7 +2309,7 @@ function s_token( )
 
 function t_clone( t, required, modifier, $id )
 {
-    var tt = new tokenizer( t.type, t.name, t.token, t.msg, t.modifier );
+    var tt = new tokenizer( t.type, t.name, t.token, t.msg, t.modifier, t.except, t.autocompletions );
     tt.ci = t.ci; tt.mline = t.mline; tt.esc = t.esc; tt.inter = t.inter;
     tt.found = t.found; tt.min = t.min; tt.max = t.max;
     if ( required ) tt.status |= REQUIRED;
@@ -2194,6 +2324,7 @@ function t_clone( t, required, modifier, $id )
     t.name = null;
     t.token = null;
     t.modifier = null;
+    t.except = null;
     t.pos = null;
     t.msg = null; t.$msg = null;
     t.status = null;
@@ -2402,15 +2533,26 @@ function t_action( a, stream, state, token )
     return true;
 }
 
-function t_simple( t, stream, state, token )
+function t_simple( t, stream, state, token, exception )
 {
     var self = t, pattern = self.token, modifier = self.modifier,
-        type = self.type, tokenID = self.name,
+        type = self.type, tokenID = self.name, except = self.except, tok_except,
         line = state.line, pos = stream.pos, m = null, ret = false;
     
     self.status &= CLEAR_ERROR;
-    self.$msg = self.msg || null;
+    self.$msg = exception ? null : (self.msg || null);
     
+    if ( except )
+    {
+        for(var i=0,l=except.length; i<l; i++)
+        {
+            tok_except = except[i];
+            // exceptions are ONLY simple tokens
+            if ( self === tok_except || T_SIMPLE !== tok_except.type ) continue;
+            // exception matched, backup and fail
+            if ( t_simple( tok_except, stream, state, token, 1 ) ) { stream.bck( pos ); return false; }
+        }
+    }
     // match SOF (start-of-file, first line of source)
     if ( T_SOF === type ) { ret = 0 === state.line; }
     // match FNBL (first non-blank line of source)
@@ -2452,6 +2594,7 @@ function t_simple( t, stream, state, token )
         m = m[ 1 ];
         ret = modifier || tokenID; 
     }
+    if ( exception ) return ret;
     if ( false !== ret )
     {
         token.T = type; token.id = tokenID; token.type = ret;
@@ -2473,7 +2616,7 @@ function t_block( t, stream, state, token )
         block_start_pos, block_end_pos, block_inside_pos,
         b_start = '', b_inside = '', b_inside_rest = '', b_end = '', b_block,
         char_escaped, next, ret, is_required, $id = self.$id || block,
-        stack = state.stack, stream_pos, stream_pos0, stack_pos, line, pos
+        stack = state.stack, stream_pos, stream_pos0, stack_pos, line, pos, matched
     ;
 
     /*
@@ -2547,17 +2690,56 @@ function t_block( t, stream, state, token )
         {
             stream_pos0 = stream.pos;
             char_escaped = false;
-            while ( !stream.eol( ) ) 
+            if ( is_escaped || (T_CHARLIST !== block_end.ptype && T_CHAR !== block_end.ptype && T_STR !== block_end.ptype) )
             {
-                stream_pos = stream.pos;
-                if ( !char_escaped && t_match(block_end, stream) ) 
+                while ( !stream.eol( ) ) 
+                {
+                    stream_pos = stream.pos;
+                    if ( !char_escaped && t_match(block_end, stream) ) 
+                    {
+                        if ( has_interior )
+                        {
+                            if ( stream.pos > stream_pos && stream_pos > stream_pos0 )
+                            {
+                                ret = block_interior;
+                                stream.bck( stream_pos );
+                                continued = 1;
+                            }
+                            else
+                            {
+                                ret = block;
+                                ended = 1;
+                            }
+                        }
+                        else
+                        {
+                            ret = block;
+                            ended = 1;
+                        }
+                        b_end = stream.sel(stream_pos, stream.pos);
+                        break;
+                    }
+                    else
+                    {
+                        next = stream.nxt( 1 );
+                        b_inside_rest += next;
+                    }
+                    char_escaped = is_escaped && !char_escaped && esc_char === next;
+                    stream_pos = stream.pos;
+                }
+            }
+            else
+            {
+                // non-escaped block, 
+                // match at once instead of char-by-char
+                if ( matched = t_match(block_end, stream, true, true) )
                 {
                     if ( has_interior )
                     {
-                        if ( stream.pos > stream_pos && stream_pos > stream_pos0 )
+                        if ( stream.pos > stream_pos+matched[1].length )
                         {
                             ret = block_interior;
-                            stream.bck( stream_pos );
+                            stream.mov( -matched[1].length );
                             continued = 1;
                         }
                         else
@@ -2572,15 +2754,15 @@ function t_block( t, stream, state, token )
                         ended = 1;
                     }
                     b_end = stream.sel(stream_pos, stream.pos);
-                    break;
                 }
                 else
                 {
-                    next = stream.nxt( 1 );
-                    b_inside_rest += next;
+                    // skip to end of line, and continue
+                    stream.end( );
+                    ret = block_interior;
+                    continued = 1;
+                    b_inside_rest = stream.sel(stream_pos, stream.pos);
                 }
-                char_escaped = is_escaped && !char_escaped && esc_char === next;
-                stream_pos = stream.pos;
             }
         }
         else
@@ -2692,7 +2874,7 @@ function t_composite( t, stream, state, token )
         tokenizer = t_clone( tokens[ i0++ ], is_sequence, modifier, $id );
         style = tokenize( tokenizer, stream, state, token );
         // bypass failed but optional tokens in the sequence and get to the next ones
-        } while (/*is_sequence &&*/ i0 < n && false === style && !(tokenizer.status & REQUIRED_OR_ERROR));
+        } while (/*is_sequence &&*/ i0 < n && false === style && !(tokenizer.status & REQUIRED/*_OR_ERROR*/));
         
         if ( false !== style )
         {
@@ -2736,7 +2918,8 @@ function t_composite( t, stream, state, token )
     else //if ( T_REPEATED & type )
     {
         found = self.found; min = self.min; max = self.max;
-        self.status &= CLEAR_REQUIRED;
+        //self.status &= CLEAR_REQUIRED;
+        self.status = 0;
         err = [];
         
         for (i=0; i<n; i++)
@@ -2770,9 +2953,9 @@ function t_composite( t, stream, state, token )
         }
         
         if ( found < min ) self.status |= REQUIRED;
-        else self.status &= CLEAR_REQUIRED;
+        //else self.status &= CLEAR_REQUIRED;
         if ( (found > max) || (found < min && 0 < tokens_required) ) self.status |= ERROR;
-        else self.status &= CLEAR_ERROR;
+        //else self.status &= CLEAR_ERROR;
         if ( self.status && !self.$msg && err.length ) self.$msg = err.join(' | ');
         return false;
     }
@@ -2795,6 +2978,7 @@ function State( unique, s )
         self.status = s.status;
         self.stack = s.stack.slice();
         self.block = s.block;
+        self.token = s.token;
         // keep extra state only if error handling is enabled
         if ( self.status & ERRORS )
         {
@@ -2820,6 +3004,7 @@ function State( unique, s )
         self.status = s || 0;
         self.stack = [];
         self.block = null;
+        self.token = null;
         // keep extra state only if error handling is enabled
         if ( self.status & ERRORS )
         {
@@ -2852,6 +3037,7 @@ function state_dispose( state )
     state.status = null;
     state.stack = null;
     state.block = null;
+    state.token = null;
     state.queu = null;
     state.symb = null;
     state.ctx = null;
@@ -3012,6 +3198,7 @@ var Parser = Class({
             state.$blank$ = state.bline+1 === state.line;
         }
         state.$actionerr$ = false;
+        //state.token = null;
         stack = state.stack; line = state.line; pos = stream.pos;
         type = false; notfound = true; err = false; just_space = false;
         block_in_progress = state.block ? state.block.name : undef;
@@ -3044,7 +3231,7 @@ var Parser = Class({
                     {
                         tokenizer = interleaved_tokens[ii];
                         type = tokenize( tokenizer, stream, state, token );
-                        if ( false !== type ) { notfound = false; break; }
+                        if ( false !== type ) { notfound = false; state.token=tokenizer; break; }
                     }
                     if ( !notfound ) break;
                 }
@@ -3065,7 +3252,7 @@ var Parser = Class({
                         // skip this
                         if ( !stream.nxt( true ) ) { stream.spc( ); just_space = true; }
                         // generate error
-                        err = true; notfound = false; break;
+                        err = true; notfound = false; state.token=tokenizer; break;
                     }
                     // optional
                     /*else
@@ -3103,7 +3290,7 @@ var Parser = Class({
                         }
                     }
                     // not empty
-                    if ( true !== type ) { notfound = false; break; }
+                    if ( true !== type ) { notfound = false; state.token=tokenizer; break; }
                 }
             }
         }
@@ -3135,6 +3322,10 @@ var Parser = Class({
         //if ( state.$eol$ && state.$blank$ ) state.bline = state.line;
         
         return T;
+    }
+    
+    ,autocompletion: function( token, follows ) {
+        return generate_autocompletion( token, follows||[] );
     }
     
     ,tokenize: function( stream, state, row ) {
@@ -3429,7 +3620,7 @@ var Folder = {
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 2.6.1
+*   @version: 3.0.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -3543,24 +3734,35 @@ var CodeMirrorParser = Class(Parser, {
             cur = cm.getCursor(), curLine,
             start0 = cur.ch, start = start0, end0 = start0, end = end0,
             token, token_i, len, maxlen = 0, word_re, renderer,
-            case_insensitive_match, prefix_match;
-        if ( parser.$grammar.$autocomplete )
+            case_insensitive_match, prefix_match, in_context, suggestions, state = null;
+        if ( !!parser.$grammar.$autocomplete )
         {
             options = options || {};
             word_re = options.word || RE_W; curLine = cm.getLine(cur.line);
             prefix_match = options[HAS]('prefixMatch') ? !!options.prefixMatch : true;
+            in_context = options[HAS]('inContext')? !!options.inContext : false;
+            case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false;
             while (start && word_re.test(curLine[CHAR](start - 1))) --start;
             // operate similar to current ACE autocompleter equivalent
             if ( !prefix_match ) while (end < curLine.length && word_re.test(curLine[CHAR](end))) ++end;
-            if ( start < end )
+            token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
+            renderer = options.renderer || null;
+            if ( in_context )
             {
-                case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false;
-                renderer = options.renderer || null;
-                token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
-                operate(parser.$grammar.$autocomplete, function( list, word ){
-                    var w = word.word, wl = w.length, 
-                        wm, case_insensitive_word,
-                        pos, pos_i, m1, m2, case_insensitive;
+                state = cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state;
+                suggestions = parser.autocompletion(state.stack.length ? [state.token,state.stack[state.stack.length-1]] : [state.token]);
+                if ( !suggestions.length ) suggestions = parser.$grammar.$autocomplete;
+            }
+            else
+            {
+                suggestions = parser.$grammar.$autocomplete;
+            }
+            operate(suggestions, function( list, word ){
+                var w = word.word, wl = w.length, 
+                    wm, case_insensitive_word,
+                    pos, pos_i, m1, m2, case_insensitive;
+                if ( len )
+                {
                     if ( wl >= len )
                     {
                         wm = word.meta;  case_insensitive_word = !!w.ci;
@@ -3581,11 +3783,23 @@ var CodeMirrorParser = Class(Parser, {
                             });
                         }
                     }
-                    return list;
-                }, list);
-                if ( list.length ) list = list.sort( by_score );
-                list.maxlen = maxlen; 
-            }
+                }
+                else
+                {
+                    wm = word.meta;
+                    list.push({
+                        text: w, name: w, meta: wm,
+                        start: 0, end: 0, match: '',
+                        displayText: w + "\t\t["+wm+"]",
+                        render: renderer,
+                        // longer matches have lower match score
+                        score: 1000 - 10*(wl)
+                    });
+                }
+                return list;
+            }, list);
+            if ( list.length ) list = list.sort( by_score );
+            list.maxlen = maxlen; 
         }
         return {
             list: list,
@@ -3764,7 +3978,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     
-    VERSION: "2.6.1",
+    VERSION: "3.0.0",
     
     // clone a grammar
     /**[DOC_MARKDOWN]
