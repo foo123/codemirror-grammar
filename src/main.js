@@ -168,6 +168,7 @@ var CodeMirrorParser = Class(Parser, {
                 else
                 {
                     wm = word.meta;
+                    if ( wl+wm.length > maxlen ) maxlen = wl+wm.length;
                     list.push({
                         text: w, name: w, meta: wm,
                         start: 0, end: 0, match: '',
