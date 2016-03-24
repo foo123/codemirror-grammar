@@ -1230,11 +1230,11 @@ function preprocess_grammar( grammar )
     return grammar;
 }
 
-function generate_autocompletion( token, follows )
+function generate_autocompletion( token, follows, hash )
 {
-    follows = follows || [];
+    hash = hash || {}; follows = follows || [];
     if ( !token || !token.length ) return follows;
-    var i, l, j, m, tok, tok2, toks, i0;
+    var i, l, j, m, tok, tok2, toks, i0, w;
     for(i=0,l=token.length; i<l; i++)
     {
         tok = token[i];
@@ -1243,35 +1243,39 @@ function generate_autocompletion( token, follows )
         {
             if ( !!tok.autocompletions )
             {
-                follows.push.apply( follows, tok.autocompletions );
+                for(j=0,m=tok.autocompletions.length; j<m; j++)
+                {
+                    w = tok.autocompletions[j];
+                    if ( !hash[HAS]('w_'+w.word) )
+                    {
+                        follows.push( w );
+                        hash['w_'+w.word] = 1;
+                    }
+                }
             }
             else if ( (T_STR === tok.token.ptype) && (T_STR&get_type(tok.token.pattern)) && (tok.token.pattern.length > 1) )
             {
-                follows.push( {word:''+tok.token.pattern, meta:tok.name, ci:!!tok.ci} );
+                if ( !hash[HAS]('w_'+tok.token.pattern) )
+                {
+                    follows.push( {word:''+tok.token.pattern, meta:tok.name, ci:!!tok.ci} );
+                    hash['w_'+tok.token.pattern] = 1;
+                }
             }
-            /*else if ( T_CHARLIST === tok.token.ptype )
-            {
-                follows.push.apply( follows, tok.token.pattern.split('') );
-            }
-            else if ( T_REGEX === tok.token.ptype )
-            {
-                follows.push( tok.token.pattern[0].source );
-            }*/
         }
         else if ( T_ALTERNATION === tok.type )
         {
-            generate_autocompletion( tok.token, follows );
+            generate_autocompletion( tok.token, follows, hash );
         }
         else if ( T_SEQUENCE_OR_NGRAM & tok.type )
         {
             j = 0; m = tok.token.length;
             do{
-            generate_autocompletion( [tok2 = tok.token[j++]], follows );
-            }while(j < m && (((T_REPEATED & tok2.type) && 0 === tok2.min) || T_ACTION === tok2.type));
+            generate_autocompletion( [tok2 = tok.token[j++]], follows, hash );
+            }while(j < m && (((T_REPEATED & tok2.type) && (1 > tok2.min)) || T_ACTION === tok2.type));
         }
         else if ( T_REPEATED & tok.type )
         {
-            generate_autocompletion( [tok.token[0]], follows );
+            generate_autocompletion( [tok.token[0]], follows, hash );
         }
     }
     return follows;
@@ -2977,8 +2981,8 @@ function State( unique, s )
         self.bline = s.bline;
         self.status = s.status;
         self.stack = s.stack.slice();
-        self.block = s.block;
         self.token = s.token;
+        self.block = s.block;
         // keep extra state only if error handling is enabled
         if ( self.status & ERRORS )
         {
@@ -3003,8 +3007,8 @@ function State( unique, s )
         self.bline = -1;
         self.status = s || 0;
         self.stack = [];
-        self.block = null;
         self.token = null;
+        self.block = null;
         // keep extra state only if error handling is enabled
         if ( self.status & ERRORS )
         {
@@ -3036,8 +3040,8 @@ function state_dispose( state )
     state.bline = null;
     state.status = null;
     state.stack = null;
-    state.block = null;
     state.token = null;
+    state.block = null;
     state.queu = null;
     state.symb = null;
     state.ctx = null;
@@ -3197,8 +3201,7 @@ var Parser = Class({
             }
             state.$blank$ = state.bline+1 === state.line;
         }
-        state.$actionerr$ = false;
-        //state.token = null;
+        state.$actionerr$ = false; state.token = null;
         stack = state.stack; line = state.line; pos = stream.pos;
         type = false; notfound = true; err = false; just_space = false;
         block_in_progress = state.block ? state.block.name : undef;
@@ -3231,7 +3234,7 @@ var Parser = Class({
                     {
                         tokenizer = interleaved_tokens[ii];
                         type = tokenize( tokenizer, stream, state, token );
-                        if ( false !== type ) { notfound = false; state.token=tokenizer; break; }
+                        if ( false !== type ) { notfound = false; break; }
                     }
                     if ( !notfound ) break;
                 }
@@ -3248,11 +3251,12 @@ var Parser = Class({
                     if ( tokenizer.status & REQUIRED_OR_ERROR )
                     {
                         // empty the stack of the syntax rule group of this tokenizer
+                        state.token = tokenizer;
                         empty( stack, tokenizer.$id /*|| true*/ );
                         // skip this
                         if ( !stream.nxt( true ) ) { stream.spc( ); just_space = true; }
                         // generate error
-                        err = true; notfound = false; state.token=tokenizer; break;
+                        err = true; notfound = false; break;
                     }
                     // optional
                     /*else
@@ -3290,7 +3294,7 @@ var Parser = Class({
                         }
                     }
                     // not empty
-                    if ( true !== type ) { notfound = false; state.token=tokenizer; break; }
+                    if ( true !== type ) { notfound = false; break; }
                 }
             }
         }
@@ -3324,8 +3328,24 @@ var Parser = Class({
         return T;
     }
     
-    ,autocompletion: function( token, follows ) {
-        return generate_autocompletion( token, follows||[] );
+    ,autocompletion: function( state ) {
+        var stack = state.stack, i, token, type,
+            hash = {}, follows = generate_autocompletion( [ state.token ], [], hash );
+        for(i=stack.length-1; i>=0; i--)
+        {
+            token = stack[ i ]; type = token.type;
+            if ( T_REPEATED & type )
+            {
+                follows = generate_autocompletion( [ token ], follows, hash );
+                if ( (0 < token.min) && follows.length ) break;
+            }
+            else if ( (T_SIMPLE === type) || (T_ALTERNATION === type) || (T_SEQUENCE_OR_NGRAM & type) )
+            {
+                follows = generate_autocompletion( [ token ], follows, hash );
+                if ( follows.length ) break;
+            }
+        }
+        return follows;
     }
     
     ,tokenize: function( stream, state, row ) {
@@ -3734,7 +3754,7 @@ var CodeMirrorParser = Class(Parser, {
             cur = cm.getCursor(), curLine,
             start0 = cur.ch, start = start0, end0 = start0, end = end0,
             token, token_i, len, maxlen = 0, word_re, renderer,
-            case_insensitive_match, prefix_match, in_context, suggestions, state = null;
+            case_insensitive_match, prefix_match, in_context, sort_by_score, score;
         if ( !!parser.$grammar.$autocomplete )
         {
             options = options || {};
@@ -3747,17 +3767,9 @@ var CodeMirrorParser = Class(Parser, {
             if ( !prefix_match ) while (end < curLine.length && word_re.test(curLine[CHAR](end))) ++end;
             token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
             renderer = options.renderer || null;
-            if ( in_context )
-            {
-                state = cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state;
-                suggestions = parser.autocompletion(state.stack.length ? [state.token,state.stack[state.stack.length-1]] : [state.token]);
-                if ( !suggestions.length ) suggestions = parser.$grammar.$autocomplete;
-            }
-            else
-            {
-                suggestions = parser.$grammar.$autocomplete;
-            }
-            operate(suggestions, function( list, word ){
+            sort_by_score = false; score = 1000;
+            
+            var suggest = function suggest( list, word ){
                 var w = word.word, wl = w.length, 
                     wm, case_insensitive_word,
                     pos, pos_i, m1, m2, case_insensitive;
@@ -3794,11 +3806,27 @@ var CodeMirrorParser = Class(Parser, {
                         displayText: w + "\t\t["+wm+"]",
                         render: renderer,
                         // longer matches have lower match score
-                        score: 1000 - 10*(wl)
+                        score: sort_by_score ? 1000 - 10*(wl) : score--
                     });
                 }
                 return list;
-            }, list);
+            };
+            
+            if ( in_context )
+            {
+                sort_by_score = false;
+                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state ), suggest, list);
+                if ( !list.length )
+                {
+                    sort_by_score = true;
+                    list = operate(parser.$grammar.$autocomplete, suggest, list);
+                }
+            }
+            else
+            {
+                sort_by_score = true;
+                list = operate(parser.$grammar.$autocomplete, suggest, list);
+            }
             if ( list.length ) list = list.sort( by_score );
             list.maxlen = maxlen; 
         }

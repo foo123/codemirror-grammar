@@ -115,7 +115,7 @@ var CodeMirrorParser = Class(Parser, {
             cur = cm.getCursor(), curLine,
             start0 = cur.ch, start = start0, end0 = start0, end = end0,
             token, token_i, len, maxlen = 0, word_re, renderer,
-            case_insensitive_match, prefix_match, in_context, suggestions, state = null;
+            case_insensitive_match, prefix_match, in_context, sort_by_score, score;
         if ( !!parser.$grammar.$autocomplete )
         {
             options = options || {};
@@ -128,17 +128,9 @@ var CodeMirrorParser = Class(Parser, {
             if ( !prefix_match ) while (end < curLine.length && word_re.test(curLine[CHAR](end))) ++end;
             token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
             renderer = options.renderer || null;
-            if ( in_context )
-            {
-                state = cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state;
-                suggestions = parser.autocompletion(state.stack.length ? [state.token,state.stack[state.stack.length-1]] : [state.token]);
-                if ( !suggestions.length ) suggestions = parser.$grammar.$autocomplete;
-            }
-            else
-            {
-                suggestions = parser.$grammar.$autocomplete;
-            }
-            operate(suggestions, function( list, word ){
+            sort_by_score = false; score = 1000;
+            
+            var suggest = function suggest( list, word ){
                 var w = word.word, wl = w.length, 
                     wm, case_insensitive_word,
                     pos, pos_i, m1, m2, case_insensitive;
@@ -175,11 +167,27 @@ var CodeMirrorParser = Class(Parser, {
                         displayText: w + "\t\t["+wm+"]",
                         render: renderer,
                         // longer matches have lower match score
-                        score: 1000 - 10*(wl)
+                        score: sort_by_score ? 1000 - 10*(wl) : score--
                     });
                 }
                 return list;
-            }, list);
+            };
+            
+            if ( in_context )
+            {
+                sort_by_score = false;
+                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state ), suggest, list);
+                if ( !list.length )
+                {
+                    sort_by_score = true;
+                    list = operate(parser.$grammar.$autocomplete, suggest, list);
+                }
+            }
+            else
+            {
+                sort_by_score = true;
+                list = operate(parser.$grammar.$autocomplete, suggest, list);
+            }
             if ( list.length ) list = list.sort( by_score );
             list.maxlen = maxlen; 
         }
