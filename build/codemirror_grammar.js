@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 3.0.0
+*   @version: 3.1.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -26,7 +26,7 @@ else if ( !(name in root) ) /* Browser/WebWorker/.. */
 "use strict";
 /**
 *   EditorGrammar Codebase
-*   @version: 3.0.0
+*   @version: 3.1.0
 *
 *   https://github.com/foo123/editor-grammar
 **/
@@ -60,7 +60,7 @@ T_BLOCK = 1024, T_COMMENT = 1025,
 T_ALTERNATION = 2048,
 T_SEQUENCE = 4096,
 T_REPEATED = 8192, T_ZEROORONE = 8193, T_ZEROORMORE = 8194, T_ONEORMORE = 8195,
-T_LOOKAHEAD = 16384, T_POSITIVE_LOOKAHEAD = T_LOOKAHEAD, T_NEGATIVE_LOOKAHEAD = 16385, /*TODO*/
+T_LOOKAHEAD = 16384, T_POSITIVE_LOOKAHEAD = T_LOOKAHEAD, T_NEGATIVE_LOOKAHEAD = 16385,
 T_NGRAM = 32768,
 T_SEQUENCE_OR_NGRAM = T_SEQUENCE|T_NGRAM,
 T_COMPOSITE = T_ALTERNATION|T_SEQUENCE|T_REPEATED|T_LOOKAHEAD|T_NGRAM,
@@ -1528,20 +1528,19 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                 
                 else if ( '&' === c || '!' === c )
                 {
-                    // TODO
                     // lookahead modifier, applies to token that comes before
-                    /*if ( sequence.length )
+                    if ( sequence.length )
                     {
                         prev_token = sequence[sequence.length-1];
                         curr_token = '' + prev_token + c;
                         if ( !Syntax[ curr_token ] )
                             Syntax[ curr_token ] = {
-                                type:'&' === c ? 'positiveLookahead' : 'negativeLookahead',
+                                type:'!' === c ? 'negativeLookahead' : 'positiveLookahead',
                                 tokens:[prev_token]
                             }
                         sequence[sequence.length-1] = curr_token;
                     }
-                    else*/ token += c;
+                    else token += c;
                 }
                 
                 else if ( '|' === c )
@@ -1858,7 +1857,7 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
             {
                 autocompletions = get_autocomplete(
                     token,
-                    make_array( T_STR_OR_ARRAY & get_type(token.autocomplete) ? token.autocomplete : token.tokens ),
+                    T_STR_OR_ARRAY&get_type(token.autocomplete) ? make_array( token.autocomplete ) : $tokens$,
                     tokenID,
                     keywords
                 );
@@ -1941,7 +1940,6 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
             {
                 if ( T_POSITIVE_LOOKAHEAD === $type$ || T_NEGATIVE_LOOKAHEAD === $type$ )
                 {
-                    // TODO
                     $token$ = new tokenizer( $type$, tokenID, null, $msg$, $modifier$ );
                 }
                 else if ( (T_REPEATED & $type$) && (T_ARRAY & get_type( token.repeat )) )
@@ -2877,8 +2875,13 @@ function t_composite( t, stream, state, token )
         do {
         tokenizer = t_clone( tokens[ i0++ ], is_sequence, modifier, $id );
         style = tokenize( tokenizer, stream, state, token );
-        // bypass failed but optional tokens in the sequence and get to the next ones
-        } while (/*is_sequence &&*/ i0 < n && false === style && !(tokenizer.status & REQUIRED/*_OR_ERROR*/));
+        // bypass failed but optional tokens in the sequence
+        // or successful lookahead tokens
+        // and get to the next ones
+        } while (/*is_sequence &&*/ i0 < n && (
+            ((true === style) && (T_LOOKAHEAD & tokenizer.type)) || 
+            ((false === style) && !(tokenizer.status & REQUIRED/*_OR_ERROR*/))
+        ));
         
         if ( false !== style )
         {
@@ -2907,16 +2910,13 @@ function t_composite( t, stream, state, token )
         return false;
     }
 
-    else if ( T_POSITIVE_LOOKAHEAD === type )
+    else if ( T_LOOKAHEAD & type )
     {
-        // TODO
-        self.status = 0; return false;
-    }
-
-    else if ( T_NEGATIVE_LOOKAHEAD === type )
-    {
-        // TODO
-        self.status = 0; return false;
+        tokenizer = t_clone( tokens[ 0 ], 1, modifier, $id );
+        style = tokenize( tokenizer, stream, state, token );
+        if ( stream.pos > stream_pos ) stream.bck( stream_pos );
+        if ( stack.length > stack_pos ) stack.length = stack_pos;
+        return T_NEGATIVE_LOOKAHEAD === type ? false === style : false !== style;
     }
 
     else //if ( T_REPEATED & type )
@@ -3250,8 +3250,9 @@ var Parser = Class({
                     // error
                     if ( tokenizer.status & REQUIRED_OR_ERROR )
                     {
-                        // empty the stack of the syntax rule group of this tokenizer
+                        // keep it for autocompletion, if needed
                         state.token = tokenizer;
+                        // empty the stack of the syntax rule group of this tokenizer
                         empty( stack, tokenizer.$id /*|| true*/ );
                         // skip this
                         if ( !stream.nxt( true ) ) { stream.spc( ); just_space = true; }
@@ -3269,18 +3270,8 @@ var Parser = Class({
                 // found token
                 else
                 {
-                    // action token(s) follow, execute action(s) on current token
-                    if ( stack.length && T_ACTION === stack[stack.length-1].type )
-                    {
-                        while ( stack.length && T_ACTION === stack[stack.length-1].type )
-                        {
-                            action = stack.pop(); t_action( action, stream, state, token );
-                            // action error
-                            if ( action.status & ERROR ) state.$actionerr$ = true;
-                        }
-                    }
                     // partial block, apply maybe any action(s) following it
-                    else if ( stack.length > 1 && stream.eol() &&  
+                    if ( stack.length > 1 && stream.eol() &&  
                         (T_BLOCK & stack[stack.length-1].type) && state.block &&
                         state.block.name === stack[stack.length-1].name 
                     )
@@ -3289,6 +3280,17 @@ var Parser = Class({
                         while ( ii >= 0 && T_ACTION === stack[ii].type )
                         {
                             action = stack[ii--]; t_action( action, stream, state, token );
+                            // action error
+                            if ( action.status & ERROR ) state.$actionerr$ = true;
+                        }
+                    }
+                    // action token(s) follow, execute action(s) on current token
+                    else if ( stack.length && (T_ACTION === stack[stack.length-1].type) )
+                    {
+                        while ( stack.length && (T_ACTION === stack[stack.length-1].type) )
+                        {
+                            action = stack.pop();
+                            t_action( action, stream, state, token );
                             // action error
                             if ( action.status & ERROR ) state.$actionerr$ = true;
                         }
@@ -3328,21 +3330,22 @@ var Parser = Class({
         return T;
     }
     
-    ,autocompletion: function( state ) {
+    ,autocompletion: function( state, min_found ) {
         var stack = state.stack, i, token, type,
             hash = {}, follows = generate_autocompletion( [ state.token ], [], hash );
+        min_found  = min_found || 0;
         for(i=stack.length-1; i>=0; i--)
         {
             token = stack[ i ]; type = token.type;
             if ( T_REPEATED & type )
             {
                 follows = generate_autocompletion( [ token ], follows, hash );
-                if ( (0 < token.min) && follows.length ) break;
+                if ( (0 < token.min) && (min_found < follows.length) ) break;
             }
             else if ( (T_SIMPLE === type) || (T_ALTERNATION === type) || (T_SEQUENCE_OR_NGRAM & type) )
             {
                 follows = generate_autocompletion( [ token ], follows, hash );
-                if ( follows.length ) break;
+                if ( min_found < follows.length ) break;
             }
         }
         return follows;
@@ -3640,7 +3643,7 @@ var Folder = {
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 3.0.0
+*   @version: 3.1.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -4007,7 +4010,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     
-    VERSION: "3.0.0",
+    VERSION: "3.1.0",
     
     // clone a grammar
     /**[DOC_MARKDOWN]
