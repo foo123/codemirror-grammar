@@ -20,7 +20,7 @@ var $CodeMirror$ = 'undefined' !== typeof CodeMirror ? CodeMirror : { Pass : { t
 // parser factories
 var CodeMirrorParser = Class(Parser, {
     constructor: function CodeMirrorParser( grammar, DEFAULT ) {
-        var self = this, FOLD = null, TYPE;
+        var self = this, FOLD = null, MATCH = null, TYPE;
         
         Parser.call(self, grammar, null, "error");
         self.DEF = DEFAULT || self.$DEF;
@@ -41,22 +41,38 @@ var CodeMirrorParser = Class(Parser, {
                 self.$folders.push(CodeMirrorParser.Fold.Delimited(
                     grammar.$comments.block[i][0],
                     grammar.$comments.block[i][1],
-                    TYPE
+                    TYPE, 'comment'
                 ));
             }
         }
         // user-defined folding
         if ( grammar.Fold && (T_STR & get_type(grammar.Fold)) ) FOLD = grammar.Fold[LOWER]();
         else if ( grammar.$extra.fold ) FOLD = grammar.$extra.fold[LOWER]();
+        // user-defined matching
+        if ( grammar.Match && (T_STR & get_type(grammar.Match)) ) MATCH = grammar.Match[LOWER]();
+        else if ( grammar.$extra.match ) MATCH = grammar.$extra.match[LOWER]();
+        else MATCH = FOLD;
+        var blocks = get_block_types( grammar, 1 );
+        TYPE = blocks.length ? CodeMirrorParser.Type(blocks, false) : TRUE;
         if ( FOLD )
         {
             FOLD = FOLD.split('+');  // can use multiple folders, separated by '+'
             iterate(function( i, FOLDER ) {
-            var FOLD = trim(FOLDER[i]);
-            if ( 'brace' === FOLD || 'cstyle' === FOLD )
+            var FOLD = trim(FOLDER[i]), p;
+            if ( 'braces' === FOLD )
             {
-                var blocks = get_block_types( grammar, 1 );
-                TYPE = blocks.length ? CodeMirrorParser.Type(blocks, false) : TRUE;
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '{', '}', TYPE ) );
+            }
+            else if ( 'brackets' === FOLD )
+            {
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '[', ']', TYPE ) );
+            }
+            else if ( 'parens' === FOLD || 'parentheses' === FOLD )
+            {
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '(', ')', TYPE ) );
+            }
+            else if ( 'brace' === FOLD || 'cstyle' === FOLD || 'c' === FOLD )
+            {
                 self.$folders.push( CodeMirrorParser.Fold.Delimited( '{', '}', TYPE ) );
                 self.$folders.push( CodeMirrorParser.Fold.Delimited( '[', ']', TYPE ) );
             }
@@ -64,12 +80,50 @@ var CodeMirrorParser = Class(Parser, {
             {
                 self.$folders.push( CodeMirrorParser.Fold.Indented( ) );
             }
-            else if ( 'markup' === FOLD || 'html' === FOLD || 'xml' === FOLD )
+            else if ( 'tags' === FOLD || 'markup' === FOLD || 'html' === FOLD || 'xml' === FOLD )
             {
                 self.$folders.push( CodeMirrorParser.Fold.Delimited( '<![CDATA[', ']]>', CodeMirrorParser.Type(['comment','tag'], false) ) );
                 self.$folders.push( CodeMirrorParser.Fold.MarkedUp( CodeMirrorParser.Type('tag'), '<', '>', '/' ) );
             }
+            else if ( -1 < (p=FOLD.indexOf(',')) )
+            {
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( FOLD.slice(0,p), FOLD.slice(p+1), TYPE ) );
+            }
             }, 0, FOLD.length-1, FOLD);
+        }
+        // user-defined matching
+        if ( MATCH )
+        {
+            MATCH = MATCH.split('+');  // can use multiple matchers, separated by '+'
+            iterate(function( i, MATCHER ) {
+            var MATCH = trim(MATCHER[i]), p;
+            if ( 'braces' === MATCH )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '{', '}' ) );
+            }
+            else if ( 'brackets' === MATCH )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '[', ']' ) );
+            }
+            else if ( 'parens' === MATCH || 'parentheses' === MATCH )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '(', ')' ) );
+            }
+            else if ( 'brace' === MATCH || 'cstyle' === MATCH || 'c' === MATCH )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '{', '}' ) );
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '[', ']' ) );
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '(', ')' ) );
+            }
+            else if ( 'tags' === MATCH || 'markup' === MATCH || 'html' === MATCH || 'xml' === MATCH )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.MarkedUp( CodeMirrorParser.Type('tag'), '<', '>', '/' ) );
+            }
+            else if ( -1 < (p=MATCH.indexOf(',')) )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( MATCH.slice(0,p), MATCH.slice(p+1) ) );
+            }
+            }, 0, MATCH.length-1, MATCH);
         }
     }
     
@@ -176,7 +230,7 @@ var CodeMirrorParser = Class(Parser, {
             if ( in_context )
             {
                 sort_by_score = false;
-                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state ), suggest, list);
+                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state.state ), suggest, list);
                 if ( !list.length )
                 {
                     sort_by_score = true;
@@ -227,7 +281,9 @@ var CodeMirrorParser = Class(Parser, {
             return true;
         }
         ,indentation: function( line ) { return count_column( line, null, tabSize ); }
-        ,token: function( row, col ) { return cm.getTokenTypeAt( CodeMirror.Pos( row, col ) ); }
+        ,state: function( row, col ) { var s = cm.getTokenAt( CodeMirror.Pos( row, col||0 ) ).state; return s.state || s; }
+        ,token: function( row, col ) { return cm.getTokenTypeAt( CodeMirror.Pos( row, col||0 ) ); }
+        ,tokens: function( row ) { return cm.getLineTokens( row ); }
         };
     }
     
@@ -239,13 +295,27 @@ var CodeMirrorParser = Class(Parser, {
             iter = self.iterator( cm, CodeMirror );
             iter.row = start.line; iter.col = start.ch||0;
             for (i=0; i<l; i++)
-                if ( fold = folders[ i ]( iter ) )
+                if ( (fold = folders[ i ]( iter )) || (false === fold) )
                     return fold;
+        }
+    }
+    
+    ,match: function( cm, start, CodeMirror ) {
+        // adapted from codemirror
+        var self = this, matchers = self.$matchers, i, l = matchers.length, iter, match;
+        if ( l )
+        {
+            iter = self.iterator( cm, CodeMirror );
+            iter.row = start.line; iter.col = start.ch||0;
+            for (i=0; i<l; i++)
+                if ( (match = matchers[ i ]( iter )) || (false === match) )
+                    return match;
         }
     }
 });
 CodeMirrorParser.Type = Type;
 CodeMirrorParser.Fold = Folder;
+CodeMirrorParser.Match = Matcher;
 
 
 function autocomplete_renderer( elt, data, cmpl )
@@ -272,25 +342,35 @@ function get_mode( grammar, DEFAULT, CodeMirror )
     CodeMirror = CodeMirror || $CodeMirror$; /* pass CodeMirror reference if not already available */
     function CMode( conf, parserConf )
     {
-        return {
-        startState: function( ) { 
-            return new State( );
+        // this is a generic multiplexing mode
+        // since it supports multiple inner sub-grammar parsers
+        // this means all folding/matching/autocompletion/comments multiplexing and so on..
+        // should be handled by the mode itself taking account any sub-modes
+        // and NOT by Codemirror!!
+        var mode;
+        mode = {
+        Mode: CMode
+        
+        ,startState: function( ) { 
+            return {parser: CMode.$parser, state: new State( ), inner: {}, name: null};
         }
         
         ,copyState: function( state ) { 
-            return new State( 0, state );
+            return {parser: state.parser, state: new State( 0, state.state ), inner: state.inner, name: state.name};
         }
         
         ,token: function( stream, state ) { 
             var pstream = Stream( stream.string, stream.start, stream.pos ), 
-                token = CMode.$parser.token( pstream, state ).type;
+                token = state.parser.get( pstream, state ).type;
             stream.pos = pstream.pos;
             return token;
         }
         
         ,indent: function( state, textAfter, fullLine ) { 
-            return CMode.$parser.indent( state, textAfter, fullLine, conf, parserConf, CodeMirror ); 
+            return state.parser.indent( state.state, textAfter, fullLine, conf, parserConf, CodeMirror ); 
         }
+        
+        ,fold: CMode.foldType
         
         // support comments toggle functionality
         ,lineComment: CMode.$parser.LC
@@ -302,11 +382,28 @@ function get_mode( grammar, DEFAULT, CodeMirror )
         // eg. code folding, electriChars etc..
         ,electricInput: CMode.$parser.$grammar.$extra.electricInput || false
         ,electricChars: CMode.$parser.$grammar.$extra.electricChars || false
-        ,fold: CMode.foldType
         };
+        // store a reference to mode here
+        CMode.mode = mode;
+        return mode;
     }
     CMode.$id = uuid("codemirror_grammar_mode");
     CMode.$parser = new CodeMirrorGrammar.Parser( parse_grammar( grammar ), DEFAULT );
+    // store a reference to Mode here
+    CMode.$parser.Mode = CMode;
+    CMode.options = function( cm, pos, options ) {
+        options = options || {};
+        var s = cm.getTokenAt( pos ).state, parser = (s && s.parser) || CMode.$parser;
+        options.lineComment = parser.LC;
+        options.blockCommentStart = parser.BCS;
+        options.blockCommentEnd = parser.BCE;
+        options.blockCommentContinue = parser.BCC;
+        options.blockCommentLead = parser.BCL;
+        options.electricInput = parser.$grammar.$extra.electricInput || false;
+        options.electricChars = parser.$grammar.$extra.electricChars || false;
+        return options;
+    };
+    
     // custom, user-defined, syntax lint-like validation/annotations generated from grammar
     CMode.supportGrammarAnnotations = false;
     CMode.validator = function validator( code, options )  {
@@ -314,36 +411,115 @@ function get_mode( grammar, DEFAULT, CodeMirror )
         ? CMode.$parser.validate( code, validator.options||options||{}, CodeMirror )
         : [];
     };
-    CMode.linter = CMode.validator; // alias
-    // custom, user-defined, code folding generated from grammar
+    // alias
+    CMode.linter = CMode.validator;
+    
+    // custom, user-defined, (multiplexed) autocompletions generated from grammar
+    CMode.supportAutoCompletion = true;
+    CMode.autocompleter = function autocompleter( cm, options ) {
+        if ( CMode.supportAutoCompletion )
+        {
+            var s = cm.getTokenAt( cm.getCursor() ).state, parser = (s && s.parser) || CMode.$parser;
+            options = autocompleter.options /*|| Mode.autocompleter.options*/ || options || {};
+            if ( !options[HAS]('renderer') ) options.renderer = autocompleter.renderer /*|| Mode.autocompleter.renderer*/ || autocomplete_renderer;
+            return parser.autocomplete( cm, options, CodeMirror );
+        }
+    };
+    CMode.autocompleter.renderer = autocomplete_renderer;
+    // alias, deprecated for compatibility
+    //CMode.autocomplete = CMode.autocompleter;
+    
+    // custom, user-defined, code (multiplexed) folding generated from grammar
     CMode.supportCodeFolding = true;
     CMode.foldType = "fold_"+CMode.$id;
     CMode.folder = function folder( cm, start ) {
-        var fold;
-        if ( CMode.supportCodeFolding && CMode.$parser && (fold = CMode.$parser.fold( cm, start, CodeMirror )) )
+        if ( CMode.supportCodeFolding )
         {
+            var s = cm.getTokenAt( start ).state, parser = (s && s.parser) || CMode.$parser, fold;
+            if ( fold = parser.fold( cm, start, CodeMirror ) )
             return {
                 from: CodeMirror.Pos( fold[0], fold[1] ),
                 to: CodeMirror.Pos( fold[2], fold[3] )
             };
         }
     };
-    // custom, user-defined, autocompletions generated from grammar
-    CMode.supportAutoCompletion = true;
-    CMode.autocompleter = function autocompleter( cm, options ) {
-        if ( CMode.supportAutoCompletion && CMode.$parser )
+    
+    // custom, user-defined, code (multiplexed) matching generated from grammar
+    CMode.supportCodeMatching = true;
+    CMode.matchType = "match_"+CMode.$id;
+    CMode.matcher = function matcher( cm ) {
+        if ( CMode.supportCodeMatching )
         {
-            options = autocompleter.options || options || {};
-            if ( !options[HAS]('renderer') ) options.renderer = autocompleter.renderer || autocomplete_renderer;
-            return CMode.$parser.autocomplete( cm, options, CodeMirror );
+            matcher.clear( cm );
+            if ( cm.state.$highlightPending ) return;
+            var s = cm.getTokenAt( cm.getCursor() ).state, parser = (s && s.parser) || CMode.$parser;
+
+            // perform highlight async to not block the browser during navigation
+            cm.state.$highlightPending = true;
+            setTimeout(function( ) {
+            cm.operation(function( ) {
+                cm.state.$highlightPending = false;
+                // Disable matching in long lines, since it'll cause hugely slow updates
+                var options =matcher.options /*|| Mode.matcher.options*/ || {}, maxHighlightLen = options.maxHighlightLineLength || 1000;
+                var marks = [], ranges = cm.listSelections( ), range,
+                    matched = "CodeMirror-matchingtag"/*"CodeMirror-matchingbracket"*/, unmatched = "CodeMirror-nonmatchingbracket";
+                for (var i=0,l=ranges.length; i<1; i++)
+                {
+                    range = /*ranges[i].empty() &&*/ parser.match( cm, ranges[i].to(), CodeMirror );
+                    if ( null == range ) continue;
+                    if ( false === range )
+                    {
+                        if ( ranges[i].empty() )
+                        {
+                            range = ranges[i].to();
+                            range = [CodeMirror.Pos(range.line, range.ch-1), range];
+                        }
+                        else
+                        {
+                            range = [ranges[i].from(), ranges[i].to()];
+                        }
+                        marks.push( cm.markText( range[0], range[1], {className: unmatched} ) );
+                    }
+                    else if ( false === range.match )
+                    {
+                        marks.push( cm.markText( CodeMirror.Pos(range[0], range[1]), CodeMirror.Pos(range[2], range[3]), {className: unmatched} ) );
+                    }
+                    else if ( ('end' === range.match) && (cm.getLine(range[0]).length <= maxHighlightLen) )
+                    {
+                        marks.push( cm.markText( CodeMirror.Pos(range[0], range[1]), CodeMirror.Pos(range[2], range[3]), {className: matched} ) );
+                        if ( cm.getLine(range[4]).length <= maxHighlightLen )
+                        marks.push( cm.markText( CodeMirror.Pos(range[4], range[5]), CodeMirror.Pos(range[6], range[7]), {className: matched} ) );
+                    }
+                    else if ( ('start' === range.match) && (cm.getLine(range[4]).length <= maxHighlightLen) )
+                    {
+                        marks.push( cm.markText( CodeMirror.Pos(range[4], range[5]), CodeMirror.Pos(range[6], range[7]), {className: matched} ) );
+                        if ( cm.getLine(range[0]).length <= maxHighlightLen )
+                        marks.push( cm.markText( CodeMirror.Pos(range[0], range[1]), CodeMirror.Pos(range[2], range[3]), {className: matched} ) );
+                    }
+                }
+                cm.state[ CMode.matchType ] = marks;
+            });
+            }, 50);
         }
     };
-    CMode.autocompleter.renderer = autocomplete_renderer;
-    CMode.autocomplete = CMode.autocompleter; // deprecated, alias for compatibility
+    CMode.matcher.clear = function( cm ) {
+        cm.operation(function( ){
+            var marks = cm.state[ CMode.matchType ];
+            cm.state[ CMode.matchType ] = null;
+            if ( marks && marks.length )
+                for(var i=0,l=marks.length; i<l; i++) marks[i].clear( );
+        });
+    };
+    
+    CMode.submode = function( lang, mode ) {
+        CMode.$parser.subparser( lang, mode.Mode.$parser );
+    };
+    
     CMode.dispose = function( ) {
         if ( CMode.$parser ) CMode.$parser.dispose( );
-        CMode.$parser = CMode.validator = CMode.linter = CMode.autocompleter = CMode.autocomplete = CMode.folder = null;
+        CMode.$parser = CMode.validator = CMode.linter = CMode.autocompleter = CMode.folder = CMode.matcher = CMode.mode = null;
     };
+    
     return CMode;
 }
 
