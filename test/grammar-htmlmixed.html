@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+    <head>
+        
+        <meta charset="utf-8">
+        
+        <link rel="stylesheet" href="codemirror/codemirror.css">
+        <link rel="stylesheet" href="codemirror/addon/lint/lint.css">
+        <link rel="stylesheet" href="codemirror/addon/hint/show-hint.css">
+        <link rel="stylesheet" href="codemirror/addon/fold/foldgutter.css" />
+        <style type="text/css">
+            body {
+                position: relative;
+            }
+
+            .CodeMirror {
+                margin: 0;
+                position: relative;
+                width: 100%;
+                height: 100%;
+                min-width:500px;
+                min-height:500px;
+            }
+        </style>
+        
+        <script src="codemirror/codemirror.js"></script>
+        <script src="codemirror/addon/comment/comment.js"></script>
+        <script src="codemirror/addon/lint/lint.js"></script>
+        <script src="codemirror/addon/hint/show-hint.js"></script>
+        <script src="codemirror/addon/fold/foldcode.js"></script>
+        <script src="codemirror/addon/fold/foldgutter.js"></script>
+        <!--<script src="codemirror/addon/fold/xml-fold.js"></script>
+        <script src="codemirror/addon/fold/comment-fold.js"></script>-->
+        <script src="../build/codemirror_grammar.js"></script>
+        <!-- these grammars are used only for demo, better grammars can be used -->
+        <script src="grammars/javascript.js"></script>
+        <script src="grammars/css.js"></script>
+        <script src="grammars/htmlmixed.js"></script>
+        <script src="demo.js"></script>
+        
+        <title>CodeMirror: Dynamic Mixed HTML + JavaScript + CSS Grammar Demo</title>
+    </head>
+    <body>
+        
+        <h3>CodeMirror (v.<span id="editor-version">0</span>) Grammar (v.<span id="grammar-version">0</span>): Dynamic Mixed HTML + JavaScript + CSS Grammar</h3>
+<textarea id="code" name="code">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;!doctype html&gt;
+&lt;html id="id1" id="id2" style = "color: green"&gt;
+    &lt;!-- this is a comment --&gt;
+    &lt;head id="id1"&gt;
+        &lt;title&gt;HTML Example&lt;/title&gt;
+    &lt;style&gt;
+/* Some example CSS */
+@import url("something.css");
+body {
+  margin: 0; 
+  padding: 3em 6em; 
+  font-family: tahoma, arial, sans-serif;
+  color: #000;
+}
+h1:before, h2:before {
+  content: "::";
+}
+    &lt;/style&gt;
+	&lt;script&gt;
+/* a comment */
+var bar = { foo: [1, 2, 3, {"foo3":"foo4"}],
+        /* a long
+        comment */
+        foo2: 123
+};
+    &lt;/script&gt;
+    &lt;/head&gt;
+    &lt;body id="id1"&gt;
+        &lt;!-- this is a 
+            long comment --&gt;
+        &lt;div class="divclass"&gt;
+            &lt;![CDATA[
+                cdata text in here
+                &lt;a_tag&gt;, etc..
+            ]]&gt;
+        &lt;/div&gt;
+        The indentation tries to be &lt;em&gt;somewhat &amp;quot;do what
+        I mean&amp;quot;&lt;/em&gt;... but might not match your style.
+    &lt;/bdy&gt;
+    &lt;?xml version="1.0" encoding="utf-8"?&gt;
+    &lt;!doctype html&gt;
+&lt;/html&gt;
+</textarea>
+        <p></p>
+
+        <script>
+        // <![CDATA[
+        codemirror_grammar_demo(document.getElementById("code"), [
+             {language : "htmlmixed",  grammar : htmlmixed_grammar}
+            ,{language : "javascript", grammar : js_grammar}
+            ,{language : "css",        grammar : css_grammar}
+        ]);
+        // ]]>
+        </script>
+    </body>
+</html>
