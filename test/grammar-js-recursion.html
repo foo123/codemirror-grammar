@@ -62,7 +62,9 @@ var obj = {
 
         <script>
         // <![CDATA[
-        codemirror_grammar_demo(document.getElementById("code"), "js", js_grammar);
+        codemirror_grammar_demo(document.getElementById("code"), [
+            {language : "javascript", grammar : js_grammar}
+        ]);
         // ]]>
         </script>
     </body>

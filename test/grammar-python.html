@@ -132,7 +132,9 @@ class ExampleClass(ParentClass):
 
         <script>
         // <![CDATA[
-        codemirror_grammar_demo(document.getElementById("code"), "python", python_grammar);
+        codemirror_grammar_demo(document.getElementById("code"), [
+            {language : "python", grammar : python_grammar}
+        ]);
         // ]]>
         </script>
     </body>

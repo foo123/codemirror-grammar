@@ -62,7 +62,7 @@ var js_grammar = {
                                     // start, end of string (can be the matched regex group ie. 1 )
                                     [ "RE::/(['\"])/",   1 ]
                                     }
-    ,"regex"                        : {"type":"escaped-block","escape":"\\","tokens":
+    ,"regex"                        : {"type":"escaped-block","escape":"\\","empty":false,"tokens":
                                     // javascript literal regular expressions can be parsed similar to strings
                                     [ "/",    "RE::#/[gimy]{0,4}#" ]
                                     }

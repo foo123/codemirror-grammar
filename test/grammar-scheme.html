@@ -88,7 +88,9 @@
 
         <script>
         // <![CDATA[
-        codemirror_grammar_demo(document.getElementById("code"), "scheme", scheme_grammar);
+        codemirror_grammar_demo(document.getElementById("code"), [
+            {language : "scheme", grammar : scheme_grammar}
+        ]);
         // ]]>
         </script>
     </body>

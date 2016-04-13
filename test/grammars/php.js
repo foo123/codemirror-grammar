@@ -6,7 +6,7 @@ var php_grammar = {
     
 "Extra"                     : {
     
-        "fold"              : "brace"
+     "fold"                 : "brace"
         
 },
     
@@ -35,7 +35,7 @@ var php_grammar = {
 "Lex"                       : {
     
      "comment:comment"      : [["//", null],["#", null],["/*", "*/"]]
-    ,"heredoc:block"        : ["RE::/<<<([_A-Za-z][_A-Za-z0-9]*)/",   1]
+    ,"heredoc:block"        : ["RE::/<<<([_A-Za-z][_A-Za-z0-9]*)/",   "RE::/^(\\1)/"]
     ,"string:escaped-block" : ["RE::/([`'\"])/", 1]
     ,"identifier"           : "RE::/[_A-Za-z][_A-Za-z0-9]*/"
     ,"variable"             : "RE::/\\$[_A-Za-z][_A-Za-z0-9]*/"

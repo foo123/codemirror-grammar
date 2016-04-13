@@ -78,7 +78,9 @@ code {
 
         <script>
         // <![CDATA[
-        codemirror_grammar_demo(document.getElementById("code"), "css", css_grammar);
+        codemirror_grammar_demo(document.getElementById("code"), [
+            {language : "css", grammar : css_grammar}
+        ]);
         // ]]>
         </script>
     </body>

@@ -50,7 +50,8 @@ Code Indentation is Codemirror default, see [Modularity and Future Directions](h
 * [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#syntax-model) can enable highlight in a more *context-specific* way, plus detect possible *syntax errors* and display appropriate *error messages* (see below)
 * [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#syntax-model) can contain **recursive references** (see `/test/grammar-js-recursion.html`)
 * [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#syntax-pegbnf-like-notations) can be (fully) specificed using [`PEG`](https://en.wikipedia.org/wiki/Parsing_expression_grammar)-like notation or [`BNF`](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_Form)-like notation  (**NEW feature**)
-* [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#syntax-pegbnf-like-notations) implements **positive / negative lookahead tokens** (analogous to `PEG` `and-`/`not-` entities)  (**NEW feature**)
+* [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#syntax-pegbnf-like-notations) implements **positive / negative lookahead tokens** (analogous to `PEG` `and-`/`not-` predicates)  (**NEW feature**)
+* [`Grammar.Syntax Model`](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#syntax-model) can include **external (sub-)grammars so that new multiplexed / mixed grammars** are created easily and intuitively (see test examples) (**NEW feature**)
 * `Grammar` can define [*action* tokens](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#action-tokens) to perform *complex context-specific* parsing functionality, including **associated tag matching** and **duplicate identifiers** (see for example `xml.grammar` example) (**NEW feature**)
 * Generated highlight modes can support **toggle comments** and **keyword autocompletion** functionality if defined in the grammar
 * **Context-sensitive autocompletion** extracted directly from the grammar specification  (**NEW feature**)
@@ -79,6 +80,7 @@ var xml_grammar = {
 "Extra"                             : {
     
     "fold"                          : "xml"
+    //"match"                       : "xml"
     //"electricChars"               : "<"
     
 },
@@ -154,6 +156,22 @@ CodeMirror.defineMode("xml", xml_mode);
 xml_mode.supportCodeFolding = true;
 CodeMirror.registerHelper("fold", xml_mode.foldType, xml_mode.folder);
 
+// enable user-defined code matching in the specification (new feature)
+xml_mode.supportCodeMatching = true;
+xml_mode.matcher.options = {maxHighlightLineLength:1000}; // default
+CodeMirror.defineOption("matching", false, function( cm, val, old ) {
+    if ( old && old != CodeMirror.Init )
+    {
+        cm.off( "cursorActivity", xml_mode.matcher );
+        xml_mode.matcher.clear( cm );
+    }
+    if ( val )
+    {
+        cm.on( "cursorActivity", xml_mode.matcher );
+        xml_mode.matcher( cm );
+    }
+});
+
 // enable syntax lint-like validation in the grammar
 xml_mode.supportGrammarAnnotations = true;
 CodeMirror.registerHelper("lint", "xml", xml_mode.validator);
@@ -174,6 +192,7 @@ var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
     indentUnit: 4,
     indentWithTabs: false,
     lint: true,  // enable lint validation
+    matching: true,  // enable token matching, e.g braces, tags etc..
     extraKeys: {"Ctrl-Space": 'my_autocompletion', "Ctrl-L": "toggleComment"},
     foldGutter: true,
     gutters: ["CodeMirror-lint-markers", "CodeMirror-linenumbers", "CodeMirror-foldgutter"]
@@ -191,6 +210,8 @@ Result:
 
 ###Other Examples:
 
+
+![htmlmixed-grammar](/test/grammar-htmlmixed.png)
 
 ![js-recursive-grammar](/test/grammar-js-recursion.png)
 ![js-recursive-grammar-autocomplete](/test/grammar-js-recursion-2.png)

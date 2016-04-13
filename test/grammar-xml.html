@@ -61,12 +61,15 @@
     &lt;/bdy&gt;
     &lt;?xml version="1.0" encoding="utf-8"?&gt;
     &lt;!doctype html&gt;
-&lt;/html&gt;</textarea>
+&lt;/html&gt;
+</textarea>
         <p></p>
 
         <script>
         // <![CDATA[
-        codemirror_grammar_demo(document.getElementById("code"), "xml", xml_grammar);
+        codemirror_grammar_demo(document.getElementById("code"), [
+             {language : "xml",        grammar : xml_grammar}
+        ]);
         // ]]>
         </script>
     </body>

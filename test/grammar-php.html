@@ -76,7 +76,9 @@ function a_function( &$v1, $v2 )
 
         <script>
         // <![CDATA[
-        codemirror_grammar_demo(document.getElementById("code"), "php", php_grammar);
+        codemirror_grammar_demo(document.getElementById("code"), [
+            {language : "php", grammar : php_grammar}
+        ]);
         // ]]>
         </script>
     </body>

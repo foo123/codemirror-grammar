@@ -64,7 +64,9 @@ getMode = function(grammar, DEFAULT) {
 
         <script>
         // <![CDATA[
-        codemirror_grammar_demo(document.getElementById("code"), "js", /\?json\b/.test(document.location.href) ? json_grammar : js_grammar);
+        codemirror_grammar_demo(document.getElementById("code"), [
+            /\?json\b/.test(document.location.href) ? {language : "json", grammar : json_grammar} : {language : "javascript", grammar : js_grammar}
+        ]);
         // ]]>
         </script>
     </body>

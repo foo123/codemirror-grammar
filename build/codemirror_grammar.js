@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 3.1.0
+*   @version: 4.0.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -26,7 +26,7 @@ else if ( !(name in root) ) /* Browser/WebWorker/.. */
 "use strict";
 /**
 *   EditorGrammar Codebase
-*   @version: 3.1.0
+*   @version: 4.0.0
 *
 *   https://github.com/foo123/editor-grammar
 **/
@@ -61,15 +61,16 @@ T_ALTERNATION = 2048,
 T_SEQUENCE = 4096,
 T_REPEATED = 8192, T_ZEROORONE = 8193, T_ZEROORMORE = 8194, T_ONEORMORE = 8195,
 T_LOOKAHEAD = 16384, T_POSITIVE_LOOKAHEAD = T_LOOKAHEAD, T_NEGATIVE_LOOKAHEAD = 16385,
-T_NGRAM = 32768,
+T_NGRAM = 32768, T_SUBGRAMMAR = 65536,
 T_SEQUENCE_OR_NGRAM = T_SEQUENCE|T_NGRAM,
-T_COMPOSITE = T_ALTERNATION|T_SEQUENCE|T_REPEATED|T_LOOKAHEAD|T_NGRAM,
+T_COMPOSITE = T_ALTERNATION|T_SEQUENCE|T_REPEATED|T_LOOKAHEAD|T_NGRAM|T_SUBGRAMMAR,
 
 // tokenizer types
 tokenTypes = {
 action: T_ACTION,
 simple: T_SIMPLE,
 block: T_BLOCK, comment: T_COMMENT,
+subgrammar: T_SUBGRAMMAR,
 alternation: T_ALTERNATION,
 sequence: T_SEQUENCE,
 repeat: T_REPEATED, zeroorone: T_ZEROORONE, zeroormore: T_ZEROORMORE, oneormore: T_ONEORMORE,
@@ -385,36 +386,6 @@ function has_prefix( s, p )
     );
 }
 
-function push_at( stack, pos, token )
-{
-    if ( pos < stack.length ) stack.splice( pos, 0, token );
-    else stack.push( token );
-    return stack;
-}
-
-function empty( stack, $id )
-{
-    // http://dvolvr.davidwaterston.com/2013/06/09/restating-the-obvious-the-fastest-way-to-truncate-an-array-in-javascript/
-    var count = 0, total = stack.length;
-    if ( true === $id )
-    {
-        // empty whole stack
-        stack.length =  0;
-    }
-    else if ( $id )
-    {
-        // empty only entries associated to $id
-        while ( count < total && /*stack[total-count-1] &&*/ stack[total-count-1].$id === $id ) count++;
-        if ( count ) stack.length =  total-count;
-    }
-    /*else if ( count )
-    {
-        // just pop one
-        stack.length =  count-1;
-    }*/
-    return stack;
-}
-
 function del( o, p, soft )
 {
     if ( soft ) o[p] = undef; else delete o[p];
@@ -489,6 +460,7 @@ function Class( O, C )
 // tokenizer helpers
 var escaped_re = /([.*+?^${}()|[\]\/\\\-])/g,
     html_special_re = /[&"'<>]/g,
+    de_html_special_re = /&(amp|lt|gt|apos|quot);/g,
     peg_bnf_special_re = /^([.!&\[\]{}()*+?\/|'"]|\s)/,
     default_combine_delimiter = "\\b", 
     combine_delimiter = "(\\s|\\W|$)" /* more flexible than \\b */;
@@ -523,6 +495,24 @@ function html_escaper_entities( c )
     ;
 }
 
+function html_de_escaper_entities( c )
+{
+    return '&amp;' === c
+        ? '&'
+        :(
+        '&lt;' === c
+        ? '<'
+        : (
+        '&gt;' === c
+        ? '>'
+        : (
+        '&quot;' === c
+        ? '"'
+        : '\''
+        )))
+    ;
+}
+
 function html_escaper( c )
 {
     return "&#" + c.charCodeAt(0) + ";";
@@ -531,6 +521,11 @@ function html_escaper( c )
 function esc_html( s, entities )
 {
     return s.replace(html_special_re, entities ? html_escaper_entities : html_escaper);
+}
+
+function de_esc_html( s )
+{
+    return s.replace(de_html_special_re, html_de_escaper_entities);
 }
 
 
@@ -581,20 +576,26 @@ function get_delimited( src, delim, esc, collapse_esc )
     return s;
 }
 
-function group_replace( pattern, token, raw )
+function group_replace( pattern, token, raw, in_regex )
 {
-    var i, l, c, g, replaced, offset = true === raw ? 0 : 1;
-    if ( T_STR & get_type(token) ) { token = [token, token, token]; offset = 0; }
+    var i, l, c, g, replaced, offset = true === raw ? 0 : 1,
+        placeholder = in_regex ? '\\' : '$', placeholder_code = in_regex ? 92 : 36;
+    if ( T_STR & get_type(token) )
+    {
+        if ( in_regex ) token = esc_re( token );
+        token = [token, token, token];
+        offset = 0;
+    }
     l = pattern.length; replaced = ''; i = 0;
     while ( i<l )
     {
         c = pattern[CHAR](i);
-        if ( (i+1<l) && '$' === c )
+        if ( (i+1<l) && placeholder === c )
         {
             g = pattern.charCodeAt(i+1);
-            if ( 36 === g ) // escaped $ character
+            if ( placeholder_code === g ) // escaped placeholder character
             {
-                replaced += '$';
+                replaced += placeholder;
                 i += 2;
             }
             else if ( 48 <= g && g <= 57 ) // group between 0 and 9
@@ -704,7 +705,7 @@ function get_simplematcher( name, pattern, key, cachedMatchers )
     return cachedMatchers[ name ] = mtcher;
 }
 
-function get_compositematcher( name, tokens, RegExpID, combined, caseInsensitive, cachedRegexes, cachedMatchers ) 
+function get_compositematcher( name, tokens, RegExpID, combined, caseInsensitive, cachedRegexes, cachedMatchers, ret_keywords ) 
 {
     if ( cachedMatchers[ name ] ) return cachedMatchers[ name ];
     
@@ -753,6 +754,7 @@ function get_compositematcher( name, tokens, RegExpID, combined, caseInsensitive
         }
         else if ( combine && !(array_of_arrays || has_regexs) )
         {   
+            if ( ret_keywords ) ret_keywords.keywords = make_array( tokens ).slice( );
             mtcher = get_simplematcher( name, get_combined_re( tmp, combined, caseInsensitive ), 0, cachedMatchers );
         }
         else if ( array_of_arrays || has_regexs )
@@ -769,6 +771,7 @@ function get_compositematcher( name, tokens, RegExpID, combined, caseInsensitive
         }
         else /* strings */
         {
+            if ( ret_keywords ) ret_keywords.keywords = make_array( tokens ).slice( );
             tmp = tmp.sort( by_length );
             for (i=0; i<l; i++)
             {
@@ -781,6 +784,7 @@ function get_compositematcher( name, tokens, RegExpID, combined, caseInsensitive
     return cachedMatchers[ name ] = mtcher;
 }
 
+var regex_pattern_re = /(\\\\)*?\\\d/;
 function get_blockmatcher( name, tokens, RegExpID, cachedRegexes, cachedMatchers ) 
 {
     if ( cachedMatchers[ name ] ) return cachedMatchers[ name ];
@@ -789,14 +793,28 @@ function get_blockmatcher( name, tokens, RegExpID, cachedRegexes, cachedMatchers
     
     // build start/end mappings
     iterate(function( i ) {
-        var t1, t2;
+        var t1, t2, is_regex, is_regex_pattern;
         t1= get_simplematcher( name + '_0_' + i, get_re( tmp[i][0], RegExpID, cachedRegexes ), i, cachedMatchers );
         if ( tmp[i].length > 1 )
         {
-            if ( T_REGEX === t1.ptype && T_STR === get_type( tmp[i][1] ) && !has_prefix( tmp[i][1], RegExpID ) )
-                t2 = tmp[i][1];
+            is_regex = has_prefix( tmp[i][1], RegExpID );
+            is_regex_pattern = is_regex && regex_pattern_re.test(tmp[i][1]);
+            if ( T_REGEX === t1.ptype && T_STR === get_type( tmp[i][1] ) && (is_regex_pattern || !is_regex) )
+            {
+                if ( is_regex_pattern )
+                {
+                    t2 = new String(tmp[i][1]);
+                    t2.regex_pattern = RegExpID;
+                }
+                else
+                {
+                    t2 = tmp[i][1];
+                }
+            }
             else
+            {
                 t2 = get_simplematcher( name + '_1_' + i, get_re( tmp[i][1], RegExpID, cachedRegexes ), i, cachedMatchers );
+            }
         }
         else
         {
@@ -1165,6 +1183,12 @@ function preprocess_grammar( grammar )
                 tok.tokens = tok['negativeLookahead'];
                 del(tok,'negativeLookahead');
             }
+            else if ( tok['subgrammar'] || tok['grammar'] )
+            {
+                tok.type = 'subgrammar';
+                tok.tokens = tok['subgrammar'] || tok['grammar'];
+                if ( tok['subgrammar'] ) del(tok,'subgrammar'); else del(tok,'grammar');
+            }
         }
         else if ( tok.type )
         {
@@ -1225,6 +1249,11 @@ function preprocess_grammar( grammar )
             {
                 tok.type = 'positiveLookahead';
             }
+            else if ( 'grammar' === tl )
+            {
+                tok.type = 'subgrammar';
+            }
+            if ( 'subgrammar' === tok.type && !tok.tokens ) tok.tokens = id;
         }
     }
     return grammar;
@@ -1867,13 +1896,15 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
                 autocompletions = null;
             }
             
+            var kws = {};
             // combine by default if possible using default word-boundary delimiter
             combine = 'undefined' !== typeof token.combine ? token.combine : (T_ARRAY&get_type(token.tokens) ? true : false);
             $token$ = new tokenizer( T_SIMPLE, tokenID,
                         get_compositematcher( tokenID, $tokens$.slice(), RegExpID, combine,
-                        !!(token.caseInsensitive||token.ci), cachedRegexes, cachedMatchers ), 
+                        !!(token.caseInsensitive||token.ci), cachedRegexes, cachedMatchers, kws ), 
                         $msg$, $modifier$, null, autocompletions
                     );
+            if ( kws.keywords ) $token$.keywords = kws.keywords.join('|');
             // pre-cache tokenizer to handle recursive calls to same tokenizer
             cachedTokens[ tokenID ] = $token$;
             
@@ -1903,7 +1934,8 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
                         get_blockmatcher( tokenID, $tokens$.slice(), RegExpID, cachedRegexes, cachedMatchers ), 
                         $msg$
                     );
-            $token$.mline = token[HAS]('multiline')?!!token.multiline:true;
+            $token$.empty = token[HAS]('empty') ? !!token.empty : true;
+            $token$.mline = token[HAS]('multiline') ? !!token.multiline : true;
             $token$.esc = token[HAS]('escape') ? token.escape : false;
             // allow block delims / block interior to have different styles
             $token$.inter = !!Style[ tokenID + '.inside' ];
@@ -1915,7 +1947,13 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         
         else if ( T_COMPOSITE & $type$ )
         {
-            if ( T_NGRAM === $type$ )
+            if ( T_SUBGRAMMAR === $type$ )
+            {
+                // pre-cache tokenizer to handle recursive calls to same tokenizer
+                cachedTokens[ tokenID ] = new tokenizer( T_SUBGRAMMAR, tokenID, $tokens$, $msg$, $modifier$ );
+            }
+            
+            else if ( T_NGRAM === $type$ )
             {
                 // get n-gram tokenizer
                 tt = make_array_2( $tokens$ ); // array of arrays
@@ -2055,7 +2093,7 @@ function preprocess_and_parse_grammar( grammar )
 function parse_grammar( grammar ) 
 {
     var RegExpID, tokens,
-        Extra, Style, Fold, Lex, Syntax, 
+        Extra, Style, Fold, Match, Lex, Syntax, 
         cachedRegexes, cachedMatchers, cachedTokens, 
         interleavedTokens, comments, keywords;
     
@@ -2067,6 +2105,7 @@ function parse_grammar( grammar )
     Extra = grammar.Extra ? clone(grammar.Extra) : { };
     Style = grammar.Style ? clone(grammar.Style) : { };
     Fold = /*grammar.Fold ||*/ null;
+    Match = /*grammar.Match ||*/ null;
     Lex = grammar.Lex ? clone(grammar.Lex) : { };
     Syntax = grammar.Syntax ? clone(grammar.Syntax) : { };
     
@@ -2078,6 +2117,7 @@ function parse_grammar( grammar )
     grammar = preprocess_grammar({
         Style           : Style,
         Fold            : Fold,
+        Match           : Match,
         Lex             : Lex,
         Syntax          : Syntax,
         $parser         : null,
@@ -2166,12 +2206,22 @@ function t_match( t, stream, eat, any_match )
             
             // regex group number given, get the matched group pattern for the ending of this block
             // string replacement pattern given, get the proper pattern for the ending of this block
-            if ( T_REGEX === T0 && (T_STR_OR_NUM & T) )
+            if ( (T_REGEX === T0) && (T_STR_OR_NUM & T) )
             {
                 // the regex is wrapped in an additional group, 
                 // add 1 to the requested regex group transparently
-                m = T_NUM & T ? match[1][ end+1 ] : group_replace( end, match[1] );
-                end = new matcher( P_SIMPLE, name+'_End', m, m.length>1 ? T_STR : T_CHAR );
+                if ( end.regex_pattern )
+                {
+                    // dynamicaly-created regex with substistution group as well
+                    m = group_replace( end, match[1], 0, 1 );
+                    end = new matcher( P_SIMPLE, name+'_End', get_re(m, end.regex_pattern, {}), T_REGEX );
+                }
+                else
+                {
+                    // dynamicaly-created string with substistution group as well
+                    m = T_NUM & T ? match[1][ end+1 ] : group_replace( end, match[1] );
+                    end = new matcher( P_SIMPLE, name+'_End', m, m.length>1 ? T_STR : T_CHAR );
+                }
             }
             return end;
         }
@@ -2279,7 +2329,7 @@ function t_match( t, stream, eat, any_match )
     return false;
 }
 
-function tokenizer( type, name, token, msg, modifier, except, autocompletions )
+function tokenizer( type, name, token, msg, modifier, except, autocompletions, keywords )
 {
     var self = this;
     self.type = type;
@@ -2288,12 +2338,13 @@ function tokenizer( type, name, token, msg, modifier, except, autocompletions )
     self.modifier = modifier || null;
     self.except = except || null;
     self.autocompletions = autocompletions || null;
+    self.keywords = keywords || null;
     self.pos = null;
     self.msg = msg || null;
     self.$msg = null;
     self.status = 0;
-    self.ci = false; self.mline = true; self.esc = false; self.inter = false;
-    self.found = 0; self.min = 0; self.max = 1;
+    self.empty = false; self.ci = false; self.mline = true; self.esc = false; self.inter = false;
+    self.found = 0; self.min = 0; self.max = 1; self.i0 = 0;
     self.$id = null;
 }
 
@@ -2311,9 +2362,9 @@ function s_token( )
 
 function t_clone( t, required, modifier, $id )
 {
-    var tt = new tokenizer( t.type, t.name, t.token, t.msg, t.modifier, t.except, t.autocompletions );
-    tt.ci = t.ci; tt.mline = t.mline; tt.esc = t.esc; tt.inter = t.inter;
-    tt.found = t.found; tt.min = t.min; tt.max = t.max;
+    var tt = new tokenizer( t.type, t.name, t.token, t.msg, t.modifier, t.except, t.autocompletions, t.keywords );
+    tt.empty = t.empty; tt.ci = t.ci; tt.mline = t.mline; tt.esc = t.esc; tt.inter = t.inter;
+    tt.found = t.found; tt.min = t.min; tt.max = t.max; tt.i0 = t.i0;
     if ( required ) tt.status |= REQUIRED;
     if ( modifier ) tt.modifier = modifier;
     if ( $id ) tt.$id = $id;
@@ -2327,11 +2378,13 @@ function t_clone( t, required, modifier, $id )
     t.token = null;
     t.modifier = null;
     t.except = null;
+    t.autocompletions = null;
+    t.keywords = null;
     t.pos = null;
     t.msg = null; t.$msg = null;
     t.status = null;
     t.ci = null; t.mline = null; t.esc = null; t.inter = null;
-    t.found = null; t.min = null; t.max = null;
+    t.found = null; t.min = null; t.max = t.i0 = null;
     t.$id = null;
 }*/
 
@@ -2342,16 +2395,111 @@ function t_err( t )
         ? t.$msg
         : (
             t.status & REQUIRED
-            ? 'Token "'+T+'" Expected'
+            ? 'Token "'+T+'"'+(t.keywords?': '+t.keywords:'')+' Expected'
             : 'Syntax Error: "'+T+'"'
         );
 }
 
 function error_( state, l1, c1, l2, c2, t, err )
 {
-    //if ( state.err )
+    if ( state.status & ERRORS )
     state.err[ l1+'_'+c1+'_'+l2+'_'+c2+'_'+(t?t.name:'ERROR') ] = [ l1, c1, l2, c2, err || t_err( t ) ];
     //return state;
+}
+
+function push_at( stack, pos, token )
+{
+    if ( pos < stack.length ) stack.splice( pos, 0, token );
+    else stack.push( token );
+    return stack;
+}
+
+function empty( stack, $id )
+{
+    // http://dvolvr.davidwaterston.com/2013/06/09/restating-the-obvious-the-fastest-way-to-truncate-an-array-in-javascript/
+    var count = 0, total = stack.length;
+    if ( true === $id )
+    {
+        // empty whole stack
+        stack.length =  0;
+    }
+    else if ( $id )
+    {
+        // empty only entries associated to $id
+        while ( count < total && /*stack[total-count-1] &&*/ stack[total-count-1].$id === $id ) count++;
+        if ( count ) stack.length =  total-count;
+    }
+    /*else if ( count )
+    {
+        // just pop one
+        stack.length =  count-1;
+    }*/
+    return stack;
+}
+
+function err_recover( state, stream, token, tokenizer )
+{
+    //var just_space = false;
+    // empty the stack of the syntax rule group of this tokenizer
+    //empty( stack, tokenizer.$id /*|| true*/ );
+    
+    // skip this
+    //if ( tokenizer.pos > stream.pos ) stream.pos = tokenizer.pos;
+    //else if ( !stream.nxt( true ) ) { stream.spc( ); just_space = true; }
+    
+    var stack = state.stack, stack_pos, stream_pos, stream_pos2, tok, i = 0, 
+        recover_stream = Infinity, recover_stack = -1;
+    stream_pos = stream.pos;
+    stream.spc( );
+    stream_pos2 = stream.pos;
+    stack_pos = stack.length;
+    if ( stream.pos < stream.length )
+    {
+        // try to recover in a state with:
+        // 1. the closest stream position that matches a tokenizer in the stack (more important)
+        // 2. and the minimum number of stack tokenizers to discard (less important)
+        while (stack_pos > i)
+        {
+            tok = stack[stack_pos-i-1];
+            if ( tok.$id !== tokenizer.$id ) break;
+            
+            while( !tokenize(tok, stream, state, token) )
+            {
+                stream.pos = tok.pos > stream.pos ? tok.pos : stream.pos+1;
+                stack.length = stack_pos;
+                if ( stream.pos >= stream.length ) break;
+            }
+            stack.length = stack_pos;
+            
+            if ( (stream.pos < stream.length) && (recover_stream > stream.pos) )
+            {
+                recover_stream = stream.pos;
+                recover_stack = stack_pos-i;
+            }
+            else if ( (recover_stream === stream.pos) && (stack_pos-i > recover_stack) )
+            {
+                recover_stream = stream.pos;
+                recover_stack = stack_pos-i;
+            }
+            
+            stream.pos = stream_pos2;
+            i++;
+        }
+        
+        if ( recover_stream < stream.length )
+        {
+            stream.pos = recover_stream;
+            stack.length = recover_stack;
+        }
+        else
+        {
+            stream.end( );
+        }
+    }
+    /*else
+    {
+    }*/
+    return (stream_pos2 >= stream_pos) && (stream.pos === stream_pos2);
 }
 
 function tokenize( t, stream, state, token )
@@ -2539,20 +2687,21 @@ function t_simple( t, stream, state, token, exception )
 {
     var self = t, pattern = self.token, modifier = self.modifier,
         type = self.type, tokenID = self.name, except = self.except, tok_except,
-        line = state.line, pos = stream.pos, m = null, ret = false;
+        backup, line = state.line, pos = stream.pos, m = null, ret = false;
     
     self.status &= CLEAR_ERROR;
     self.$msg = exception ? null : (self.msg || null);
-    
-    if ( except )
+    self.pos = stream.pos;
+    if ( except && !exception )
     {
+        backup = state_backup( state, stream );
         for(var i=0,l=except.length; i<l; i++)
         {
             tok_except = except[i];
             // exceptions are ONLY simple tokens
             if ( self === tok_except || T_SIMPLE !== tok_except.type ) continue;
             // exception matched, backup and fail
-            if ( t_simple( tok_except, stream, state, token, 1 ) ) { stream.bck( pos ); return false; }
+            if ( t_simple( tok_except, stream, state, token, 1 ) ) { self.pos = tok_except.pos; state_backup( state, stream, backup ); return false; }
         }
     }
     // match SOF (start-of-file, first line of source)
@@ -2566,7 +2715,7 @@ function t_simple( t, stream, state, token, exception )
     { 
         stream.spc();
         if ( stream.eol() ) ret = tokenID;
-        else stream.bck( pos );
+        else {self.pos = stream.pos; stream.bck( pos );}
     }
     // match EMPTY token
     else if ( T_EMPTY === type ) { self.status = 0; ret = true; }
@@ -2575,6 +2724,7 @@ function t_simple( t, stream, state, token, exception )
     { 
         if ( (self.status & REQUIRED) && stream.spc() && !stream.eol() )
         {
+            self.pos = stream.pos;
             stream.bck( pos );
             self.status |= ERROR;
         }
@@ -2617,8 +2767,9 @@ function t_block( t, stream, state, token )
         already_inside, found, ended, continued, continue_to_next_line,
         block_start_pos, block_end_pos, block_inside_pos,
         b_start = '', b_inside = '', b_inside_rest = '', b_end = '', b_block,
-        char_escaped, next, ret, is_required, $id = self.$id || block,
-        stack = state.stack, stream_pos, stream_pos0, stack_pos, line, pos, matched
+        char_escaped, next, ret, is_required, $id = self.$id || block, can_be_empty,
+        stack = state.stack, stream_pos, stream_pos0, stack_pos, line, pos, matched,
+        outer = state.outer, outerState = outer && outer[2], outerTokenizer = outer && outer[1]
     ;
 
     /*
@@ -2630,13 +2781,14 @@ function t_block( t, stream, state, token )
 
     self.status &= CLEAR_ERROR;
     self.$msg = self.msg || null;
+    self.pos = stream.pos;
     line = state.line; pos = stream.pos;
     // comments are not required tokens
     if ( T_COMMENT === type ) self.status &= CLEAR_REQUIRED;
     
     is_required = self.status & REQUIRED; already_inside = 0; found = 0;
     
-    if ( state.block && state.block.name === block )
+    if ( state.block && (state.block.name === block) )
     {
         found = 1; already_inside = 1; ret = block_interior;
         block_end = state.block.end;
@@ -2660,7 +2812,8 @@ function t_block( t, stream, state, token )
     if ( found )
     {
         stack_pos = stack.length;
-        is_eol = T_NULL === block_end.type;
+        is_eol = T_NULL === block_end.ptype;
+        can_be_empty = is_eol || self.empty;
         
         if ( has_interior )
         {
@@ -2684,7 +2837,7 @@ function t_block( t, stream, state, token )
         }
         
         stream_pos = stream.pos;
-        ended = t_match( block_end, stream );
+        ended = outerTokenizer ? is_eol && stream.eol() : t_match( block_end, stream );
         continue_to_next_line = is_multiline;
         continued = 0;
         
@@ -2692,10 +2845,37 @@ function t_block( t, stream, state, token )
         {
             stream_pos0 = stream.pos;
             char_escaped = false;
-            if ( is_escaped || (T_CHARLIST !== block_end.ptype && T_CHAR !== block_end.ptype && T_STR !== block_end.ptype) )
+            if ( outerTokenizer || is_escaped ||
+                (T_CHARLIST !== block_end.ptype && T_CHAR !== block_end.ptype && T_STR !== block_end.ptype)
+            )
             {
                 while ( !stream.eol( ) ) 
                 {
+                    // check for outer parser interleaved
+                    if ( outerTokenizer )
+                    {
+                        if ( tokenize( outerTokenizer, stream, outerState, token ) )
+                        {
+                            if ( stream.pos > stream_pos0 )
+                            {
+                                // return any part of current block first
+                                if ( is_eol ) ended = 1;
+                                break;
+                            }
+                            else
+                            {
+                                // dispatch back to outer parser (interleaved next)
+                                return true;
+                            }
+                        }
+                        else if ( is_eol )
+                        {
+                            // EOL block, go char-by-char since outerToken might still be inside
+                            next = stream.nxt( 1 );
+                            b_inside_rest += next;
+                            continue;
+                        }
+                    }
                     stream_pos = stream.pos;
                     if ( !char_escaped && t_match(block_end, stream) ) 
                     {
@@ -2726,9 +2906,10 @@ function t_block( t, stream, state, token )
                         next = stream.nxt( 1 );
                         b_inside_rest += next;
                     }
-                    char_escaped = is_escaped && !char_escaped && esc_char === next;
+                    char_escaped = is_escaped && !char_escaped && (esc_char === next);
                     stream_pos = stream.pos;
                 }
+                if ( is_eol && stream.eol() ) ended = 1;
             }
             else
             {
@@ -2743,19 +2924,23 @@ function t_block( t, stream, state, token )
                             ret = block_interior;
                             stream.mov( -matched[1].length );
                             continued = 1;
+                            b_inside_rest = stream.sel(stream_pos, stream.pos);
                         }
                         else
                         {
                             ret = block;
                             ended = 1;
+                            b_inside_rest = stream.sel(stream_pos, stream.pos-matched[1].length);
+                            b_end = matched[1];
                         }
                     }
                     else
                     {
                         ret = block;
                         ended = 1;
+                        b_inside_rest = stream.sel(stream_pos, stream.pos-matched[1].length);
+                        b_end = matched[1];
                     }
-                    b_end = stream.sel(stream_pos, stream.pos);
                 }
                 else
                 {
@@ -2777,6 +2962,19 @@ function t_block( t, stream, state, token )
         b_inside += b_inside_rest;
         block_inside_pos[ 1 ] = [line, stream_pos]; block_end_pos = [line, stream.pos];
         
+        if ( ended )
+        {
+            // block is empty, invalid block
+            if ( !can_be_empty && 
+                (block_inside_pos[0][0] === block_inside_pos[1][0]) && 
+                (block_inside_pos[0][1] === block_inside_pos[1][1])
+            )
+            {
+                state.block = null;
+                return false;
+            }
+        }
+        
         if ( ended || (!continue_to_next_line && !continued) )
         {
             state.block = null;
@@ -2790,6 +2988,7 @@ function t_block( t, stream, state, token )
         token.T = type; token.id = block; token.type = modifier || ret;
         token.str = stream.sel(pos, stream.pos); token.match = null;
         token.pos = [line, pos, block_end_pos[0], block_end_pos[1]];
+        self.pos = stream.pos;
         
         if ( !state.block )
         {
@@ -2816,9 +3015,9 @@ function t_block( t, stream, state, token )
 function t_composite( t, stream, state, token )
 {
     var self = t, type = self.type, name = self.name, tokens = self.token, n = tokens.length,
-        tokenizer, style, modifier = self.modifier, found, min, max,
+        token_izer, style, modifier = self.modifier, found, min, max,
         tokens_required, tokens_err, stream_pos, stack_pos,
-        i, i0, tt, stack, err, $id, is_sequence;
+        i, i0, tt, stack, err, $id, is_sequence, backup;
 
     self.status &= CLEAR_ERROR;
     self.$msg = self.msg || null;
@@ -2826,35 +3025,60 @@ function t_composite( t, stream, state, token )
     stack = state.stack;
     stream_pos = stream.pos;
     stack_pos = stack.length;
+    self.pos = stream.pos;
 
     tokens_required = 0; tokens_err = 0;
-    $id = self.$id || get_id( );
-
-    if ( T_ALTERNATION === type )
+    
+    // TODO: a better error handling and recovery method
+    // it should error recover to minimum/closest state
+    // i.e generate only the minimum/necessary error notices
+    if ( T_SUBGRAMMAR === type )
     {
+        self.status &= CLEAR_ERROR;
+        var subgrammar = new String(tokens[0]), nextTokenizer = stack.length ? stack[stack.length-1] : null;
+        subgrammar.subgrammar = 1;
+        subgrammar.next = nextTokenizer ? new tokenizer(T_POSITIVE_LOOKAHEAD, nextTokenizer.name, [nextTokenizer]) : null;
+        subgrammar.required = nextTokenizer ? nextTokenizer.status & REQUIRED : 0;
+        // return the subgrammar id to continue parsing with the subgrammar (if exists)
+        return subgrammar;
+    }
+    
+    else if ( T_ALTERNATION === type )
+    {
+        $id = /*self.$id ||*/ get_id( );
         self.status |= REQUIRED;
         err = [];
-        
-        for (i=0; i<n; i++)
+        backup = state_backup( state, stream );
+        i0 = /*self.i0 ||*/ 0;
+        for (i=i0; i<n; i++)
         {
-            tokenizer = t_clone( tokens[ i ], 1, modifier, $id );
-            style = tokenize( tokenizer, stream, state, token );
+            token_izer = t_clone( tokens[ i ], 1, modifier, $id );
+            style = tokenize( token_izer, stream, state, token );
+            self.pos = token_izer.pos;
             
-            if ( tokenizer.status & REQUIRED )
+            if ( token_izer.status & REQUIRED )
             {
                 tokens_required++;
-                err.push( t_err( tokenizer ) );
+                err.push( t_err( token_izer ) );
             }
             
             if ( false !== style )
             {
+                /*if ( (i+1 < n) && (stack.length > stack_pos) )
+                {
+                    // push it to the stack as well, in case this option is not finaly matched
+                    token_izer = t_clone( self, 1, modifier ); token_izer.i0 = i+1; // to try next option
+                    token_izer.last_option = stack[stack.length-1];
+                    push_at( stack, stack_pos, token_izer );
+                    // a way is needed to check if this option finaly matched
+                    // using an internal stack can solve this, but how about the global stack?
+                }*/
                 return style;
             }
-            else if ( tokenizer.status & ERROR )
+            else if ( token_izer.status & ERROR )
             {
                 tokens_err++;
-                if ( stream.pos > stream_pos ) stream.bck( stream_pos );
-                if ( stack.length > stack_pos ) stack.length = stack_pos;
+                state_backup( state, stream, backup );
             }
         }
         
@@ -2869,67 +3093,78 @@ function t_composite( t, stream, state, token )
     else if ( T_SEQUENCE_OR_NGRAM & type )
     {
         is_sequence = !!(type & T_SEQUENCE);
+        $id = self.$id || get_id( );
         if ( is_sequence ) self.status |= REQUIRED;
         else self.status &= CLEAR_REQUIRED;
+        backup = state_backup( state, stream );
         i0 = 0;
         do {
-        tokenizer = t_clone( tokens[ i0++ ], is_sequence, modifier, $id );
-        style = tokenize( tokenizer, stream, state, token );
+        token_izer = t_clone( tokens[ i0++ ], is_sequence, modifier, $id );
+        style = tokenize( token_izer, stream, state, token );
         // bypass failed but optional tokens in the sequence
         // or successful lookahead tokens
         // and get to the next ones
         } while (/*is_sequence &&*/ i0 < n && (
-            ((true === style) && (T_LOOKAHEAD & tokenizer.type)) || 
-            ((false === style) && !(tokenizer.status & REQUIRED/*_OR_ERROR*/))
+            ((true === style) && (T_LOOKAHEAD & token_izer.type)) || 
+            ((false === style) && !(token_izer.status & REQUIRED/*_OR_ERROR*/))
         ));
         
+        self.pos = token_izer.pos;
         if ( false !== style )
         {
             // not empty token
-            if ( true !== style || T_EMPTY !== tokenizer.type )
+            if ( (true !== style) || (T_EMPTY !== token_izer.type) )
             {
                 for (i=n-1; i>=i0; i--)
                     push_at( stack, stack_pos+n-i-1, t_clone( tokens[ i ], 1, modifier, $id ) );
             }
-                
+            if ( style.subgrammar /*&& !style.next*/ && (i0 < n) )
+            {
+                // add the nextTokenizer to subgrammar token, from here
+                style.next = new tokenizer(T_POSITIVE_LOOKAHEAD, tokens[i0].name, [tokens[i0]]);
+                style.required = tokens[i0].status & REQUIRED;
+            }
             return style;
         }
-        else if ( tokenizer.status & ERROR /*&& tokenizer.REQ*/ )
+        else if ( token_izer.status & ERROR /*&& token_izer.REQ*/ )
         {
             if ( is_sequence ) self.status |= ERROR;
             else self.status &= CLEAR_ERROR;
-            if ( stream.pos > stream_pos ) stream.bck( stream_pos );
-            if ( stack.length > stack_pos ) stack.length = stack_pos;
+            state_backup( state, stream, backup );
         }
-        else if ( is_sequence && (tokenizer.status & REQUIRED) )
+        else if ( is_sequence && (token_izer.status & REQUIRED) )
         {
             self.status |= ERROR;
         }
         
-        if ( self.status && !self.$msg ) self.$msg = t_err( tokenizer );
+        if ( self.status && !self.$msg ) self.$msg = t_err( token_izer );
         return false;
     }
 
     else if ( T_LOOKAHEAD & type )
     {
-        tokenizer = t_clone( tokens[ 0 ], 1, modifier, $id );
-        style = tokenize( tokenizer, stream, state, token );
-        if ( stream.pos > stream_pos ) stream.bck( stream_pos );
-        if ( stack.length > stack_pos ) stack.length = stack_pos;
+        // not supported, return success as default
+        if ( T_SUBGRAMMAR & tokens[ 0 ].type ) return true;
+        backup = state_backup( state, stream, null, false );
+        style = tokenize( t_clone( tokens[ 0 ], 0 ), stream, state, token );
+        state_backup( state, stream, backup );
         return T_NEGATIVE_LOOKAHEAD === type ? false === style : false !== style;
     }
 
     else //if ( T_REPEATED & type )
     {
+        $id = self.$id || get_id( );
         found = self.found; min = self.min; max = self.max;
         //self.status &= CLEAR_REQUIRED;
         self.status = 0;
         err = [];
         
+        backup = state_backup( state, stream );
         for (i=0; i<n; i++)
         {
-            tokenizer = t_clone( tokens[ i ], 1, modifier, $id );
-            style = tokenize( tokenizer, stream, state, token );
+            token_izer = t_clone( tokens[ i ], 1, modifier, $id );
+            style = tokenize( token_izer, stream, state, token );
+            self.pos = token_izer.pos;
             
             if ( false !== style )
             {
@@ -2938,21 +3173,20 @@ function t_composite( t, stream, state, token )
                 {
                     // push it to the stack for more
                     self.found = found;
-                    push_at( stack, stack_pos, t_clone( self, 0, 0, $id ) );
+                    push_at( stack, stack_pos, t_clone( self, 0, 0, get_id( ) ) );
                     self.found = 0;
                     return style;
                 }
                 break;
             }
-            else if ( tokenizer.status & REQUIRED )
+            else if ( token_izer.status & REQUIRED )
             {
                 tokens_required++;
-                err.push( t_err( tokenizer ) );
+                err.push( t_err( token_izer ) );
             }
-            if ( tokenizer.status & ERROR )
+            if ( token_izer.status & ERROR )
             {
-                if ( stream.pos > stream_pos ) stream.bck( stream_pos );
-                if ( stack.length > stack_pos ) stack.length = stack_pos;
+                state_backup( state, stream, backup );
             }
         }
         
@@ -2983,6 +3217,7 @@ function State( unique, s )
         self.stack = s.stack.slice();
         self.token = s.token;
         self.block = s.block;
+        self.outer = s.outer ? [s.outer[0], s.outer[1], new State(unique, s.outer[2])] : null;
         // keep extra state only if error handling is enabled
         if ( self.status & ERRORS )
         {
@@ -3009,6 +3244,7 @@ function State( unique, s )
         self.stack = [];
         self.token = null;
         self.block = null;
+        self.outer = null;
         // keep extra state only if error handling is enabled
         if ( self.status & ERRORS )
         {
@@ -3033,6 +3269,30 @@ function State( unique, s )
     };
 }
 
+function state_backup( state, stream, backup, with_errors )
+{
+    if ( backup )
+    {
+        state.status = backup[0];
+        state.block = backup[1];
+        state.outer = backup[2];
+        if ( state.stack.length > backup[3] ) state.stack.length = backup[3];
+        if ( stream && (stream.pos > backup[4]) ) stream.bck(backup[4]);
+    }
+    else
+    {
+        backup = [
+            state.status,
+            state.block,
+            state.outer,
+            state.stack.length,
+            stream ? stream.pos : Infinity
+        ];
+        if ( false === with_errors ) state.status = 0;
+        return backup;
+    }
+}
+
 function state_dispose( state )
 {
     state.id = null;
@@ -3042,6 +3302,7 @@ function state_dispose( state )
     state.stack = null;
     state.token = null;
     state.block = null;
+    state.outer = null;
     state.queu = null;
     state.symb = null;
     state.ctx = null;
@@ -3164,30 +3425,36 @@ var Parser = Class({
         self.$DEF = DEFAULT || null; self.$ERR = ERROR || null;
         self.DEF = self.$DEF; self.ERR = self.$ERR;
         self.$folders = [];
+        self.$matchers = [];
+        self.$subgrammars = {};
     }
     
     ,$grammar: null
+    ,$subgrammars: null
     ,$folders: null
+    ,$matchers: null
     ,$n$: 'name', $t$: 'type', $v$: 'token'
     ,$DEF: null, $ERR: null
     ,DEF: null, ERR: null
     
     ,dispose: function( ) {
         var self = this;
-        self.$grammar = null;
-        self.$folders = null;
+        self.$grammar = self.$subgrammars = null;
+        self.$folders = self.$matchers = null;
         self.$n$ = self.$t$ = self.$v$ = null;
         self.$DEF = self.$ERR = self.DEF = self.ERR = null;
         return self;
     }
     
-    ,token: function( stream, state ) {
+    ,token: function( stream, state, inner ) {
         var self = this, grammar = self.$grammar, Style = grammar.Style, DEFAULT = self.DEF, ERR = self.ERR,
             T = { }, $name$ = self.$n$, $type$ = self.$t$, $value$ = self.$v$, //$pos$ = 'pos',
             interleaved_tokens = grammar.$interleaved, tokens = grammar.$parser, 
             nTokens = tokens.length, niTokens = interleaved_tokens ? interleaved_tokens.length : 0,
             tokenizer, action, token, stack, line, pos, i, ii, stream_pos, stack_pos,
-            type, err, notfound, just_space, block_in_progress
+            type, err, notfound, just_space, block_in_progress, outer = state.outer,
+            subgrammar, innerParser, innerState, foundInterleaved,
+            outerState = outer && outer[2], outerTokenizer = outer && outer[1]
         ;
         
         // state marks a new line
@@ -3204,18 +3471,103 @@ var Parser = Class({
         state.$actionerr$ = false; state.token = null;
         stack = state.stack; line = state.line; pos = stream.pos;
         type = false; notfound = true; err = false; just_space = false;
-        block_in_progress = state.block ? state.block.name : undef;
+        //block_in_progress = state.block ? state.block.name : undef;
+        
+        if ( outer && (self === outer[0]) )
+        {
+            // use self mode as default passthru INNER mode
+            T[$name$] = null; T[$type$] = DEFAULT; T[$value$] = null;
+            // check if need to dispatch back to outer parser
+            if ( outerTokenizer )
+            {
+                token = new s_token( );
+                if ( tokenize( outerTokenizer, stream, outerState, token ) )
+                {
+                    state.outer = null;
+                    return {parser: self, state: outerState};
+                }
+                else
+                {
+                    stream.nxt( 1/*true*/ );
+                }
+                while ( !stream.eol() )
+                {
+                    if ( tokenize( outerTokenizer, stream, outerState, token ) )
+                    {
+                        if ( stream.pos > pos )
+                        {
+                            // return current token first
+                            break;
+                        }
+                        else
+                        {
+                            state.outer = null;
+                            return {parser: self, state: outerState};
+                        }
+                    }
+                    else
+                    {
+                        stream.nxt( 1/*true*/ );
+                    }
+                }
+            }
+            else
+            {
+                // pass whole line through
+                stream.spc( );
+                if ( stream.eol( ) ) just_space = true;
+                else stream.end( );
+            }
+            
+            T[$value$] = stream.cur( 1 );
+            state.$eol$ = stream.eol();
+            state.$blank$ = state.$blank$ && (just_space || state.$eol$);
+            
+            return T;
+        }
         
         // if EOL tokenizer is left on stack, pop it now
-        if ( stack.length && T_EOL === stack[stack.length-1].type && stream.sol() ) stack.pop();
+        if ( stack.length && (T_EOL === stack[stack.length-1].type) && stream.sol() ) stack.pop();
         
         // check for non-space tokenizer or partial-block-in-progress, before parsing any space/empty
         if ( (!stack.length 
-            || (T_NONSPACE !== stack[stack.length-1].type && block_in_progress !== stack[stack.length-1].name)) 
+            || ((T_NONSPACE !== stack[stack.length-1].type) && (null == state.block) /*(block_in_progress !== stack[stack.length-1].name)*/)) 
             && stream.spc() )
         {
-            notfound = false;
-            just_space = true;
+            // subgrammar follows, push the spaces back and let subgrammar handle them
+            if ( stack.length && (T_SUBGRAMMAR === stack[stack.length-1].type) )
+            {
+                stream.bck( pos );
+                tokenizer = stack.pop();
+                type = tokenize( tokenizer, stream, state, token );
+                // subgrammar / submode
+                /*if ( type.subgrammar )
+                {*/
+                // dispatch to inner mode
+                subgrammar = ''+type;
+                if ( !self.$subgrammars[subgrammar] )
+                {
+                    // use self as default passthru inner mode
+                    innerParser = self;
+                    innerState = new State( );
+                    outerState = /*new State( 1,*/ state /*)*/;
+                }
+                else
+                {
+                    // use actual inner mode
+                    innerParser = self.$subgrammars[subgrammar];
+                    innerState = new State( 1, inner[subgrammar] ? inner[subgrammar] : state.status );
+                    outerState = /*new State( 1,*/ state /*)*/;
+                }
+                innerState.outer = [self, type.next, outerState];
+                return {parser: innerParser, state: innerState, toInner: subgrammar};
+                /*}*/
+            }
+            else
+            {
+                notfound = false;
+                just_space = true;
+            }
         }
         
         T[$name$] = null; T[$type$] = DEFAULT; T[$value$] = null;
@@ -3227,22 +3579,51 @@ var Parser = Class({
             while ( notfound && (stack.length || i<nTokens) && !stream.eol() )
             {
                 stream_pos = stream.pos; stack_pos = stack.length;
+                
+                // check for outer parser interleaved
+                if ( outerTokenizer )
+                {
+                    stream.spc( );
+                    if ( tokenize( outerTokenizer, stream, outerState, token ) )
+                    {
+                        if ( stream.pos > stream_pos )
+                        {
+                            // match the spaces first
+                            T[$value$] = stream.cur( 1 );
+                            state.$eol$ = stream.eol();
+                            state.$blank$ = state.$blank$ && (true || state.$eol$);
+                            return T;
+                        }
+                        else
+                        {
+                            // dispatch back to outer parser
+                            state.outer = null;
+                            return {parser: outer[0], state: outerState, fromInner: state};
+                        }
+                    }
+                    stream.bck( stream_pos );
+                }
+                
                 // dont interleave tokens if partial block is in progress
+                foundInterleaved = false;
                 if ( niTokens && !state.block )
                 {
                     for (ii=0; ii<niTokens; ii++)
                     {
                         tokenizer = interleaved_tokens[ii];
                         type = tokenize( tokenizer, stream, state, token );
-                        if ( false !== type ) { notfound = false; break; }
+                        if ( false !== type ) { foundInterleaved = true; break; }
                     }
-                    if ( !notfound ) break;
+                    //if ( foundInterleaved || !notfound ) break;
                 }
                 
-                // seems stack and/or ngrams can ran out while inside the loop !!  ?????
-                if ( !stack.length && i>=nTokens) break;
-                tokenizer = stack.length ? stack.pop() : tokens[i++];
-                type = tokenize( tokenizer, stream, state, token );
+                if ( notfound && !foundInterleaved )
+                {
+                    // seems stack and/or ngrams can ran out while inside the loop !!  ?????
+                    if ( !stack.length && i>=nTokens) break;
+                    tokenizer = stack.length ? stack.pop() : tokens[i++];
+                    type = tokenize( tokenizer, stream, state, token );
+                }
                 
                 // match failed
                 if ( false === type )
@@ -3252,10 +3633,10 @@ var Parser = Class({
                     {
                         // keep it for autocompletion, if needed
                         state.token = tokenizer;
-                        // empty the stack of the syntax rule group of this tokenizer
-                        empty( stack, tokenizer.$id /*|| true*/ );
-                        // skip this
-                        if ( !stream.nxt( true ) ) { stream.spc( ); just_space = true; }
+                        
+                        // error recovery to a valid parse state and stream position, if any
+                        just_space = err_recover( state, stream, token, tokenizer ) || just_space;
+                        
                         // generate error
                         err = true; notfound = false; break;
                     }
@@ -3270,6 +3651,29 @@ var Parser = Class({
                 // found token
                 else
                 {
+                    // subgrammar inner parser
+                    if ( type.subgrammar )
+                    {
+                        // dispatch to inner sub-parser
+                        subgrammar = ''+type;
+                        if ( !self.$subgrammars[subgrammar] )
+                        {
+                            // use self as default passthru inner parser
+                            innerParser = self;
+                            innerState = new State( );
+                            outerState = /*new State( 1,*/ state /*)*/;
+                        }
+                        else
+                        {
+                            // use actual inner sub-grammar parser
+                            innerParser = self.$subgrammars[subgrammar];
+                            innerState = new State( 1, inner[subgrammar] ? inner[subgrammar] : state.status );
+                            outerState = /*new State( 1,*/ state /*)*/;
+                        }
+                        innerState.outer = [self, type.next, outerState];
+                        return {parser: innerParser, state: innerState, toInner: subgrammar};
+                    }
+                    
                     // partial block, apply maybe any action(s) following it
                     if ( stack.length > 1 && stream.eol() &&  
                         (T_BLOCK & stack[stack.length-1].type) && state.block &&
@@ -3302,8 +3706,21 @@ var Parser = Class({
         }
         
         
-        // unknown, bypass, next char/token
-        if ( notfound )  stream.nxt( 1/*true*/ ) /*|| stream.spc( )*/;
+        // unknown
+        if ( notfound )
+        {
+            /*
+            // check for outer parser
+            if ( outerTokenizer && tokenize( outerTokenizer, stream, outerState, token ) )
+            {
+                // dispatch back to outer parser
+                //state.outer = null;
+                return {parser: outer[0], state: outerState, fromInner: state};
+            }
+            */
+            // unknown, bypass, next char/token
+            stream.nxt( 1/*true*/ ) /*|| stream.spc( )*/;
+        }
         
         T[$value$] = stream.cur( 1 );
         if ( false !== type )
@@ -3330,6 +3747,93 @@ var Parser = Class({
         return T;
     }
     
+    // get token via multiplexing inner grammars if needed
+    ,get: function( stream, mode ) {
+        var ret = mode.parser.token( stream, mode.state, mode.inner );
+        while ( ret && ret.parser )
+        {
+            // multiplex inner grammar/parser/state if given
+            // save inner parser current state
+            if ( ret.fromInner && (mode.parser !== ret.parser) )
+            {
+                mode.state.err = ret.fromInner.err;
+                if ( mode.name ) mode.inner[mode.name] = ret.fromInner;
+            }
+            // share some state
+            ret.state.err = mode.state.err;
+            ret.state.line = mode.state.line;
+            ret.state.bline = mode.state.bline;
+            ret.state.$blank$ = mode.state.$blank$;
+            ret.state.$eol$ = mode.state.$eol$;
+            ret.state.$full_parse$ = mode.state.$full_parse$;
+            // update parser to current parser and associated state
+            mode.state = ret.state;
+            mode.parser = ret.parser;
+            mode.name = ret.toInner;
+            // get new token
+            ret = mode.parser.get( stream, mode );
+        }
+        // return token
+        return ret;
+    }
+    
+    ,tokenize: function( stream, mode, row ) {
+        var tokens = [];
+        //mode.state.line = row || 0;
+        if ( stream.eol() ) { mode.state.line++; if ( mode.state.$blank$ ) mode.state.bline++; }
+        else while ( !stream.eol() ) tokens.push( mode.parser.get( stream, mode ) );
+        return tokens;
+    }
+    
+    ,parse: function( code, parse_type ) {
+        var lines = (code||"").split(newline_re), l = lines.length,
+            linetokens = null, state, mode, parse_errors, parse_tokens, err, ret;
+        
+        parse_type = parse_type || TOKENS;
+        parse_errors = !!(parse_type & ERRORS);
+        parse_tokens = !!(parse_type & TOKENS);
+        mode = {parser: this, state: new State( 0, parse_type ), inner: {}};
+        mode.state.$full_parse$ = true;
+        
+        // add back the newlines removed from split-ting
+        iterate(function( i ){ lines[i] += "\n"; }, 0, l-2);
+        
+        if ( parse_tokens ) 
+            linetokens = iterate(parse_type & FLAT
+            ? function( i, linetokens ) {
+                linetokens._ = linetokens._.concat( mode.parser.tokenize( Stream( lines[i] ), mode, i ) );
+            }
+            : function( i, linetokens ) {
+                linetokens._.push( mode.parser.tokenize( Stream( lines[i] ), mode, i ) );
+            }, 0, l-1, {_:[]} )._;
+        
+        else 
+            iterate(function( i ) {
+                var stream = Stream( lines[i] );
+                if ( stream.eol() ) { mode.state.line++; if ( mode.state.$blank$ ) mode.state.bline++; }
+                else while ( !stream.eol() ) mode.parser.get( stream, mode );
+            }, 0, l-1);
+        
+        state = mode.state;
+        if ( parse_errors && state.queu && state.queu.length )
+        {
+            // generate errors for unmatched tokens, if needed
+            while( state.queu.length )
+            {
+                err = state.queu.shift( );
+                error_( state, err[1], err[2], err[3], err[4], null, err[5] );
+            }
+        }
+        
+        ret = parse_tokens && parse_errors
+            ? {tokens:linetokens, errors:state.err}
+            : (parse_tokens ? linetokens : state.err);
+        
+        state_dispose( state );
+        mode = state = null;
+        return ret;
+    }
+
     ,autocompletion: function( state, min_found ) {
         var stack = state.stack, i, token, type,
             hash = {}, follows = generate_autocompletion( [ state.token ], [], hash );
@@ -3351,69 +3855,28 @@ var Parser = Class({
         return follows;
     }
     
-    ,tokenize: function( stream, state, row ) {
-        var self = this, tokens = [];
-        //state.line = row || 0;
-        if ( stream.eol() ) { state.line++; if ( state.$blank$ ) state.bline++; }
-        else while ( !stream.eol() ) tokens.push( self.token( stream, state ) );
-        return tokens;
-    }
-    
-    ,parse: function( code, parse_type ) {
-        var self = this, lines = (code||"").split(newline_re), l = lines.length,
-            linetokens = null, state, parse_errors, parse_tokens, err, ret;
-        
-        parse_type = parse_type || TOKENS;
-        parse_errors = !!(parse_type & ERRORS);
-        parse_tokens = !!(parse_type & TOKENS);
-        state = new State( 0, parse_type );
-        state.$full_parse$ = true;
-        
-        // add back the newlines removed from split-ting
-        iterate(function( i ){ lines[i] += "\n"; }, 0, l-2);
-        
-        if ( parse_tokens ) 
-            linetokens = iterate(parse_type & FLAT
-            ? function( i, linetokens ) {
-                linetokens._ = linetokens._.concat( self.tokenize( Stream( lines[i] ), state, i ) );
-            }
-            : function( i, linetokens ) {
-                linetokens._.push( self.tokenize( Stream( lines[i] ), state, i ) );
-            }, 0, l-1, {_:[]} )._;
-        
-        else 
-            iterate(function( i ) {
-                var stream = Stream( lines[i] );
-                //state.line = i;
-                if ( stream.eol() ) { state.line++; if ( state.$blank$ ) state.bline++; }
-                else while ( !stream.eol() ) self.token( stream, state );
-            }, 0, l-1);
-        
-        
-        if ( parse_errors && state.queu && state.queu.length )
-        {
-            // generate errors for unmatched tokens, if needed
-            while( state.queu.length )
-            {
-                err = state.queu.shift( );
-                error_( state, err[1], err[2], err[3], err[4], null, err[5] );
-            }
-        }
-        
-        ret = parse_tokens && parse_errors
-            ? {tokens:linetokens, errors:state.err}
-            : (parse_tokens ? linetokens : state.err);
-        
-        state_dispose( state );
-        return ret;
-    }
-
     // overriden
+    ,subparser: function( name, parser ) {
+        var self = this;
+        if ( false === parser )
+        {
+            // remove
+            if ( self.$subgrammars[HAS](name) )
+                delete self.$subgrammars[name];
+        }
+        else if ( parser )
+        {
+            // add
+            self.$subgrammars[name] = parser;
+        }
+        return self;
+    }
     ,iterator: function( ) { }
     ,validate: function( ) { }
     ,autocomplete: function( ) { }
     ,indent: function( ) { }
     ,fold: function( ) { }
+    ,match: function( ) { }
 });
 
 
@@ -3451,6 +3914,33 @@ function next_tag( iter, T, M, L, R, S )
     }
 }
 
+/*function prev_tag( iter, T, M, L, R, S )
+{
+    var gt, lastSlash, selfClose, type;
+    for (;;)
+    {
+        gt = iter.col ? iter.text.lastIndexOf( R, iter.col - 1 ) : -1;
+        if ( -1 === gt )
+        {
+            if ( iter.prev( ) )
+            {
+                iter.text = iter.line( iter.row );
+                continue;
+            }
+            else return;
+        }
+        if ( !T( iter.token(iter.row, gt + 1) ) )
+        {
+            iter.col = gt;
+            continue;
+        }
+        lastSlash = iter.text.lastIndexOf( S, gt );
+        selfClose = lastSlash > -1 && !Stream.$NOTEMPTY$.test(iter.text.slice(lastSlash + 1, gt));
+        iter.col = gt + 1;
+        return selfClose ? "selfClose" : "regular";
+    }
+}*/
+
 function end_tag( iter, T, M, L, R, S )
 {
     var gt, lastSlash, selfClose, type;
@@ -3475,6 +3965,103 @@ function end_tag( iter, T, M, L, R, S )
         selfClose = lastSlash > -1 && !Stream.$NOTEMPTY$.test(iter.text.slice(lastSlash + 1, gt));
         iter.col = gt + 1;
         return selfClose ? "autoclosed" : "regular";
+    }
+}
+
+/*function start_tag( iter, T, M, L, R, S )
+{
+    var lt;
+    for (;;)
+    {
+        lt = iter.col ? iter.text.lastIndexOf( L, iter.col - 1 ) : -1;
+        if ( -1 === lt )
+        {
+            if ( iter.prev( ) )
+            {
+                iter.text = iter.line(  iter.row );
+                continue;
+            }
+            else return;
+        }
+        if ( !T( iter.token(iter.row, lt+1) ) )
+        {
+            iter.col = lt + 1;
+            continue;
+        }
+        M.lastIndex = lt;
+        iter.col = lt + 1;
+        var found = M.exec( iter.text );
+        if ( found && lt === found.index ) return found;
+    }
+}*/
+
+function find_match( dir, iter, row, col, tokenType, S, E, T, folding, commentType )
+{
+    if ( -1 === dir ) // find start
+    {
+        var depth = 1, firstLine = iter.first(), i, text, tl, pos,
+            nextOpen, nextClose, row0, col0, Sl = S.length, El = E.length,
+            unconditional = false === tokenType;
+        outer0: for (i=row; i>=firstLine; --i)
+        {
+            text = iter.line( i ); tl = text.length;
+            pos = i===row ? col-1 : tl;
+            do{
+                if ( pos < 0 ) break;
+                nextOpen = text.lastIndexOf( S, pos );
+                nextClose = text.lastIndexOf( E, pos );
+                if ( (0 > nextOpen) && (0 > nextClose) ) break;
+                pos = MAX( nextOpen, nextClose );
+                // NOTE: token can fail on some lines that continue e.g blocks
+                // since the previous line will have ended the block
+                // and the position of the new end delimiter will NOT be recognised as in the block
+                // FIXED partialy by semantic iunformation about comments, since this occurs mostly in comment delims
+                if ( unconditional || commentType || (iter.token(i, pos+1) == tokenType) )
+                {
+                    if ( pos === nextClose ) ++depth;
+                    else if ( 0 === --depth ) { row0 = i; col0 = pos; break outer0; }
+                }
+                --pos;
+            }while(true);
+        }
+        // found but failed
+        if ( (null == row0) || (folding && (row0 === row) && (col0 === col)) ) return false;
+        // found
+        return [row0, col0, row, col];
+    }
+    else //if ( 1 === dir ) // find end
+    {
+        var depth = 1, lastLine = iter.last(), i, text, tl, pos,
+            nextOpen, nextClose, row1, col1, Sl = S.length, El = E.length,
+            unconditional = false === tokenType;
+        outer1: for (i=row; i<=lastLine; ++i)
+        {
+            text = iter.line( i ); tl = text.length;
+            pos = i===row ? col : 0;
+            do{
+                if ( pos >= tl ) break;
+                nextOpen = text.indexOf( S, pos );
+                nextClose = text.indexOf( E, pos );
+                if ( (0 > nextOpen) && (0 > nextClose) ) break;
+                if ( 0 > nextOpen ) nextOpen = tl;
+                if ( 0 > nextClose ) nextClose = tl;
+                pos = MIN( nextOpen, nextClose );
+                // NOTE: token can fail on some lines that continue e.g blocks
+                // since the previous line will have ended the block
+                // and the position of the new end delimiter will NOT be recognised as in the block
+                // FIXED partialy by semantic iunformation about comments, since this occurs mostly in comment delims
+                if ( unconditional || commentType || (iter.token(i, pos+1) == tokenType) )
+                {
+                    if ( pos === nextOpen ) ++depth;
+                    else if ( 0 === --depth ) { row1 = i; col1 = pos; break outer1; }
+                }
+                ++pos;
+            }while(true);
+        }
+        // found but failed
+        if ( (null == row1) || (folding && (row === row1) && (col1 === col)) ) return false;
+        // found
+        return [row, col, row1, col1];
     }
 }
 
@@ -3520,17 +4107,17 @@ var Folder = {
             }
             // return a range
             if ( last_line_in_fold ) return [start_line, start_pos, last_line_in_fold, end_pos];
+            //return false;
         };
     }
 
-    ,Delimited: function( S, E, T ) {
-        if ( !S || !E ) return function( ){ };
+    ,Delimited: function( S, E, T, commentType ) {
+        if ( !S || !E || !S.length || !E.length ) return function( ){ };
         T = T || TRUE;
 
         return function fold_delimiter( iter ) {
             var line = iter.row, col = iter.col,
-                lineText, startCh, at, pass, found, tokenType,
-                depth, lastLine, end, endCh, i, text, pos, nextOpen, nextClose;
+                lineText, startCh, at, pass, found, tokenType;
             
             lineText = iter.line( line );
             for (at=col,pass=0 ;;)
@@ -3538,11 +4125,13 @@ var Folder = {
                 var found = at<=0 ? -1 : lineText.lastIndexOf( S, at-1 );
                 if ( -1 === found )
                 {
+                    // not found
                     if ( 1 === pass ) return;
                     pass = 1;
                     at = lineText.length;
                     continue;
                 }
+                // not found
                 if ( 1 === pass && found < col ) return;
                 if ( T( tokenType = iter.token( line, found+1 ) ) )
                 {
@@ -3551,28 +4140,8 @@ var Folder = {
                 }
                 at = found-1;
             }
-            depth = 1; lastLine = iter.last();
-            outer: for (i=line; i<=lastLine; ++i)
-            {
-                text = iter.line( i ); pos = i===line ? startCh : 0;
-                for (;;)
-                {
-                    nextOpen = text.indexOf( S, pos );
-                    nextClose = text.indexOf( E, pos );
-                    if ( nextOpen < 0 ) nextOpen = text.length;
-                    if ( nextClose < 0 ) nextClose = text.length;
-                    pos = MIN( nextOpen, nextClose );
-                    if ( pos >= text.length ) break;
-                    if ( iter.token(i, pos+1) == tokenType )
-                    {
-                        if ( pos === nextOpen ) ++depth;
-                        else if ( !--depth ) { end = i; endCh = pos; break outer; }
-                    }
-                    ++pos;
-                }
-            }
-            if ( null == end || (line === end && endCh === startCh) ) return;
-            return [line, startCh, end, endCh];
+            // find end match
+            return find_match(1, iter, line, startCh, tokenType, S, E, T, true, commentType);
         };
     }
     
@@ -3589,6 +4158,7 @@ var Folder = {
             for (;;)
             {
                 openTag = next_tag(iter, T, M, L, R, S);
+                // not found
                 if ( !openTag || iter.row !== startLine || !(end = end_tag(iter, T, M, L, R, S)) ) return;
                 if ( !openTag[1] && "autoclosed" !== end  )
                 {
@@ -3599,7 +4169,8 @@ var Folder = {
                     {
                         next = next_tag(iter, T, M, L, R, S);
                         startLine = iter.row; startCh = iter.col - (next ? next[0].length : 0);
-                        if ( !next || !(end = end_tag(iter, T, M, L, R, S)) ) return;
+                        // found but failed
+                        if ( !next || !(end = end_tag(iter, T, M, L, R, S)) ) return false;
                         if ( "autoclosed" === end  ) continue;
                         if ( next[1] )
                         {
@@ -3619,6 +4190,7 @@ var Folder = {
                                     pos: [startLine, startCh, iter.row, iter.col]
                                 };
                                 break;*/
+                                // found
                                 return [start[0], start[1], startLine, startCh];
                             }
                         }
@@ -3640,10 +4212,75 @@ var Folder = {
 
 };
 
+
+// token matching factories
+var Matcher = {
+    // adapted from ace
+    
+     Pattern: function( S, E, T ) {
+        // TODO
+        return function( ){ };
+    }
+    
+     ,Delimited: function( S, E, T, commentType ) {
+        if ( !S || !E || !S.length || !E.length ) return function( ){ };
+        T = T || TRUE;
+        
+        return function( iter ) {
+            var col = iter.col, row = iter.row, line = iter.line( row ),
+                range, tokenType=false, Sl = S.length, El = E.length;
+            if ( (col >= Sl) && 
+                ((1 === Sl && S === line.charAt(col-1)) || (S === line.slice(col-Sl, col))) /*&& 
+                T( tokenType = iter.token( row, col-Sl ) )*/
+            )
+            {
+                // find end
+                range = find_match(1, iter, row, col, tokenType, S, E, T, false, commentType);
+                if ( range )
+                {
+                    range = [range[0], range[1]-Sl, range[0], range[1], range[2], range[3], range[2], range[3]+El];
+                    range.match = 'end';
+                }
+                else
+                {
+                    range = [row, col-Sl, row, col];
+                    range.match = false;
+                }
+                return range;
+            }
+            else if ( (col >= El) && 
+                ((1 === El && E === line.charAt(col-1)) || (E === line.slice(col-El, col))) /*&& 
+                T( tokenType = iter.token( row, col-El ) )*/
+            )
+            {
+                // find start
+                range = find_match(-1, iter, row, col-El, tokenType, S, E, T, false, commentType);
+                if ( range )
+                {
+                    range = [range[0], range[1], range[0], range[1]+Sl, range[2], range[3], range[2], range[3]+El];
+                    range.match = 'start';
+                }
+                else
+                {
+                    range = [row, col-El, row, col];
+                    range.match = false;
+                }
+                return range;
+            }
+            // not found
+        };
+    }
+    
+    ,MarkedUp: function( T, L, R, S, M ) {
+        // TODO
+        return function( ){ };
+    }
+     
+};
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 3.1.0
+*   @version: 4.0.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -3662,7 +4299,7 @@ var $CodeMirror$ = 'undefined' !== typeof CodeMirror ? CodeMirror : { Pass : { t
 // parser factories
 var CodeMirrorParser = Class(Parser, {
     constructor: function CodeMirrorParser( grammar, DEFAULT ) {
-        var self = this, FOLD = null, TYPE;
+        var self = this, FOLD = null, MATCH = null, TYPE;
         
         Parser.call(self, grammar, null, "error");
         self.DEF = DEFAULT || self.$DEF;
@@ -3683,22 +4320,38 @@ var CodeMirrorParser = Class(Parser, {
                 self.$folders.push(CodeMirrorParser.Fold.Delimited(
                     grammar.$comments.block[i][0],
                     grammar.$comments.block[i][1],
-                    TYPE
+                    TYPE, 'comment'
                 ));
             }
         }
         // user-defined folding
         if ( grammar.Fold && (T_STR & get_type(grammar.Fold)) ) FOLD = grammar.Fold[LOWER]();
         else if ( grammar.$extra.fold ) FOLD = grammar.$extra.fold[LOWER]();
+        // user-defined matching
+        if ( grammar.Match && (T_STR & get_type(grammar.Match)) ) MATCH = grammar.Match[LOWER]();
+        else if ( grammar.$extra.match ) MATCH = grammar.$extra.match[LOWER]();
+        else MATCH = FOLD;
+        var blocks = get_block_types( grammar, 1 );
+        TYPE = blocks.length ? CodeMirrorParser.Type(blocks, false) : TRUE;
         if ( FOLD )
         {
             FOLD = FOLD.split('+');  // can use multiple folders, separated by '+'
             iterate(function( i, FOLDER ) {
-            var FOLD = trim(FOLDER[i]);
-            if ( 'brace' === FOLD || 'cstyle' === FOLD )
+            var FOLD = trim(FOLDER[i]), p;
+            if ( 'braces' === FOLD )
             {
-                var blocks = get_block_types( grammar, 1 );
-                TYPE = blocks.length ? CodeMirrorParser.Type(blocks, false) : TRUE;
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '{', '}', TYPE ) );
+            }
+            else if ( 'brackets' === FOLD )
+            {
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '[', ']', TYPE ) );
+            }
+            else if ( 'parens' === FOLD || 'parentheses' === FOLD )
+            {
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( '(', ')', TYPE ) );
+            }
+            else if ( 'brace' === FOLD || 'cstyle' === FOLD || 'c' === FOLD )
+            {
                 self.$folders.push( CodeMirrorParser.Fold.Delimited( '{', '}', TYPE ) );
                 self.$folders.push( CodeMirrorParser.Fold.Delimited( '[', ']', TYPE ) );
             }
@@ -3706,12 +4359,50 @@ var CodeMirrorParser = Class(Parser, {
             {
                 self.$folders.push( CodeMirrorParser.Fold.Indented( ) );
             }
-            else if ( 'markup' === FOLD || 'html' === FOLD || 'xml' === FOLD )
+            else if ( 'tags' === FOLD || 'markup' === FOLD || 'html' === FOLD || 'xml' === FOLD )
             {
                 self.$folders.push( CodeMirrorParser.Fold.Delimited( '<![CDATA[', ']]>', CodeMirrorParser.Type(['comment','tag'], false) ) );
                 self.$folders.push( CodeMirrorParser.Fold.MarkedUp( CodeMirrorParser.Type('tag'), '<', '>', '/' ) );
             }
+            else if ( -1 < (p=FOLD.indexOf(',')) )
+            {
+                self.$folders.push( CodeMirrorParser.Fold.Delimited( FOLD.slice(0,p), FOLD.slice(p+1), TYPE ) );
+            }
             }, 0, FOLD.length-1, FOLD);
+        }
+        // user-defined matching
+        if ( MATCH )
+        {
+            MATCH = MATCH.split('+');  // can use multiple matchers, separated by '+'
+            iterate(function( i, MATCHER ) {
+            var MATCH = trim(MATCHER[i]), p;
+            if ( 'braces' === MATCH )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '{', '}' ) );
+            }
+            else if ( 'brackets' === MATCH )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '[', ']' ) );
+            }
+            else if ( 'parens' === MATCH || 'parentheses' === MATCH )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '(', ')' ) );
+            }
+            else if ( 'brace' === MATCH || 'cstyle' === MATCH || 'c' === MATCH )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '{', '}' ) );
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '[', ']' ) );
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( '(', ')' ) );
+            }
+            else if ( 'tags' === MATCH || 'markup' === MATCH || 'html' === MATCH || 'xml' === MATCH )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.MarkedUp( CodeMirrorParser.Type('tag'), '<', '>', '/' ) );
+            }
+            else if ( -1 < (p=MATCH.indexOf(',')) )
+            {
+                self.$matchers.push( CodeMirrorParser.Match.Delimited( MATCH.slice(0,p), MATCH.slice(p+1) ) );
+            }
+            }, 0, MATCH.length-1, MATCH);
         }
     }
     
@@ -3818,7 +4509,7 @@ var CodeMirrorParser = Class(Parser, {
             if ( in_context )
             {
                 sort_by_score = false;
-                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state ), suggest, list);
+                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state.state ), suggest, list);
                 if ( !list.length )
                 {
                     sort_by_score = true;
@@ -3869,7 +4560,9 @@ var CodeMirrorParser = Class(Parser, {
             return true;
         }
         ,indentation: function( line ) { return count_column( line, null, tabSize ); }
-        ,token: function( row, col ) { return cm.getTokenTypeAt( CodeMirror.Pos( row, col ) ); }
+        ,state: function( row, col ) { var s = cm.getTokenAt( CodeMirror.Pos( row, col||0 ) ).state; return s.state || s; }
+        ,token: function( row, col ) { return cm.getTokenTypeAt( CodeMirror.Pos( row, col||0 ) ); }
+        ,tokens: function( row ) { return cm.getLineTokens( row ); }
         };
     }
     
@@ -3881,13 +4574,27 @@ var CodeMirrorParser = Class(Parser, {
             iter = self.iterator( cm, CodeMirror );
             iter.row = start.line; iter.col = start.ch||0;
             for (i=0; i<l; i++)
-                if ( fold = folders[ i ]( iter ) )
+                if ( (fold = folders[ i ]( iter )) || (false === fold) )
                     return fold;
+        }
+    }
+    
+    ,match: function( cm, start, CodeMirror ) {
+        // adapted from codemirror
+        var self = this, matchers = self.$matchers, i, l = matchers.length, iter, match;
+        if ( l )
+        {
+            iter = self.iterator( cm, CodeMirror );
+            iter.row = start.line; iter.col = start.ch||0;
+            for (i=0; i<l; i++)
+                if ( (match = matchers[ i ]( iter )) || (false === match) )
+                    return match;
         }
     }
 });
 CodeMirrorParser.Type = Type;
 CodeMirrorParser.Fold = Folder;
+CodeMirrorParser.Match = Matcher;
 
 
 function autocomplete_renderer( elt, data, cmpl )
@@ -3914,25 +4621,35 @@ function get_mode( grammar, DEFAULT, CodeMirror )
     CodeMirror = CodeMirror || $CodeMirror$; /* pass CodeMirror reference if not already available */
     function CMode( conf, parserConf )
     {
-        return {
-        startState: function( ) { 
-            return new State( );
+        // this is a generic multiplexing mode
+        // since it supports multiple inner sub-grammar parsers
+        // this means all folding/matching/autocompletion/comments multiplexing and so on..
+        // should be handled by the mode itself taking account any sub-modes
+        // and NOT by Codemirror!!
+        var mode;
+        mode = {
+        Mode: CMode
+        
+        ,startState: function( ) { 
+            return {parser: CMode.$parser, state: new State( ), inner: {}, name: null};
         }
         
         ,copyState: function( state ) { 
-            return new State( 0, state );
+            return {parser: state.parser, state: new State( 0, state.state ), inner: state.inner, name: state.name};
         }
         
         ,token: function( stream, state ) { 
             var pstream = Stream( stream.string, stream.start, stream.pos ), 
-                token = CMode.$parser.token( pstream, state ).type;
+                token = state.parser.get( pstream, state ).type;
             stream.pos = pstream.pos;
             return token;
         }
         
         ,indent: function( state, textAfter, fullLine ) { 
-            return CMode.$parser.indent( state, textAfter, fullLine, conf, parserConf, CodeMirror ); 
+            return state.parser.indent( state.state, textAfter, fullLine, conf, parserConf, CodeMirror ); 
         }
+        
+        ,fold: CMode.foldType
         
         // support comments toggle functionality
         ,lineComment: CMode.$parser.LC
@@ -3944,11 +4661,28 @@ function get_mode( grammar, DEFAULT, CodeMirror )
         // eg. code folding, electriChars etc..
         ,electricInput: CMode.$parser.$grammar.$extra.electricInput || false
         ,electricChars: CMode.$parser.$grammar.$extra.electricChars || false
-        ,fold: CMode.foldType
         };
+        // store a reference to mode here
+        CMode.mode = mode;
+        return mode;
     }
     CMode.$id = uuid("codemirror_grammar_mode");
     CMode.$parser = new CodeMirrorGrammar.Parser( parse_grammar( grammar ), DEFAULT );
+    // store a reference to Mode here
+    CMode.$parser.Mode = CMode;
+    CMode.options = function( cm, pos, options ) {
+        options = options || {};
+        var s = cm.getTokenAt( pos ).state, parser = (s && s.parser) || CMode.$parser;
+        options.lineComment = parser.LC;
+        options.blockCommentStart = parser.BCS;
+        options.blockCommentEnd = parser.BCE;
+        options.blockCommentContinue = parser.BCC;
+        options.blockCommentLead = parser.BCL;
+        options.electricInput = parser.$grammar.$extra.electricInput || false;
+        options.electricChars = parser.$grammar.$extra.electricChars || false;
+        return options;
+    };
+    
     // custom, user-defined, syntax lint-like validation/annotations generated from grammar
     CMode.supportGrammarAnnotations = false;
     CMode.validator = function validator( code, options )  {
@@ -3956,36 +4690,115 @@ function get_mode( grammar, DEFAULT, CodeMirror )
         ? CMode.$parser.validate( code, validator.options||options||{}, CodeMirror )
         : [];
     };
-    CMode.linter = CMode.validator; // alias
-    // custom, user-defined, code folding generated from grammar
+    // alias
+    CMode.linter = CMode.validator;
+    
+    // custom, user-defined, (multiplexed) autocompletions generated from grammar
+    CMode.supportAutoCompletion = true;
+    CMode.autocompleter = function autocompleter( cm, options ) {
+        if ( CMode.supportAutoCompletion )
+        {
+            var s = cm.getTokenAt( cm.getCursor() ).state, parser = (s && s.parser) || CMode.$parser;
+            options = autocompleter.options /*|| Mode.autocompleter.options*/ || options || {};
+            if ( !options[HAS]('renderer') ) options.renderer = autocompleter.renderer /*|| Mode.autocompleter.renderer*/ || autocomplete_renderer;
+            return parser.autocomplete( cm, options, CodeMirror );
+        }
+    };
+    CMode.autocompleter.renderer = autocomplete_renderer;
+    // alias, deprecated for compatibility
+    //CMode.autocomplete = CMode.autocompleter;
+    
+    // custom, user-defined, code (multiplexed) folding generated from grammar
     CMode.supportCodeFolding = true;
     CMode.foldType = "fold_"+CMode.$id;
     CMode.folder = function folder( cm, start ) {
-        var fold;
-        if ( CMode.supportCodeFolding && CMode.$parser && (fold = CMode.$parser.fold( cm, start, CodeMirror )) )
+        if ( CMode.supportCodeFolding )
         {
+            var s = cm.getTokenAt( start ).state, parser = (s && s.parser) || CMode.$parser, fold;
+            if ( fold = parser.fold( cm, start, CodeMirror ) )
             return {
                 from: CodeMirror.Pos( fold[0], fold[1] ),
                 to: CodeMirror.Pos( fold[2], fold[3] )
             };
         }
     };
-    // custom, user-defined, autocompletions generated from grammar
-    CMode.supportAutoCompletion = true;
-    CMode.autocompleter = function autocompleter( cm, options ) {
-        if ( CMode.supportAutoCompletion && CMode.$parser )
+    
+    // custom, user-defined, code (multiplexed) matching generated from grammar
+    CMode.supportCodeMatching = true;
+    CMode.matchType = "match_"+CMode.$id;
+    CMode.matcher = function matcher( cm ) {
+        if ( CMode.supportCodeMatching )
         {
-            options = autocompleter.options || options || {};
-            if ( !options[HAS]('renderer') ) options.renderer = autocompleter.renderer || autocomplete_renderer;
-            return CMode.$parser.autocomplete( cm, options, CodeMirror );
+            matcher.clear( cm );
+            if ( cm.state.$highlightPending ) return;
+            var s = cm.getTokenAt( cm.getCursor() ).state, parser = (s && s.parser) || CMode.$parser;
+
+            // perform highlight async to not block the browser during navigation
+            cm.state.$highlightPending = true;
+            setTimeout(function( ) {
+            cm.operation(function( ) {
+                cm.state.$highlightPending = false;
+                // Disable matching in long lines, since it'll cause hugely slow updates
+                var options =matcher.options /*|| Mode.matcher.options*/ || {}, maxHighlightLen = options.maxHighlightLineLength || 1000;
+                var marks = [], ranges = cm.listSelections( ), range,
+                    matched = "CodeMirror-matchingtag"/*"CodeMirror-matchingbracket"*/, unmatched = "CodeMirror-nonmatchingbracket";
+                for (var i=0,l=ranges.length; i<1; i++)
+                {
+                    range = /*ranges[i].empty() &&*/ parser.match( cm, ranges[i].to(), CodeMirror );
+                    if ( null == range ) continue;
+                    if ( false === range )
+                    {
+                        if ( ranges[i].empty() )
+                        {
+                            range = ranges[i].to();
+                            range = [CodeMirror.Pos(range.line, range.ch-1), range];
+                        }
+                        else
+                        {
+                            range = [ranges[i].from(), ranges[i].to()];
+                        }
+                        marks.push( cm.markText( range[0], range[1], {className: unmatched} ) );
+                    }
+                    else if ( false === range.match )
+                    {
+                        marks.push( cm.markText( CodeMirror.Pos(range[0], range[1]), CodeMirror.Pos(range[2], range[3]), {className: unmatched} ) );
+                    }
+                    else if ( ('end' === range.match) && (cm.getLine(range[0]).length <= maxHighlightLen) )
+                    {
+                        marks.push( cm.markText( CodeMirror.Pos(range[0], range[1]), CodeMirror.Pos(range[2], range[3]), {className: matched} ) );
+                        if ( cm.getLine(range[4]).length <= maxHighlightLen )
+                        marks.push( cm.markText( CodeMirror.Pos(range[4], range[5]), CodeMirror.Pos(range[6], range[7]), {className: matched} ) );
+                    }
+                    else if ( ('start' === range.match) && (cm.getLine(range[4]).length <= maxHighlightLen) )
+                    {
+                        marks.push( cm.markText( CodeMirror.Pos(range[4], range[5]), CodeMirror.Pos(range[6], range[7]), {className: matched} ) );
+                        if ( cm.getLine(range[0]).length <= maxHighlightLen )
+                        marks.push( cm.markText( CodeMirror.Pos(range[0], range[1]), CodeMirror.Pos(range[2], range[3]), {className: matched} ) );
+                    }
+                }
+                cm.state[ CMode.matchType ] = marks;
+            });
+            }, 50);
         }
     };
-    CMode.autocompleter.renderer = autocomplete_renderer;
-    CMode.autocomplete = CMode.autocompleter; // deprecated, alias for compatibility
+    CMode.matcher.clear = function( cm ) {
+        cm.operation(function( ){
+            var marks = cm.state[ CMode.matchType ];
+            cm.state[ CMode.matchType ] = null;
+            if ( marks && marks.length )
+                for(var i=0,l=marks.length; i<l; i++) marks[i].clear( );
+        });
+    };
+    
+    CMode.submode = function( lang, mode ) {
+        CMode.$parser.subparser( lang, mode.Mode.$parser );
+    };
+    
     CMode.dispose = function( ) {
         if ( CMode.$parser ) CMode.$parser.dispose( );
-        CMode.$parser = CMode.validator = CMode.linter = CMode.autocompleter = CMode.autocomplete = CMode.folder = null;
+        CMode.$parser = CMode.validator = CMode.linter = CMode.autocompleter = CMode.folder = CMode.matcher = CMode.mode = null;
     };
+    
     return CMode;
 }
 
@@ -4010,7 +4823,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
     
-    VERSION: "3.1.0",
+    VERSION: "4.0.0",
     
     // clone a grammar
     /**[DOC_MARKDOWN]
