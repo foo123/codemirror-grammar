@@ -57,6 +57,7 @@ Code Indentation is Codemirror default, see [Modularity and Future Directions](h
 * **Context-sensitive autocompletion** extracted directly from the grammar specification  (**NEW feature**)
 * Generated highlight modes can support **lint-like syntax-annotation** functionality generated from the grammar
 * Generated highlight modes can support custom, user-defined, **code folding** functionality from the [grammar `fold` model](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#code-folding)  (**NEW feature**)
+* Generated highlight modes can support custom, user-defined, **code token matching** functionality from the [grammar `match` model](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#code-matching)  (**NEW feature**)
 * Generated parsers are **optimized for speed and size**
 * Can generate a syntax-highlight parser from a grammar **interactively and on-the-fly** ( see example, http://foo123.github.io/examples/codemirror-grammar )
 * see also [Modularity and Future Directions](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#modularity-and-future-directions)
