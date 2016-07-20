@@ -542,7 +542,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 * ```
 *
 [/DOC_MARKDOWN]**/
-var CodeMirrorGrammar = exports['@@MODULE_NAME@@'] = {
+var CodeMirrorGrammar = {
     
     VERSION: "@@VERSION@@",
     
