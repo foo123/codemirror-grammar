@@ -38,6 +38,10 @@ var htmlmixed_grammar = {
     ,"cdata:block"                  : ["<![CDATA[", "]]>"]
     ,"open_tag"                     : "RE::/<([_a-zA-Z][_a-zA-Z0-9\\-]*)/"
     ,"close_tag"                    : "RE::/<\\/([_a-zA-Z][_a-zA-Z0-9\\-]*)>/"
+    ,"open_script_tag"              : "RE::/<(script)/"
+    ,"open_style_tag"               : "RE::/<(style)/"
+    ,"close_script_tag"             : "RE::/<\\/(script)>/"
+    ,"close_style_tag"              : "RE::/<\\/(style)>/"
     ,"attribute"                    : "RE::/[_a-zA-Z][_a-zA-Z0-9\\-]*/"
     ,"string:line-block"            : [["\""], ["'"]]
     ,"number"                       : ["RE::/[0-9]\\d*/", "RE::/#[0-9a-fA-F]+/"]
@@ -62,8 +66,8 @@ var htmlmixed_grammar = {
      "javascript"                   : {"subgrammar":"javascript"}
     ,"css"                          : {"subgrammar":"css"}
     ,"tag_att"                      : "'id'.attribute unique_att '=' string unique_id | attribute unique_att '=' (string | number)"
-    ,"style_tag"                    : "'<style>'.tag css '</style>'.tag"
-    ,"script_tag"                   : "'<script>'.tag javascript '</script>'.tag"
+    ,"style_tag"                    : "(open_style_tag.tag tag_ctx tag_opened tag_att* '>'.tag \\tag_ctx) css close_style_tag.tag tag_closed"
+    ,"script_tag"                   : "(open_script_tag.tag tag_ctx tag_opened tag_att* '>'.tag \\tag_ctx) javascript close_script_tag.tag tag_closed"
     ,"start_tag"                    : "open_tag.tag tag_ctx tag_opened tag_att* ('>'.tag | '/>'.tag tag_autoclosed) \\tag_ctx"
     ,"end_tag"                      : "close_tag.tag tag_closed"
     ,"htmlmixed"                    : "(^^1 declaration? doctype?) (declaration.error out_of_place | doctype.error out_of_place | comment | meta | cdata | style_tag | script_tag | start_tag | end_tag | atom | text)*"

@@ -7,20 +7,17 @@
 *   https://github.com/foo123/codemirror-grammar
 *   https://github.com/foo123/editor-grammar
 *
-**/!function( root, name, factory ) {
+**/!function( root, name, factory ){
 "use strict";
-var m;
 if ( ('object'===typeof module)&&module.exports ) /* CommonJS */
-    module.exports = factory.call( root, {} );
-else if ( ('undefined'!==typeof System)&&('function'===typeof System.register)&&('function'===typeof System['import']) ) /* ES6 module */
-    System.register(name,[],function($__export){$__export(name, factory.call(root,{}));});
-else if ( ('function'===typeof define)&&define.amd&&('function'===typeof require)&&('function'===typeof require.specified)&&require.specified(name) ) /* AMD */
-    define(name,['require','exports','module'],function(){return factory.call(root,{});});
+    (module.$deps = module.$deps||{}) && (module.exports = module.$deps[name] = factory.call(root));
+else if ( ('function'===typeof define)&&define.amd&&('function'===typeof require)&&('function'===typeof require.specified)&&require.specified(name) /*&& !require.defined(name)*/ ) /* AMD */
+    define(name,['module'],function(module){factory.moduleUri = module.uri; return factory.call(root);});
 else if ( !(name in root) ) /* Browser/WebWorker/.. */
-    (root[ name ] = (m=factory.call(root,{})))&&('function'===typeof(define))&&define.amd&&define(function(){return m;} );
+    (root[name] = factory.call(root)||1)&&('function'===typeof(define))&&define.amd&&define(function(){return root[name];} );
 }(  /* current root */          this, 
     /* module name */           "CodeMirrorGrammar",
-    /* module factory */        function( exports ) {
+    /* module factory */        function ModuleFactory__CodeMirrorGrammar( ){
 /* main code starts here */
 
 "use strict";
@@ -2329,6 +2326,43 @@ function t_match( t, stream, eat, any_match )
     return false;
 }
 
+function Stack( val, prev/*, next*/ )
+{
+    this.val = val || null;
+    /*if ( prev && next )
+    {
+        this.prev = prev; this.next = next;
+        prev.next = next.prev = this;
+    }
+    else*/ if ( prev )
+    {
+        //this.next = null;
+        /*if ( prev.next )
+        {
+            prev.next.prev = this;
+            this.next = prev.next;
+        }*/
+        this.prev = prev;
+        //prev.next = this;
+    }
+    /*else if ( next )
+    {
+        this.prev = null;
+        if ( next.prev )
+        {
+            next.prev.next = this;
+            this.prev = next.prev;
+        }
+        this.next = next;
+        next.prev = this;
+    }*/
+    else
+    {
+        this.prev = null;
+        //this.next = null;
+    }
+}
+
 function tokenizer( type, name, token, msg, modifier, except, autocompletions, keywords )
 {
     var self = this;
@@ -2403,38 +2437,45 @@ function t_err( t )
 function error_( state, l1, c1, l2, c2, t, err )
 {
     if ( state.status & ERRORS )
-    state.err[ l1+'_'+c1+'_'+l2+'_'+c2+'_'+(t?t.name:'ERROR') ] = [ l1, c1, l2, c2, err || t_err( t ) ];
+    state.err[ ''+l1+'_'+c1+'_'+l2+'_'+c2+'_'+(t?t.name:'ERROR') ] = [ l1, c1, l2, c2, err || t_err( t ) ];
     //return state;
 }
 
-function push_at( stack, pos, token )
+function push_at( state, pos, token )
 {
-    if ( pos < stack.length ) stack.splice( pos, 0, token );
-    else stack.push( token );
-    return stack;
+    if ( state.stack === pos )
+    {
+        pos = state.stack = new Stack( token, state.stack );
+    }
+    else
+    {
+        var ptr = state.stack;
+        while ( ptr && (ptr.prev !== pos) ) ptr = ptr.prev;
+        pos = new Stack(token, pos);
+        if ( ptr) ptr.prev = pos;
+    }
+    return pos;
 }
 
-function empty( stack, $id )
+function empty( state, $id )
 {
     // http://dvolvr.davidwaterston.com/2013/06/09/restating-the-obvious-the-fastest-way-to-truncate-an-array-in-javascript/
-    var count = 0, total = stack.length;
     if ( true === $id )
     {
         // empty whole stack
-        stack.length =  0;
+        state.stack = null;
     }
     else if ( $id )
     {
         // empty only entries associated to $id
-        while ( count < total && /*stack[total-count-1] &&*/ stack[total-count-1].$id === $id ) count++;
-        if ( count ) stack.length =  total-count;
+        while ( state.stack && state.stack.val.$id === $id ) state.stack = state.stack.prev;
     }
     /*else if ( count )
     {
         // just pop one
         stack.length =  count-1;
     }*/
-    return stack;
+    return state;
 }
 
 function err_recover( state, stream, token, tokenizer )
@@ -2447,49 +2488,53 @@ function err_recover( state, stream, token, tokenizer )
     //if ( tokenizer.pos > stream.pos ) stream.pos = tokenizer.pos;
     //else if ( !stream.nxt( true ) ) { stream.spc( ); just_space = true; }
     
-    var stack = state.stack, stack_pos, stream_pos, stream_pos2, tok, i = 0, 
-        recover_stream = Infinity, recover_stack = -1;
+    var stack_pos, stream_pos, stream_pos2, tok, depth,
+        recover_stream = Infinity, recover_stack = null, recover_depth = Infinity;
     stream_pos = stream.pos;
     stream.spc( );
     stream_pos2 = stream.pos;
-    stack_pos = stack.length;
+    stack_pos = state.stack;
     if ( stream.pos < stream.length )
     {
         // try to recover in a state with:
         // 1. the closest stream position that matches a tokenizer in the stack (more important)
         // 2. and the minimum number of stack tokenizers to discard (less important)
-        while (stack_pos > i)
+        depth = 0;
+        while( stack_pos )
         {
-            tok = stack[stack_pos-i-1];
+            tok = stack_pos.val;
             if ( tok.$id !== tokenizer.$id ) break;
             
             while( !tokenize(tok, stream, state, token) )
             {
                 stream.pos = tok.pos > stream.pos ? tok.pos : stream.pos+1;
-                stack.length = stack_pos;
+                state.stack = stack_pos;
                 if ( stream.pos >= stream.length ) break;
             }
-            stack.length = stack_pos;
+            state.stack = stack_pos;
             
             if ( (stream.pos < stream.length) && (recover_stream > stream.pos) )
             {
                 recover_stream = stream.pos;
-                recover_stack = stack_pos-i;
+                recover_stack = stack_pos;
+                recover_depth = depth;
             }
-            else if ( (recover_stream === stream.pos) && (stack_pos-i > recover_stack) )
+            else if ( (recover_stream === stream.pos) && (depth < recover_depth) )
             {
                 recover_stream = stream.pos;
-                recover_stack = stack_pos-i;
+                recover_stack = stack_pos;
+                recover_depth = depth;
             }
             
             stream.pos = stream_pos2;
-            i++;
+            stack_pos = stack_pos.prev;
+            depth++;
         }
         
         if ( recover_stream < stream.length )
         {
             stream.pos = recover_stream;
-            stack.length = recover_stack;
+            state.stack = recover_stack;
         }
         else
         {
@@ -2521,7 +2566,7 @@ function t_action( a, stream, state, token )
 {
     var self = a, action_def = self.token || null,
     action, case_insensitive = self.ci, aid = self.name,
-    t, t0, ns, msg, queu, symb, ctx,
+    t, t0, ns, msg, queu, symb,
     l1, c1, l2, c2, in_ctx, err, t_str, is_block,
     no_errors = !(state.status & ERRORS);
 
@@ -2534,7 +2579,7 @@ function t_action( a, stream, state, token )
     if ( A_NOP === action_def[ 0 ] || is_block && !token.block ) return true;
 
     action = action_def[ 0 ]; t = action_def[ 1 ]; in_ctx = action_def[ 2 ];
-    msg = self.msg; queu = state.queu; symb = state.symb; ctx = state.ctx;
+    msg = self.msg;
     
     if ( is_block /*&& token.block*/ )
     {
@@ -2580,37 +2625,41 @@ function t_action( a, stream, state, token )
 
     else if ( A_CTXEND === action )
     {
-        if ( ctx.length ) ctx.shift();
+        state.ctx = state.ctx ? state.ctx.prev : null;
     }
 
     else if ( A_CTXSTART === action )
     {
-        ctx.unshift({symb:{},queu:[]});
+        state.ctx = new Stack({symb:{},queu:null}, state.ctx);
     }
 
     else if ( A_MCHEND === action )
     {
         if ( in_ctx )
         {
-            if ( ctx.length ) queu = ctx[0].queu;
+            if ( state.ctx ) queu = state.ctx.val.queu;
             else return true;
+        }
+        else
+        {
+            queu = state.queu;
         }
         if ( t )
         {
             t = group_replace( t, t_str );
             if ( case_insensitive ) t = t[LOWER]();
-            if ( !queu.length || t !== queu[0][0] ) 
+            if ( !queu || t !== queu.val[0] ) 
             {
                 // no match
-                if ( queu.length )
+                if ( queu )
                 {
                     self.$msg = msg
-                        ? group_replace( msg, [queu[0][0],t], true )
-                        : 'Tokens do not match "'+queu[0][0]+'","'+t+'"';
+                        ? group_replace( msg, [queu.val[0],t], true )
+                        : 'Tokens do not match "'+queu.val[0]+'","'+t+'"';
                     err = t_err( self );
-                    error_( state, queu[0][1], queu[0][2], queu[0][3], queu[0][4], self, err );
+                    error_( state, queu.val[1], queu.val[2], queu.val[3], queu.val[4], self, err );
                     error_( state, l1, c1, l2, c2, self, err );
-                    queu.shift( );
+                    queu = queu.prev;
                 }
                 else
                 {
@@ -2621,17 +2670,33 @@ function t_action( a, stream, state, token )
                     error_( state, l1, c1, l2, c2, self, err );
                 }
                 self.status |= ERROR;
+                if ( in_ctx )
+                {
+                    if ( state.ctx ) state.ctx.val.queu = queu;
+                }
+                else
+                {
+                    state.queu = queu;
+                }
                 return false;
             }
             else
             {
-                queu.shift( );
+                queu = queu ? queu.prev : null;
             }
         }
         else
         {
             // pop unconditionaly
-            queu.shift( );
+            queu = queu ? queu.prev : null;
+        }
+        if ( in_ctx )
+        {
+            if ( state.ctx ) state.ctx.val.queu = queu;
+        }
+        else
+        {
+            state.queu = queu;
         }
     }
 
@@ -2639,8 +2704,12 @@ function t_action( a, stream, state, token )
     {
         if ( in_ctx )
         {
-            if ( ctx.length ) queu = ctx[0].queu;
+            if ( state.ctx ) queu = state.ctx.val.queu;
             else return true;
+        }
+        else
+        {
+            queu = state.queu;
         }
         t = group_replace( t, t_str );
         if ( case_insensitive ) t = t[LOWER]();
@@ -2649,15 +2718,27 @@ function t_action( a, stream, state, token )
             : 'Token does not match "'+t+'"';
         // used when end-of-file is reached and unmatched tokens exist in the queue
         // to generate error message, if needed, as needed
-        queu.unshift( [t, l1, c1, l2, c2, t_err( self )] );
+        queu = new Stack( [t, l1, c1, l2, c2, t_err( self )], queu );
+        if ( in_ctx )
+        {
+            if ( state.ctx ) state.ctx.val.queu = queu;
+        }
+        else
+        {
+            state.queu = queu;
+        }
     }
 
     else if ( A_UNIQUE === action )
     {
         if ( in_ctx )
         {
-            if ( ctx.length ) symb = ctx[0].symb;
+            if ( state.ctx ) symb = state.ctx.val.symb;
             else return true;
+        }
+        else
+        {
+            symb = state.symb;
         }
         t0 = t[1]; ns = t[0];
         t0 = group_replace( t0, t_str, true );
@@ -2768,7 +2849,7 @@ function t_block( t, stream, state, token )
         block_start_pos, block_end_pos, block_inside_pos,
         b_start = '', b_inside = '', b_inside_rest = '', b_end = '', b_block,
         char_escaped, next, ret, is_required, $id = self.$id || block, can_be_empty,
-        stack = state.stack, stream_pos, stream_pos0, stack_pos, line, pos, matched,
+        stream_pos, stream_pos0, stack_pos, line, pos, matched,
         outer = state.outer, outerState = outer && outer[2], outerTokenizer = outer && outer[1]
     ;
 
@@ -2811,7 +2892,7 @@ function t_block( t, stream, state, token )
 
     if ( found )
     {
-        stack_pos = stack.length;
+        stack_pos = state.stack;
         is_eol = T_NULL === block_end.ptype;
         can_be_empty = is_eol || self.empty;
         
@@ -2831,7 +2912,7 @@ function t_block( t, stream, state, token )
                 token.T = type; token.id = block; token.type = modifier || ret;
                 token.str = stream.sel(pos, stream_pos); token.match = null;
                 token.pos = [line, pos, line, stream_pos];
-                push_at( stack, stack_pos, t_clone( self, is_required, 0, $id ) );
+                push_at( state, stack_pos, t_clone( self, is_required, 0, $id ) );
                 return modifier || ret;
             }
         }
@@ -2983,7 +3064,7 @@ function t_block( t, stream, state, token )
         {
             state.block.ip = block_inside_pos;  state.block.ep = block_end_pos;
             state.block.i = b_inside; state.block.e = b_end;
-            push_at( stack, stack_pos, t_clone( self, is_required, 0, $id ) );
+            push_at( state, stack_pos, t_clone( self, is_required, 0, $id ) );
         }
         token.T = type; token.id = block; token.type = modifier || ret;
         token.str = stream.sel(pos, stream.pos); token.match = null;
@@ -3017,14 +3098,13 @@ function t_composite( t, stream, state, token )
     var self = t, type = self.type, name = self.name, tokens = self.token, n = tokens.length,
         token_izer, style, modifier = self.modifier, found, min, max,
         tokens_required, tokens_err, stream_pos, stack_pos,
-        i, i0, tt, stack, err, $id, is_sequence, backup;
+        i, i0, tt, err, $id, is_sequence, backup;
 
     self.status &= CLEAR_ERROR;
     self.$msg = self.msg || null;
 
-    stack = state.stack;
     stream_pos = stream.pos;
-    stack_pos = stack.length;
+    stack_pos = state.stack;
     self.pos = stream.pos;
 
     tokens_required = 0; tokens_err = 0;
@@ -3035,7 +3115,7 @@ function t_composite( t, stream, state, token )
     if ( T_SUBGRAMMAR === type )
     {
         self.status &= CLEAR_ERROR;
-        var subgrammar = new String(tokens[0]), nextTokenizer = stack.length ? stack[stack.length-1] : null;
+        var subgrammar = new String(tokens[0]), nextTokenizer = state.stack ? state.stack.val : null;
         subgrammar.subgrammar = 1;
         subgrammar.next = nextTokenizer ? new tokenizer(T_POSITIVE_LOOKAHEAD, nextTokenizer.name, [nextTokenizer]) : null;
         subgrammar.required = nextTokenizer ? nextTokenizer.status & REQUIRED : 0;
@@ -3116,7 +3196,7 @@ function t_composite( t, stream, state, token )
             if ( (true !== style) || (T_EMPTY !== token_izer.type) )
             {
                 for (i=n-1; i>=i0; i--)
-                    push_at( stack, stack_pos+n-i-1, t_clone( tokens[ i ], 1, modifier, $id ) );
+                    stack_pos = push_at( state, stack_pos, t_clone( tokens[ i ], 1, modifier, $id ) );
             }
             if ( style.subgrammar /*&& !style.next*/ && (i0 < n) )
             {
@@ -3173,7 +3253,7 @@ function t_composite( t, stream, state, token )
                 {
                     // push it to the stack for more
                     self.found = found;
-                    push_at( stack, stack_pos, t_clone( self, 0, 0, get_id( ) ) );
+                    push_at( state, stack_pos, t_clone( self, 0, 0, get_id( ) ) );
                     self.found = 0;
                     return style;
                 }
@@ -3200,7 +3280,6 @@ function t_composite( t, stream, state, token )
 }
 
 
-
 function State( unique, s )
 {
     var self = this;
@@ -3214,7 +3293,7 @@ function State( unique, s )
         self.line = s.line;
         self.bline = s.bline;
         self.status = s.status;
-        self.stack = s.stack.slice();
+        self.stack = s.stack/*.slice()*/;
         self.token = s.token;
         self.block = s.block;
         self.outer = s.outer ? [s.outer[0], s.outer[1], new State(unique, s.outer[2])] : null;
@@ -3241,7 +3320,7 @@ function State( unique, s )
         self.line = -1;
         self.bline = -1;
         self.status = s || 0;
-        self.stack = [];
+        self.stack = null/*[]*/;
         self.token = null;
         self.block = null;
         self.outer = null;
@@ -3250,7 +3329,7 @@ function State( unique, s )
         {
             self.queu = [];
             self.symb = {};
-            self.ctx = [];
+            self.ctx = null;
             self.err = {};
         }
         // else dont use-up more space and clutter
@@ -3276,7 +3355,7 @@ function state_backup( state, stream, backup, with_errors )
         state.status = backup[0];
         state.block = backup[1];
         state.outer = backup[2];
-        if ( state.stack.length > backup[3] ) state.stack.length = backup[3];
+        state.stack = backup[3];
         if ( stream && (stream.pos > backup[4]) ) stream.bck(backup[4]);
     }
     else
@@ -3285,7 +3364,7 @@ function state_backup( state, stream, backup, with_errors )
             state.status,
             state.block,
             state.outer,
-            state.stack.length,
+            state.stack,
             stream ? stream.pos : Infinity
         ];
         if ( false === with_errors ) state.status = 0;
@@ -3451,7 +3530,7 @@ var Parser = Class({
             T = { }, $name$ = self.$n$, $type$ = self.$t$, $value$ = self.$v$, //$pos$ = 'pos',
             interleaved_tokens = grammar.$interleaved, tokens = grammar.$parser, 
             nTokens = tokens.length, niTokens = interleaved_tokens ? interleaved_tokens.length : 0,
-            tokenizer, action, token, stack, line, pos, i, ii, stream_pos, stack_pos,
+            tokenizer, action, token, line, pos, i, ii, stream_pos, stack_pos,
             type, err, notfound, just_space, block_in_progress, outer = state.outer,
             subgrammar, innerParser, innerState, foundInterleaved,
             outerState = outer && outer[2], outerTokenizer = outer && outer[1]
@@ -3469,7 +3548,7 @@ var Parser = Class({
             state.$blank$ = state.bline+1 === state.line;
         }
         state.$actionerr$ = false; state.token = null;
-        stack = state.stack; line = state.line; pos = stream.pos;
+        line = state.line; pos = stream.pos;
         type = false; notfound = true; err = false; just_space = false;
         //block_in_progress = state.block ? state.block.name : undef;
         
@@ -3527,18 +3606,19 @@ var Parser = Class({
         }
         
         // if EOL tokenizer is left on stack, pop it now
-        if ( stack.length && (T_EOL === stack[stack.length-1].type) && stream.sol() ) stack.pop();
+        if ( state.stack && (T_EOL === state.stack.val.type) && stream.sol() ) state.stack = state.stack.prev;
         
         // check for non-space tokenizer or partial-block-in-progress, before parsing any space/empty
-        if ( (!stack.length 
-            || ((T_NONSPACE !== stack[stack.length-1].type) && (null == state.block) /*(block_in_progress !== stack[stack.length-1].name)*/)) 
+        if ( (!state.stack 
+            || ((T_NONSPACE !== state.stack.val.type) && (null == state.block) /*(block_in_progress !== stack[stack.length-1].name)*/)) 
             && stream.spc() )
         {
             // subgrammar follows, push the spaces back and let subgrammar handle them
-            if ( stack.length && (T_SUBGRAMMAR === stack[stack.length-1].type) )
+            if ( state.stack && (T_SUBGRAMMAR === state.stack.val.type) )
             {
                 stream.bck( pos );
-                tokenizer = stack.pop();
+                tokenizer = state.stack.val;
+                state.stack = state.stack.prev;
                 type = tokenize( tokenizer, stream, state, token );
                 // subgrammar / submode
                 /*if ( type.subgrammar )
@@ -3576,9 +3656,9 @@ var Parser = Class({
             token = new s_token( );
             
             i = 0;
-            while ( notfound && (stack.length || i<nTokens) && !stream.eol() )
+            while ( notfound && (state.stack || i<nTokens) && !stream.eol() )
             {
-                stream_pos = stream.pos; stack_pos = stack.length;
+                stream_pos = stream.pos; stack_pos = state.stack;
                 
                 // check for outer parser interleaved
                 if ( outerTokenizer )
@@ -3620,8 +3700,16 @@ var Parser = Class({
                 if ( notfound && !foundInterleaved )
                 {
                     // seems stack and/or ngrams can ran out while inside the loop !!  ?????
-                    if ( !stack.length && i>=nTokens) break;
-                    tokenizer = stack.length ? stack.pop() : tokens[i++];
+                    if ( !state.stack && i>=nTokens) break;
+                    if ( state.stack )
+                    {
+                        tokenizer = state.stack.val;
+                        state.stack = state.stack.prev;
+                    }
+                    else
+                    {
+                        tokenizer = tokens[i++];
+                    }
                     type = tokenize( tokenizer, stream, state, token );
                 }
                 
@@ -3675,25 +3763,26 @@ var Parser = Class({
                     }
                     
                     // partial block, apply maybe any action(s) following it
-                    if ( stack.length > 1 && stream.eol() &&  
-                        (T_BLOCK & stack[stack.length-1].type) && state.block &&
-                        state.block.name === stack[stack.length-1].name 
+                    if ( state.stack && state.stack.prev && stream.eol() &&  
+                        (T_BLOCK & state.stack.val.type) && state.block &&
+                        state.block.name === state.stack.val.name 
                     )
                     {
-                        ii = stack.length-2;
-                        while ( ii >= 0 && T_ACTION === stack[ii].type )
+                        ii = state.stack.prev;
+                        while ( ii && T_ACTION === ii.val.type )
                         {
-                            action = stack[ii--]; t_action( action, stream, state, token );
+                            action = ii; ii = ii.prev; t_action( action, stream, state, token );
                             // action error
                             if ( action.status & ERROR ) state.$actionerr$ = true;
                         }
                     }
                     // action token(s) follow, execute action(s) on current token
-                    else if ( stack.length && (T_ACTION === stack[stack.length-1].type) )
+                    else if ( state.stack && (T_ACTION === state.stack.val.type) )
                     {
-                        while ( stack.length && (T_ACTION === stack[stack.length-1].type) )
+                        while ( state.stack && (T_ACTION === state.stack.val.type) )
                         {
-                            action = stack.pop();
+                            action = state.stack.val;
+                            state.stack = state.stack.prev;
                             t_action( action, stream, state, token );
                             // action error
                             if ( action.status & ERROR ) state.$actionerr$ = true;
@@ -3835,12 +3924,12 @@ var Parser = Class({
     }
 
     ,autocompletion: function( state, min_found ) {
-        var stack = state.stack, i, token, type,
+        var stack = state.stack, token, type,
             hash = {}, follows = generate_autocompletion( [ state.token ], [], hash );
         min_found  = min_found || 0;
-        for(i=stack.length-1; i>=0; i--)
+        while( stack )
         {
-            token = stack[ i ]; type = token.type;
+            token = stack.val; type = token.type;
             if ( T_REPEATED & type )
             {
                 follows = generate_autocompletion( [ token ], follows, hash );
@@ -3851,6 +3940,7 @@ var Parser = Class({
                 follows = generate_autocompletion( [ token ], follows, hash );
                 if ( min_found < follows.length ) break;
             }
+            stack = stack.prev;
         }
         return follows;
     }
@@ -4821,7 +4911,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 * ```
 *
 [/DOC_MARKDOWN]**/
-var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
+var CodeMirrorGrammar = {
     
     VERSION: "4.0.0",
     
@@ -4915,5 +5005,5 @@ var CodeMirrorGrammar = exports['CodeMirrorGrammar'] = {
 
 /* main code ends here */
 /* export the module */
-return exports["CodeMirrorGrammar"];
+return CodeMirrorGrammar;
 });
