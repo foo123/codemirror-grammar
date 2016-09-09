@@ -2478,6 +2478,25 @@ function empty( state, $id )
     return state;
 }
 
+function stack_clone( stack, deep )
+{
+    if ( null == stack ) return null;
+    if ( deep )
+    {
+        var stack2 = new Stack( stack.val ), ptr2 = stack2, ptr = stack;
+        while( ptr.prev )
+        {
+            ptr2.prev = new Stack( ptr.prev.val );
+            ptr = ptr.prev; ptr2 = ptr2.prev;
+        }
+        return stack2;
+    }
+    else
+    {
+        return stack;
+    }
+}
+
 function err_recover( state, stream, token, tokenizer )
 {
     //var just_space = false;
@@ -3293,7 +3312,7 @@ function State( unique, s )
         self.line = s.line;
         self.bline = s.bline;
         self.status = s.status;
-        self.stack = s.stack/*.slice()*/;
+        self.stack = stack_clone( s.stack, false );
         self.token = s.token;
         self.block = s.block;
         self.outer = s.outer ? [s.outer[0], s.outer[1], new State(unique, s.outer[2])] : null;
