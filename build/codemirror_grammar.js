@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 4.0.0
+*   @version: 4.0.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -23,7 +23,7 @@ else if ( !(name in root) ) /* Browser/WebWorker/.. */
 "use strict";
 /**
 *   EditorGrammar Codebase
-*   @version: 4.0.0
+*   @version: 4.0.1
 *
 *   https://github.com/foo123/editor-grammar
 **/
@@ -533,7 +533,10 @@ function esc_re( s )
 
 function new_re( re, fl )
 {
-    return new RegExp(re, fl||'');
+    fl = fl || {l:0,x:0,i:0,g:0};
+    var re = new RegExp(re, (fl.g?'g':'')+(fl.i?'i':''));
+    re.xflags = fl;
+    return re;
 }
 
 function get_delimited( src, delim, esc, collapse_esc )
@@ -587,7 +590,7 @@ function group_replace( pattern, token, raw, in_regex )
     while ( i<l )
     {
         c = pattern[CHAR](i);
-        if ( (i+1<l) && placeholder === c )
+        if ( (i+1<l) && (placeholder === c) )
         {
             g = pattern.charCodeAt(i+1);
             if ( placeholder_code === g ) // escaped placeholder character
@@ -619,16 +622,14 @@ function get_re( r, rid, cachedRegexes, boundary )
 {
     if ( !r || ((T_NUM|T_REGEX) & get_type(r)) ) return r;
     
-    var l = rid ? (rid.length||0) : 0, i, b = "";
+    var l = rid ? (rid.length||0) : 0, i, b = "", xflags = {g:0,i:0,x:0,l:0};
 
     if ( T_STR & get_type(boundary) ) b = boundary;
     else if ( !!boundary ) b = combine_delimiter;
     
-    if ( l && rid === r.substr(0, l) ) 
+    if ( l && (r.substr(0, l) === rid) ) 
     {
-        var regexSource = r.substr(l), delim = regexSource[CHAR](0), flags = '',
-            regexBody, regexID, regex, i, ch
-        ;
+        var regexSource = r.substr(l), delim = regexSource[CHAR](0), regexBody, regexID, regex, i, ch;
         
         // allow regex to have delimiters and flags
         // delimiter is defined as the first character after the regexID
@@ -637,14 +638,27 @@ function get_re( r, rid, cachedRegexes, boundary )
         {
             ch = regexSource[CHAR](i);
             if ( delim === ch ) break;
-            else if ('i' === ch.toLowerCase() ) flags = 'i';
+            else if ('i' === ch.toLowerCase()) xflags.i = 1;
+            else if ('x' === ch.toLowerCase()) xflags.x = 1;
+            else if ('l' === ch.toLowerCase()) xflags.l = 1;
         }
         regexBody = regexSource.substring(1, i);
-        regexID = "^(" + regexBody + ")";
+        if ( '^' === regexBody.charAt(0) )
+        {
+            xflags.l = 1;
+            regexID = "^(" + regexBody.slice(1) + ")";
+        }
+        else
+        {
+            regexID = "^(" + regexBody + ")";
+        }
+        regex = regexID;
+        if ( xflags.x || xflags.l || xflags.i )
+            regexID = (xflags.l?'l':'')+(xflags.x?'x':'')+(xflags.i?'i':'')+'::'+regexID;
         
         if ( !cachedRegexes[ regexID ] )
         {
-            regex = new_re( regexID, flags );
+            regex = new_re( regex, xflags );
             // shared, light-weight
             cachedRegexes[ regexID ] = regex;
         }
@@ -653,11 +667,11 @@ function get_re( r, rid, cachedRegexes, boundary )
     }
     else if ( !!b )
     {
-        regexID = "^(" + esc_re( r ) + ")"+b;
+        regex = regexID = "^(" + esc_re( r ) + ")"+b;
         
         if ( !cachedRegexes[ regexID ] )
         {
-            regex = new_re( regexID, flags );
+            regex = new_re( regex, xflags );
             // shared, light-weight
             cachedRegexes[ regexID ] = regex;
         }
@@ -676,7 +690,7 @@ function get_combined_re( tokens, boundary, case_insensitive )
     if ( T_STR & get_type(boundary) ) b = boundary;
     else if ( !!boundary ) b = combine_delimiter;
     combined = map( tokens.sort( by_length ), esc_re ).join( "|" );
-    return [ new_re("^(" + combined + ")"+b, case_insensitive ? "i": ""), 1 ];
+    return [ new_re("^(" + combined + ")"+b, {l:0,x:0,i:case_insensitive?1:0}), 1 ];
 }
 
 
@@ -781,7 +795,7 @@ function get_compositematcher( name, tokens, RegExpID, combined, caseInsensitive
     return cachedMatchers[ name ] = mtcher;
 }
 
-var regex_pattern_re = /(\\\\)*?\\\d/;
+var /*regex_pattern_re = /(\\\\)*?\\\d/,*/ extended_regex_re = /(l?i?l?)x(l?i?l?)$/;
 function get_blockmatcher( name, tokens, RegExpID, cachedRegexes, cachedMatchers ) 
 {
     if ( cachedMatchers[ name ] ) return cachedMatchers[ name ];
@@ -791,12 +805,12 @@ function get_blockmatcher( name, tokens, RegExpID, cachedRegexes, cachedMatchers
     // build start/end mappings
     iterate(function( i ) {
         var t1, t2, is_regex, is_regex_pattern;
-        t1= get_simplematcher( name + '_0_' + i, get_re( tmp[i][0], RegExpID, cachedRegexes ), i, cachedMatchers );
+        t1 = get_simplematcher( name + '_0_' + i, get_re( tmp[i][0], RegExpID, cachedRegexes ), i, cachedMatchers );
         if ( tmp[i].length > 1 )
         {
             is_regex = has_prefix( tmp[i][1], RegExpID );
-            is_regex_pattern = is_regex && regex_pattern_re.test(tmp[i][1]);
-            if ( T_REGEX === t1.ptype && T_STR === get_type( tmp[i][1] ) && (is_regex_pattern || !is_regex) )
+            is_regex_pattern = is_regex && /*regex_pattern_re*/extended_regex_re.test(tmp[i][1]);
+            if ( (T_REGEX === t1.ptype) && (T_STR === get_type( tmp[i][1] )) && (is_regex_pattern || !is_regex) )
             {
                 if ( is_regex_pattern )
                 {
@@ -1488,7 +1502,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     {
                         if ( t.pos < t.length && 'i' === t[CHAR](t.pos) ) { t.pos++; fl = 'i'; }
                         curr_token = '/' + literal + '/' + fl;
-                        if ( !Lex[curr_token] ) Lex[curr_token] = { type:'simple', tokens:new_re("^("+literal+")",fl) };
+                        if ( !Lex[curr_token] ) Lex[curr_token] = { type:'simple', tokens:new_re("^("+literal+")",{l:0,x:0,i:'i'===fl}) };
                         sequence.push( curr_token );
                     }
                     /*}
@@ -1506,7 +1520,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                             Syntax[ curr_token ] = {
                                 type:'*' === c ? 'zeroOrMore' : ('+' === c ? 'oneOrMore' : 'zeroOrOne'),
                                 tokens:[prev_token]
-                            }
+                            };
                         sequence[sequence.length-1] = curr_token;
                     }
                     else token += c;
@@ -1563,7 +1577,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                             Syntax[ curr_token ] = {
                                 type:'!' === c ? 'negativeLookahead' : 'positiveLookahead',
                                 tokens:[prev_token]
-                            }
+                            };
                         sequence[sequence.length-1] = curr_token;
                     }
                     else token += c;
@@ -2210,7 +2224,7 @@ function t_match( t, stream, eat, any_match )
                 if ( end.regex_pattern )
                 {
                     // dynamicaly-created regex with substistution group as well
-                    m = group_replace( end, match[1], 0, 1 );
+                    m = group_replace( end, match[1]/*, 0, 1*/ );
                     end = new matcher( P_SIMPLE, name+'_End', get_re(m, end.regex_pattern, {}), T_REGEX );
                 }
                 else
@@ -2243,8 +2257,8 @@ function t_match( t, stream, eat, any_match )
         }
         else if ( T_REGEX === type )
         {
-            m = stream.slice( stream.pos ).match( pattern[0] );
-            if ( m && 0 === m.index )
+            m = pattern[0].xflags.l ? stream.match( pattern[0] ) : stream.slice( stream.pos ).match( pattern[0] );
+            if ( m && (0 === m.index) )
             {
                 if ( false !== eat ) stream.mov( m[ pattern[1]||0 ].length );
                 return [ key, pattern[1] > 0 ? m[pattern[1]] : m ];
@@ -3361,11 +3375,12 @@ function State( unique, s )
         }
         self.$eol$ = true; self.$blank$ = true;
     }
-    // make sure to generate a string which will cover most cases where state needs to be updated by the editor
-    self.toString = function() {
-        return self.id+'_'+self.line+'_'+self.bline+'_'+(self.block?self.block.name:'0');
-    };
 }
+// make sure to generate a string which will cover most cases where state needs to be updated by the editor
+State.prototype.toString = function( ){
+    var self = this;
+    return self.id+'_'+self.line+'_'+self.bline+'_'+(self.block?self.block.name:'0');
+};
 
 function state_backup( state, stream, backup, with_errors )
 {
@@ -4257,7 +4272,7 @@ var Folder = {
     ,MarkedUp: function( T, L, R, S, M ) {
         T = T || TRUE;
         L = L || "<"; R = R || ">"; S = S || "/";
-        M = M || new_re( esc_re(L) + "(" + esc_re(S) + "?)([a-zA-Z_\\-][a-zA-Z0-9_\\-:]*)", "g" );
+        M = M || new_re( esc_re(L) + "(" + esc_re(S) + "?)([a-zA-Z_\\-][a-zA-Z0-9_\\-:]*)", {g:1} );
 
         return function fold_markup( iter ) {
             iter.col = 0; iter.min = iter.first( ); iter.max = iter.last( );
@@ -4389,7 +4404,7 @@ var Matcher = {
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 4.0.0
+*   @version: 4.0.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -4932,7 +4947,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = {
     
-    VERSION: "4.0.0",
+    VERSION: "4.0.1",
     
     // clone a grammar
     /**[DOC_MARKDOWN]
