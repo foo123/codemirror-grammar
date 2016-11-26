@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 4.0.1
+*   @version: 4.1.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -23,7 +23,7 @@ else if ( !(name in root) ) /* Browser/WebWorker/.. */
 "use strict";
 /**
 *   EditorGrammar Codebase
-*   @version: 4.0.1
+*   @version: 4.1.0
 *
 *   https://github.com/foo123/editor-grammar
 **/
@@ -36,8 +36,11 @@ TOKENS = 1, ERRORS = 2, FLAT = 32, REQUIRED = 4, ERROR = 8,
 CLEAR_REQUIRED = ~REQUIRED, CLEAR_ERROR = ~ERROR, REQUIRED_OR_ERROR = REQUIRED | ERROR,
 
 // action types
-A_NOP = 0, A_ERROR = 4, A_UNIQUE = 8,
+A_NOP = 0, A_ERROR = 4,
+A_DEFINE = 8, A_UNDEFINE = 9,
+A_DEFINED = 10, A_NOTDEFINED = 11, A_UNIQUE = 12,
 A_CTXSTART = 16, A_CTXEND = 17,
+A_HYPCTXSTART = 18, A_HYPCTXEND = 19,
 A_MCHSTART = 32, A_MCHEND = 33,
 A_FOLDSTART = 64, A_FOLDEND = 65, /*TODO*/
 A_INDENT = 128, A_OUTDENT = 129, /*TODO*/
@@ -463,14 +466,32 @@ var escaped_re = /([.*+?^${}()|[\]\/\\\-])/g,
     combine_delimiter = "(\\s|\\W|$)" /* more flexible than \\b */;
 
 /*
-//html_ispecial_re = /&#(\d+);/g,
-function html_unescaper( m, c )
+[ '&', 38 ]
+[ '<', 60 ]
+[ '>', 62 ]
+[ '\'', 39 ]
+[ '"', 34 ]
+de_html_special_num_re = /&#(34|38|39|60|62);/g,
+function html_escaper( c )
 {
-    return String.fromCharCode(parseInt(c,10));
+    return "&#" + c.charCodeAt(0) + ";";
 }
-function unesc_html( s )
+function html_de_escaper( c, g1 )
 {
-    return s.replace(html_ispecial_re, html_unescaper);
+    return '38' === g1
+        ? '&'
+        : ('60' === g1
+        ? '<'
+        : ('62' === g1
+        ? '>'
+        : ('34' === g1
+        ? '"'
+        : '\'')))
+    ;
+}
+function de_esc_html( s, num_entities )
+{
+    return num_entities ? s.replace(de_html_special_num_re, html_de_escaper) : s.replace(de_html_special_re, html_de_escaper_entities);
 }
 */
 
@@ -1076,43 +1097,73 @@ function preprocess_grammar( grammar )
             else if ( tok['error'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'error', tok.error, !!tok['in-context'] ];
+                tok.action = [ 'error', tok.error, !!tok['in-context'], !!tok['in-hypercontext'] ];
                 del(tok,'error');
+            }
+            else if ( tok[HAS]('hypercontext') )
+            {
+                tok.type = 'action';
+                tok.action = [ !!tok.hypercontext ? 'hypercontext-start' : 'hypercontext-end', tok['hypercontext'], !!tok['in-context'], !!tok['in-hypercontext'] ];
+                del(tok,'hypercontext');
             }
             else if ( tok[HAS]('context') )
             {
                 tok.type = 'action';
-                tok.action = [ !!tok.context ? 'context-start' : 'context-end', tok['context'], !!tok['in-context'] ];
+                tok.action = [ !!tok.context ? 'context-start' : 'context-end', tok['context'], !!tok['in-context'], !!tok['in-hypercontext'] ];
                 del(tok,'context');
             }
             else if ( tok['indent'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'indent', tok.indent, !!tok['in-context'] ];
+                tok.action = [ 'indent', tok.indent, !!tok['in-context'], !!tok['in-hypercontext'] ];
                 del(tok,'indent');
             }
             else if ( tok['outdent'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'outdent', tok.outdent, !!tok['in-context'] ];
+                tok.action = [ 'outdent', tok.outdent, !!tok['in-context'], !!tok['in-hypercontext'] ];
                 del(tok,'outdent');
+            }
+            else if ( tok['define'] )
+            {
+                tok.type = 'action';
+                tok.action = [ 'define', T_STR&get_type(tok.define) ? ['*', tok.define] : tok.define, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                del(tok,'define');
+            }
+            else if ( tok['undefine'] )
+            {
+                tok.type = 'action';
+                tok.action = [ 'undefine', T_STR&get_type(tok.undefine) ? ['*', tok.undefine] : tok.undefine, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                del(tok,'undefine');
+            }
+            else if ( tok['defined'] )
+            {
+                tok.type = 'action';
+                tok.action = [ 'defined', T_STR&get_type(tok.defined) ? ['*', tok.defined] : tok.defined, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                del(tok,'defined');
+            }
+            else if ( tok['notdefined'] )
+            {
+                tok.type = 'action';
+                tok.action = [ 'notdefined', T_STR&get_type(tok.notdefined) ? ['*', tok.notdefined] : tok.notdefined, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                del(tok,'notdefined');
             }
             else if ( tok['unique'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'unique', T_STR&get_type(tok.unique) ? ['_DEFAULT_', tok.unique] : tok.unique, !!tok['in-context'] ];
+                tok.action = [ 'unique', T_STR&get_type(tok.unique) ? ['*', tok.unique] : tok.unique, !!tok['in-context'], !!tok['in-hypercontext'] ];
                 del(tok,'unique');
             }
             else if ( tok['push'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'push', tok.push, !!tok['in-context'] ];
+                tok.action = [ 'push', tok.push, !!tok['in-context'], !!tok['in-hypercontext'] ];
                 del(tok,'push');
             }
             else if ( tok[HAS]('pop') )
             {
                 tok.type = 'action';
-                tok.action = [ 'pop', tok.pop, !!tok['in-context'] ];
+                tok.action = [ 'pop', tok.pop, !!tok['in-context'], !!tok['in-hypercontext'] ];
                 del(tok,'pop');
             }
             else
@@ -1440,7 +1491,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     token = '';
                 }
             
-                if ( '.' === c )
+                if ( '.' === c /*|| ':' === c*/ )
                 {
                     // a dot by itself, not specifying a modifier
                     if ( sequence.length && t.pos < t.length && 
@@ -1448,7 +1499,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     else token += c;
                 }
                 
-                else if ( '"' === c || "'" === c )
+                else if ( ('"' === c) || ("'" === c) )
                 {
                     // literal token, quoted
                     literal = get_delimited( t, c, '\\', true );
@@ -1509,7 +1560,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     else token += c;*/
                 }
                 
-                else if ( '*' === c || '+' === c || '?' === c )
+                else if ( ('*' === c) || ('+' === c) || ('?' === c) )
                 {
                     // repeat modifier, applies to token that comes before
                     if ( sequence.length )
@@ -1566,7 +1617,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     continue;
                 }
                 
-                else if ( '&' === c || '!' === c )
+                else if ( ('&' === c) || ('!' === c) )
                 {
                     // lookahead modifier, applies to token that comes before
                     if ( sequence.length )
@@ -1858,14 +1909,21 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         {
             if ( token[HAS]('nop') ) token.action = [A_NOP, token.nop, !!token['in-context']];
             else if ( token[HAS]('error') ) token.action = [A_ERROR, token.error, !!token['in-context']];
-            else if ( token[HAS]('context') ) token.action = [!!token.context?A_CTXSTART:A_CTXEND, token['context'], !!token['in-context']];
-            else if ( token[HAS]('context-start') ) token.action = [A_CTXSTART, token['context-start'], !!token['in-context']];
-            else if ( token[HAS]('context-end') ) token.action = [A_CTXEND, token['context-end'], !!token['in-context']];
-            else if ( token[HAS]('push') ) token.action = [A_MCHSTART, token.push, !!token['in-context']];
-            else if ( token[HAS]('pop') ) token.action = [A_MCHEND, token.pop, !!token['in-context']];
-            else if ( token[HAS]('unique') ) token.action = [A_UNIQUE, T_STR&get_type(token.unique)?['_DEFAULT_',token.unique]:token.unique, !!token['in-context']];
-            else if ( token[HAS]('indent') ) token.action = [A_INDENT, token.indent, !!token['in-context']];
-            else if ( token[HAS]('outdent') ) token.action = [A_OUTDENT, token.outdent, !!token['in-context']];
+            else if ( token[HAS]('context') ) token.action = [!!token.context?A_CTXSTART:A_CTXEND, token['context'], !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('hypercontext') ) token.action = [!!token.hypercontext?A_HYPCTXSTART:A_HYPCTXEND, token['context'], !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('context-start') ) token.action = [A_CTXSTART, token['context-start'], !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('context-end') ) token.action = [A_CTXEND, token['context-end'], !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('hypercontext-start') ) token.action = [A_HYPCTXSTART, token['hypcontext-start'], !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('hypercontext-end') ) token.action = [A_HYPCTXEND, token['hypcontext-end'], !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('push') ) token.action = [A_MCHSTART, token.push, !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('pop') ) token.action = [A_MCHEND, token.pop, !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('define') ) token.action = [A_DEFINE, T_STR&get_type(token.define)?['*',token.define]:token.define, !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('undefine') ) token.action = [A_UNDEFINE, T_STR&get_type(token.undefine)?['*',token.undefine]:token.undefine, !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('defined') ) token.action = [A_DEFINED, T_STR&get_type(token.defined)?['*',token.defined]:token.defined, !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('notdefined') ) token.action = [A_NOTDEFINED, T_STR&get_type(token.notdefined)?['*',token.notdefined]:token.notdefined, !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('unique') ) token.action = [A_UNIQUE, T_STR&get_type(token.unique)?['*',token.unique]:token.unique, !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('indent') ) token.action = [A_INDENT, token.indent, !!token['in-context'], !!token['in-hypercontext']];
+            else if ( token[HAS]('outdent') ) token.action = [A_OUTDENT, token.outdent, !!token['in-context'], !!token['in-hypercontext']];
         }
         else
         {
@@ -1873,12 +1931,19 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
             else if ( 'error' === token.action[0] ) token.action[0] = A_ERROR;
             else if ( 'context-start' === token.action[0] ) token.action[0] = A_CTXSTART;
             else if ( 'context-end' === token.action[0] ) token.action[0] = A_CTXEND;
+            else if ( 'hypercontext-start' === token.action[0] ) token.action[0] = A_HYPCTXSTART;
+            else if ( 'hypercontext-end' === token.action[0] ) token.action[0] = A_HYPCTXEND;
             else if ( 'push' === token.action[0] ) token.action[0] = A_MCHSTART;
             else if ( 'pop' === token.action[0] ) token.action[0] = A_MCHEND;
+            else if ( 'define' === token.action[0] ) token.action[0] = A_DEFINE;
+            else if ( 'undefine' === token.action[0] ) token.action[0] = A_UNDEFINE;
+            else if ( 'defined' === token.action[0] ) token.action[0] = A_DEFINED;
+            else if ( 'notdefined' === token.action[0] ) token.action[0] = A_NOTDEFINED;
             else if ( 'unique' === token.action[0] ) token.action[0] = A_UNIQUE;
             else if ( 'indent' === token.action[0] ) token.action[0] = A_INDENT;
             else if ( 'outdent' === token.action[0] ) token.action[0] = A_OUTDENT;
         }
+        if ( false === token.msg ) $msg$ = false;
         // NOP action, no action
         if ( token.nop ) token.action[0] = A_NOP;
         $token$ = new tokenizer( T_ACTION, tokenID, token.action.slice(), $msg$, $modifier$ );
@@ -2388,7 +2453,7 @@ function tokenizer( type, name, token, msg, modifier, except, autocompletions, k
     self.autocompletions = autocompletions || null;
     self.keywords = keywords || null;
     self.pos = null;
-    self.msg = msg || null;
+    self.msg = false === msg ? false : (msg || null);
     self.$msg = null;
     self.status = 0;
     self.empty = false; self.ci = false; self.mline = true; self.esc = false; self.inter = false;
@@ -2405,7 +2470,8 @@ function s_token( )
     t.match = null;
     t.str = '';
     t.pos = null;
-    t.block =  null;
+    t.block = null;
+    t.space = null;
 }
 
 function t_clone( t, required, modifier, $id )
@@ -2450,9 +2516,44 @@ function t_err( t )
 
 function error_( state, l1, c1, l2, c2, t, err )
 {
-    if ( state.status & ERRORS )
+    if ( (state.status & ERRORS) && state.err )
     state.err[ ''+l1+'_'+c1+'_'+l2+'_'+c2+'_'+(t?t.name:'ERROR') ] = [ l1, c1, l2, c2, err || t_err( t ) ];
     //return state;
+}
+
+function find_key( list, key, least, hash )
+{
+    if ( hash )
+    {
+        return list && list[HAS](key) ? list[key] : null;
+    }
+    else
+    {
+        var next = null, match = null;
+        while ( list )
+        {
+            if ( key === list.val[0] )
+            {
+                match = {prev:list.prev, next:next, node:list, val:list.val[1]};
+                if ( !least ) return match;
+            }
+            next = list; list = list.prev;
+        }
+        return match;
+    }
+}
+
+function add_key( list, key, val, hash )
+{
+    if ( hash )
+    {
+        list[key] = val;
+        return list;
+    }
+    else
+    {
+        return new Stack([key,val], list);
+    }
 }
 
 function push_at( state, pos, token )
@@ -2537,8 +2638,7 @@ function err_recover( state, stream, token, tokenizer )
         {
             tok = stack_pos.val;
             if ( tok.$id !== tokenizer.$id ) break;
-            
-            while( !tokenize(tok, stream, state, token) )
+            while( (T_ACTION !== tok.type) && !tokenize(tok, stream, state, token) )
             {
                 stream.pos = tok.pos > stream.pos ? tok.pos : stream.pos+1;
                 state.stack = stack_pos;
@@ -2572,6 +2672,7 @@ function err_recover( state, stream, token, tokenizer )
         else
         {
             stream.end( );
+            state.stack = null;
         }
     }
     /*else
@@ -2599,19 +2700,19 @@ function t_action( a, stream, state, token )
 {
     var self = a, action_def = self.token || null,
     action, case_insensitive = self.ci, aid = self.name,
-    t, t0, ns, msg, queu, symb,
-    l1, c1, l2, c2, in_ctx, err, t_str, is_block,
-    no_errors = !(state.status & ERRORS);
+    t, t0, ns, msg, queu, symb, found,
+    l1, c1, l2, c2, in_ctx, in_hctx, err, t_str, is_block,
+    no_state_errors = !(state.status & ERRORS);
 
     self.status = 0; self.$msg = null;
 
     // do action only if state.status handles (action) errors, else dont clutter
-    if ( no_errors || !action_def || !token || !token.pos ) return true;
+    if ( /*no_state_errors ||*/ !action_def || !token || !token.pos ) return true;
     is_block = !!(T_BLOCK & token.T);
     // NOP action, return OR partial block not completed yet, postpone
     if ( A_NOP === action_def[ 0 ] || is_block && !token.block ) return true;
 
-    action = action_def[ 0 ]; t = action_def[ 1 ]; in_ctx = action_def[ 2 ];
+    action = action_def[ 0 ]; t = action_def[ 1 ]; in_ctx = action_def[ 2 ]; in_hctx = action_def[ 3 ];
     msg = self.msg;
     
     if ( is_block /*&& token.block*/ )
@@ -2627,6 +2728,163 @@ function t_action( a, stream, state, token )
         l2 = token.pos[2];              c2 = token.pos[3];
     }
 
+    if ( A_CTXEND === action )
+    {
+        state.ctx = state.ctx ? state.ctx.prev : null;
+    }
+
+    else if ( A_CTXSTART === action )
+    {
+        state.ctx = new Stack({symb:null,queu:null}, state.ctx);
+    }
+
+    else if ( A_HYPCTXEND === action )
+    {
+        state.hctx = state.hctx ? state.hctx.prev : null;
+    }
+
+    else if ( A_HYPCTXSTART === action )
+    {
+        state.hctx = new Stack({symb:null,queu:null}, state.hctx);
+    }
+
+    else if ( A_DEFINE === action )
+    {
+        symb = in_hctx && state.hctx ? state.hctx.val.symb : (in_ctx && state.ctx ? state.ctx.val.symb : state.symb);
+        t0 = t[1]; ns = t[0];
+        t0 = group_replace( t0, t_str, true );
+        if ( case_insensitive ) t0 = t0[LOWER]();
+        ns += '::'+t0; found = find_key(symb, ns);
+        if ( !found || (found.val[0] > l1) || ((found.val[0] === l1) && (found.val[1] > c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] > l2) || (found.val[3] > c2))) )
+        {
+            if ( found )
+            {
+                found.val[0] = l1; found.val[1] = c1;
+                found.val[2] = l2; found.val[3] = c2;
+            }
+            else
+            {
+                if ( in_hctx && state.hctx )
+                {
+                    state.hctx.val.symb = add_key(state.hctx.val.symb, ns, [l1, c1, l2, c2]);
+                }
+                else if ( in_ctx && state.ctx )
+                {
+                    state.ctx.val.symb = add_key(state.ctx.val.symb, ns, [l1, c1, l2, c2]);
+                }
+                else
+                {
+                    state.symb = add_key(state.symb, ns, [l1, c1, l2, c2]);
+                }
+            }
+        }
+    }
+    
+    else if ( A_UNDEFINE === action )
+    {
+        symb = in_hctx && state.hctx ? state.hctx.val.symb : (in_ctx && state.ctx ? state.ctx.val.symb : state.symb);
+        if ( !symb ) return true;
+        t0 = t[1]; ns = t[0];
+        t0 = group_replace( t0, t_str, true );
+        if ( case_insensitive ) t0 = t0[LOWER]();
+        ns += '::'+t0; found = find_key(symb, ns);
+        if ( found && ((found.val[0] < l1) || ((found.val[0] === l1) && (found.val[1] <= c1))) )
+        {
+            if ( found.next )
+            {
+                found.next.prev = found.prev;
+            }
+            else
+            {
+                if ( in_hctx && state.hctx )
+                {
+                    state.hctx.val.symb = state.hctx.val.symb.prev;
+                }
+                else if ( in_ctx && state.ctx )
+                {
+                    state.ctx.val.symb = state.ctx.val.symb.prev;
+                }
+                else
+                {
+                    state.symb = state.symb.prev;
+                }
+            }
+        }
+    }
+    
+    else if ( A_DEFINED === action )
+    {
+        symb = in_hctx && state.hctx ? state.hctx.val.symb : (in_ctx && state.ctx ? state.ctx.val.symb : state.symb);
+        t0 = t[1]; ns = t[0];
+        t0 = group_replace( t0, t_str, true );
+        if ( case_insensitive ) t0 = t0[LOWER]();
+        ns += '::'+t0; found = find_key(symb, ns);
+        if ( !found || (found.val[0] > l1) || ((found.val[0] === l1) && (found.val[1] > c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] > l2) || (found.val[3] > c2))) )
+        {
+            // undefined
+            if ( false !== msg )
+            {
+                self.$msg = msg
+                    ? group_replace( msg, t0, true )
+                    : 'Undefined "'+t0+'"';
+                err = t_err( self );
+                error_( state, l1, c1, l2, c2, self, err );
+                self.status |= ERROR;
+            }
+            if ( found )
+            {
+                if ( found.next )
+                {
+                    found.next.prev = found.prev;
+                }
+                else
+                {
+                    if ( in_hctx && state.hctx )
+                    {
+                        state.hctx.val.symb = state.hctx.val.symb.prev;
+                    }
+                    else if ( in_ctx && state.ctx )
+                    {
+                        state.ctx.val.symb = state.ctx.val.symb.prev;
+                    }
+                    else
+                    {
+                        state.symb = state.symb.prev;
+                    }
+                }
+            }
+            return false;
+        }
+    }
+    
+    else if ( A_NOTDEFINED === action )
+    {
+        symb = in_hctx && state.hctx ? state.hctx.val.symb : (in_ctx && state.ctx ? state.ctx.val.symb : state.symb);
+        if ( !symb ) return true;
+        t0 = t[1]; ns = t[0];
+        t0 = group_replace( t0, t_str, true );
+        if ( case_insensitive ) t0 = t0[LOWER]();
+        ns += '::'+t0; found = find_key(symb, ns, 1);
+        if ( found && ((found.val[0] < l1) || ((found.val[0] === l1) && (found.val[1] <= c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] <= l2) && (found.val[3] <= c2)))) )
+        {
+            // defined
+            if ( false !== msg )
+            {
+                self.$msg = msg
+                    ? group_replace( msg, t0, true )
+                    : 'Defined "'+t0+'"';
+                err = t_err( self );
+                error_( state, found.val[0], found.val[1], found.val[2], found.val[3], self, err );
+                error_( state, l1, c1, l2, c2, self, err );
+                self.status |= ERROR;
+            }
+            return false;
+        }
+    }
+    
+    // above actions can run during live editing as well
+    if ( no_state_errors ) return true;
+    
     if ( A_ERROR === action )
     {
         if ( !msg && (T_STR & get_type(t)) ) msg = t;
@@ -2634,6 +2892,179 @@ function t_action( a, stream, state, token )
         error_( state, l1, c1, l2, c2, self, t_err( self ) );
         self.status |= ERROR;
         return false;
+    }
+
+    else if ( A_UNIQUE === action )
+    {
+        if ( in_hctx )
+        {
+            if ( state.hctx ) symb = state.hctx.val.symb;
+            else return true;
+        }
+        else if ( in_ctx )
+        {
+            if ( state.ctx ) symb = state.ctx.val.symb;
+            else return true;
+        }
+        else
+        {
+            symb = state.symb;
+        }
+        t0 = t[1]; ns = t[0];
+        t0 = group_replace( t0, t_str, true );
+        if ( case_insensitive ) t0 = t0[LOWER]();
+        ns += '::'+t0; found = find_key(symb, ns);
+        if ( found )
+        {
+            // duplicate
+            if ( false !== msg )
+            {
+                self.$msg = msg
+                    ? group_replace( msg, t0, true )
+                    : 'Duplicate "'+t0+'"';
+                err = t_err( self );
+                error_( state, found.val[0], found.val[1], found.val[2], found.val[3], self, err );
+                error_( state, l1, c1, l2, c2, self, err );
+                self.status |= ERROR;
+            }
+            return false;
+        }
+        else
+        {
+            if ( in_hctx )
+            {
+                state.hctx.val.symb = add_key(state.hctx.val.symb, ns, [l1, c1, l2, c2]);
+            }
+            else if ( in_ctx )
+            {
+                state.ctx.val.symb = add_key(state.ctx.val.symb, ns, [l1, c1, l2, c2]);
+            }
+            else
+            {
+                state.symb = add_key(state.symb, ns, [l1, c1, l2, c2]);
+            }
+        }
+    }
+    
+    else if ( A_MCHEND === action )
+    {
+        if ( in_hctx )
+        {
+            if ( state.hctx ) queu = state.hctx.val.queu;
+            else return true;
+        }
+        else if ( in_ctx )
+        {
+            if ( state.ctx ) queu = state.ctx.val.queu;
+            else return true;
+        }
+        else
+        {
+            queu = state.queu;
+        }
+        if ( t )
+        {
+            t = group_replace( t, t_str );
+            if ( case_insensitive ) t = t[LOWER]();
+            if ( !queu || t !== queu.val[0] ) 
+            {
+                // no match
+                if ( false !== msg )
+                {
+                    if ( queu )
+                    {
+                        self.$msg = msg
+                            ? group_replace( msg, [queu.val[0],t], true )
+                            : 'Mismatched "'+queu.val[0]+'","'+t+'"';
+                        err = t_err( self );
+                        error_( state, queu.val[1], queu.val[2], queu.val[3], queu.val[4], self, err );
+                        error_( state, l1, c1, l2, c2, self, err );
+                        queu = queu.prev;
+                    }
+                    else
+                    {
+                        self.$msg = msg
+                            ? group_replace( msg, ['',t], true )
+                            : 'Missing matching "'+t+'"';
+                        err = t_err( self );
+                        error_( state, l1, c1, l2, c2, self, err );
+                    }
+                    self.status |= ERROR;
+                }
+                if ( in_hctx )
+                {
+                    if ( state.hctx ) state.hctx.val.queu = queu;
+                }
+                else if ( in_ctx )
+                {
+                    if ( state.ctx ) state.ctx.val.queu = queu;
+                }
+                else
+                {
+                    state.queu = queu;
+                }
+                return false;
+            }
+            else
+            {
+                queu = queu ? queu.prev : null;
+            }
+        }
+        else
+        {
+            // pop unconditionaly
+            queu = queu ? queu.prev : null;
+        }
+        if ( in_hctx )
+        {
+            if ( state.hctx ) state.hctx.val.queu = queu;
+        }
+        else if ( in_ctx )
+        {
+            if ( state.ctx ) state.ctx.val.queu = queu;
+        }
+        else
+        {
+            state.queu = queu;
+        }
+    }
+
+    else if ( (A_MCHSTART === action) && t )
+    {
+        if ( in_hctx )
+        {
+            if ( state.hctx ) queu = state.hctx.val.queu;
+            else return true;
+        }
+        else if ( in_ctx )
+        {
+            if ( state.ctx ) queu = state.ctx.val.queu;
+            else return true;
+        }
+        else
+        {
+            queu = state.queu;
+        }
+        t = group_replace( t, t_str );
+        if ( case_insensitive ) t = t[LOWER]();
+        self.$msg = msg
+            ? group_replace( msg, t, true )
+            : 'Missing matching "'+t+'"';
+        // used when end-of-file is reached and unmatched tokens exist in the queue
+        // to generate error message, if needed, as needed
+        queu = new Stack( [t, l1, c1, l2, c2, t_err( self )], queu );
+        if ( in_hctx )
+        {
+            if ( state.hctx ) state.hctx.val.queu = queu;
+        }
+        else if ( in_ctx )
+        {
+            if ( state.ctx ) state.ctx.val.queu = queu;
+        }
+        else
+        {
+            state.queu = queu;
+        }
     }
 
     /*else if ( A_INDENT === action )
@@ -2656,144 +3087,6 @@ function t_action( a, stream, state, token )
         // TODO
     }*/
 
-    else if ( A_CTXEND === action )
-    {
-        state.ctx = state.ctx ? state.ctx.prev : null;
-    }
-
-    else if ( A_CTXSTART === action )
-    {
-        state.ctx = new Stack({symb:{},queu:null}, state.ctx);
-    }
-
-    else if ( A_MCHEND === action )
-    {
-        if ( in_ctx )
-        {
-            if ( state.ctx ) queu = state.ctx.val.queu;
-            else return true;
-        }
-        else
-        {
-            queu = state.queu;
-        }
-        if ( t )
-        {
-            t = group_replace( t, t_str );
-            if ( case_insensitive ) t = t[LOWER]();
-            if ( !queu || t !== queu.val[0] ) 
-            {
-                // no match
-                if ( queu )
-                {
-                    self.$msg = msg
-                        ? group_replace( msg, [queu.val[0],t], true )
-                        : 'Tokens do not match "'+queu.val[0]+'","'+t+'"';
-                    err = t_err( self );
-                    error_( state, queu.val[1], queu.val[2], queu.val[3], queu.val[4], self, err );
-                    error_( state, l1, c1, l2, c2, self, err );
-                    queu = queu.prev;
-                }
-                else
-                {
-                    self.$msg = msg
-                        ? group_replace( msg, ['',t], true )
-                        : 'Token does not match "'+t+'"';
-                    err = t_err( self );
-                    error_( state, l1, c1, l2, c2, self, err );
-                }
-                self.status |= ERROR;
-                if ( in_ctx )
-                {
-                    if ( state.ctx ) state.ctx.val.queu = queu;
-                }
-                else
-                {
-                    state.queu = queu;
-                }
-                return false;
-            }
-            else
-            {
-                queu = queu ? queu.prev : null;
-            }
-        }
-        else
-        {
-            // pop unconditionaly
-            queu = queu ? queu.prev : null;
-        }
-        if ( in_ctx )
-        {
-            if ( state.ctx ) state.ctx.val.queu = queu;
-        }
-        else
-        {
-            state.queu = queu;
-        }
-    }
-
-    else if ( (A_MCHSTART === action) && t )
-    {
-        if ( in_ctx )
-        {
-            if ( state.ctx ) queu = state.ctx.val.queu;
-            else return true;
-        }
-        else
-        {
-            queu = state.queu;
-        }
-        t = group_replace( t, t_str );
-        if ( case_insensitive ) t = t[LOWER]();
-        self.$msg = msg
-            ? group_replace( msg, t, true )
-            : 'Token does not match "'+t+'"';
-        // used when end-of-file is reached and unmatched tokens exist in the queue
-        // to generate error message, if needed, as needed
-        queu = new Stack( [t, l1, c1, l2, c2, t_err( self )], queu );
-        if ( in_ctx )
-        {
-            if ( state.ctx ) state.ctx.val.queu = queu;
-        }
-        else
-        {
-            state.queu = queu;
-        }
-    }
-
-    else if ( A_UNIQUE === action )
-    {
-        if ( in_ctx )
-        {
-            if ( state.ctx ) symb = state.ctx.val.symb;
-            else return true;
-        }
-        else
-        {
-            symb = state.symb;
-        }
-        t0 = t[1]; ns = t[0];
-        t0 = group_replace( t0, t_str, true );
-        if ( case_insensitive ) t0 = t0[LOWER]();
-        if ( !symb[HAS](ns) ) symb[ns] = { };
-        if ( symb[ns][HAS](t0) )
-        {
-            // duplicate
-            self.$msg = msg
-                ? group_replace( msg, t0, true )
-                : 'Duplicate "'+t0+'"';
-            err = t_err( self );
-            error_( state, symb[ns][t0][0], symb[ns][t0][1], symb[ns][t0][2], symb[ns][t0][3], self, err );
-            error_( state, l1, c1, l2, c2, self, err );
-            self.status |= ERROR;
-            return false;
-        }
-        else
-        {
-            symb[ns][t0] = [l1, c1, l2, c2];
-        }
-    }
     return true;
 }
 
@@ -2836,17 +3129,23 @@ function t_simple( t, stream, state, token, exception )
     // match non-space
     else if ( T_NONSPACE === type ) 
     { 
-        if ( (self.status & REQUIRED) && stream.spc() && !stream.eol() )
+        if ( (null != token.space) && !stream.eol() )
+        {
+            // space is already parsed, take it into account here
+            if ( self.status & REQUIRED ) self.status |= ERROR;
+        }
+        else if ( stream.spc() && !stream.eol() )
         {
             self.pos = stream.pos;
             stream.bck( pos );
-            self.status |= ERROR;
+            if ( self.status & REQUIRED ) self.status |= ERROR;
         }
         else
         {
             ret = true;
         }
         self.status &= CLEAR_REQUIRED;
+        if ( true === ret ) return ret;
     }
     // match up to end-of-line
     else if ( T_NULL === pattern ) 
@@ -3328,24 +3627,14 @@ function State( unique, s )
         self.status = s.status;
         self.stack = stack_clone( s.stack, false );
         self.token = s.token;
+        self.token2 = s.token2;
         self.block = s.block;
         self.outer = s.outer ? [s.outer[0], s.outer[1], new State(unique, s.outer[2])] : null;
-        // keep extra state only if error handling is enabled
-        if ( self.status & ERRORS )
-        {
-            self.queu = s.queu;
-            self.symb = s.symb;
-            self.ctx = s.ctx;
-            self.err = s.err;
-        }
-        // else dont use-up more space and clutter
-        else
-        {
-            self.queu = null;
-            self.symb = null;
-            self.ctx = null;
-            self.err = null;
-        }
+        self.queu = s.queu || null;
+        self.symb = s.symb || null;
+        self.ctx = s.ctx || null;
+        self.hctx = s.hctx || null;
+        self.err = s.err || null;
         self.$eol$ = s.$eol$; self.$blank$ = s.$blank$;
     }
     else
@@ -3355,24 +3644,14 @@ function State( unique, s )
         self.status = s || 0;
         self.stack = null/*[]*/;
         self.token = null;
+        self.token2 = null;
         self.block = null;
         self.outer = null;
-        // keep extra state only if error handling is enabled
-        if ( self.status & ERRORS )
-        {
-            self.queu = [];
-            self.symb = {};
-            self.ctx = null;
-            self.err = {};
-        }
-        // else dont use-up more space and clutter
-        else
-        {
-            self.queu = null;
-            self.symb = null;
-            self.ctx = null;
-            self.err = null;
-        }
+        self.queu = null;
+        self.symb = null;
+        self.ctx = null;
+        self.hctx = null;
+        self.err = self.status & ERRORS ? {} : null;
         self.$eol$ = true; self.$blank$ = true;
     }
 }
@@ -3414,11 +3693,13 @@ function state_dispose( state )
     state.status = null;
     state.stack = null;
     state.token = null;
+    state.token2 = null;
     state.block = null;
     state.outer = null;
     state.queu = null;
     state.symb = null;
     state.ctx = null;
+    state.hctx = null;
     state.err = null;
 }
 
@@ -3560,13 +3841,24 @@ var Parser = Class({
     }
     
     ,token: function( stream, state, inner ) {
+        if ( state.token2 )
+        {
+            // already parsed token in previous run
+            var T = state.token2[0];
+            stream.pos = state.token2[1]; stream.sft();
+            state.token = state.token2[3];
+            state.$eol$ = stream.eol();
+            state.$blank$ = state.$blank$ && (state.token2[2] || state.$eol$);
+            state.token2 = null;
+            return T;
+        }
         var self = this, grammar = self.$grammar, Style = grammar.Style, DEFAULT = self.DEF, ERR = self.ERR,
             T = { }, $name$ = self.$n$, $type$ = self.$t$, $value$ = self.$v$, //$pos$ = 'pos',
             interleaved_tokens = grammar.$interleaved, tokens = grammar.$parser, 
             nTokens = tokens.length, niTokens = interleaved_tokens ? interleaved_tokens.length : 0,
             tokenizer, action, token, line, pos, i, ii, stream_pos, stack_pos,
             type, err, notfound, just_space, block_in_progress, outer = state.outer,
-            subgrammar, innerParser, innerState, foundInterleaved,
+            subgrammar, innerParser, innerState, foundInterleaved, aret,
             outerState = outer && outer[2], outerTokenizer = outer && outer[1]
         ;
         
@@ -3644,7 +3936,7 @@ var Parser = Class({
         
         // check for non-space tokenizer or partial-block-in-progress, before parsing any space/empty
         if ( (!state.stack 
-            || ((T_NONSPACE !== state.stack.val.type) && (null == state.block) /*(block_in_progress !== stack[stack.length-1].name)*/)) 
+            || (/*(T_NONSPACE !== state.stack.val.type) &&*/ (null == state.block) /*(block_in_progress !== stack[stack.length-1].name)*/)) 
             && stream.spc() )
         {
             // subgrammar follows, push the spaces back and let subgrammar handle them
@@ -3679,7 +3971,7 @@ var Parser = Class({
             }
             else
             {
-                notfound = false;
+                notfound = true/*false*/;
                 just_space = true;
             }
         }
@@ -3688,6 +3980,8 @@ var Parser = Class({
         if ( notfound )
         {
             token = new s_token( );
+            // handle space and other token in single run
+            if ( just_space ) {token.space = [pos, stream.pos]; stream.sft(); }
             
             i = 0;
             while ( notfound && (state.stack || i<nTokens) && !stream.eol() )
@@ -3700,9 +3994,14 @@ var Parser = Class({
                     stream.spc( );
                     if ( tokenize( outerTokenizer, stream, outerState, token ) )
                     {
-                        if ( stream.pos > stream_pos )
+                        if ( token.space || (stream.pos > stream_pos) )
                         {
                             // match the spaces first
+                            if ( token.space )
+                            {
+                                stream.start = token.space[0];
+                                stream.pos = token.space[1];
+                            }
                             T[$value$] = stream.cur( 1 );
                             state.$eol$ = stream.eol();
                             state.$blank$ = state.$blank$ && (true || state.$eol$);
@@ -3793,7 +4092,22 @@ var Parser = Class({
                             outerState = /*new State( 1,*/ state /*)*/;
                         }
                         innerState.outer = [self, type.next, outerState];
-                        return {parser: innerParser, state: innerState, toInner: subgrammar};
+                        if ( token.space )
+                        {
+                            // match the spaces first
+                            state.token2 = [{parser: innerParser, state: innerState, toInner: subgrammar}, stream.pos, just_space, state.token];
+                            state.token = null;
+                            stream.start = token.space[0];
+                            stream.pos = token.space[1];
+                            T[$value$] = stream.cur( 1 );
+                            state.$eol$ = stream.eol();
+                            state.$blank$ = state.$blank$ && (true || state.$eol$);
+                            return T;
+                        }
+                        else
+                        {
+                            return {parser: innerParser, state: innerState, toInner: subgrammar};
+                        }
                     }
                     
                     // partial block, apply maybe any action(s) following it
@@ -3805,9 +4119,11 @@ var Parser = Class({
                         ii = state.stack.prev;
                         while ( ii && T_ACTION === ii.val.type )
                         {
-                            action = ii; ii = ii.prev; t_action( action, stream, state, token );
+                            action = ii; ii = ii.prev;
+                            aret = t_action( action, stream, state, token );
                             // action error
                             if ( action.status & ERROR ) state.$actionerr$ = true;
+                            else if ( aret && (true !== type) && action.modifier ) type = action.modifier;
                         }
                     }
                     // action token(s) follow, execute action(s) on current token
@@ -3817,9 +4133,10 @@ var Parser = Class({
                         {
                             action = state.stack.val;
                             state.stack = state.stack.prev;
-                            t_action( action, stream, state, token );
+                            aret = t_action( action, stream, state, token );
                             // action error
                             if ( action.status & ERROR ) state.$actionerr$ = true;
+                            else if ( aret && (true !== type) && action.modifier ) type = action.modifier;
                         }
                     }
                     // not empty
@@ -3832,17 +4149,26 @@ var Parser = Class({
         // unknown
         if ( notfound )
         {
-            /*
-            // check for outer parser
-            if ( outerTokenizer && tokenize( outerTokenizer, stream, outerState, token ) )
+            if ( token.space )
             {
-                // dispatch back to outer parser
-                //state.outer = null;
-                return {parser: outer[0], state: outerState, fromInner: state};
+                stream.start = token.space[0];
+                stream.pos = token.space[1];
+                token.space = null;
             }
-            */
-            // unknown, bypass, next char/token
-            stream.nxt( 1/*true*/ ) /*|| stream.spc( )*/;
+            else
+            {
+                /*
+                // check for outer parser
+                if ( outerTokenizer && tokenize( outerTokenizer, stream, outerState, token ) )
+                {
+                    // dispatch back to outer parser
+                    //state.outer = null;
+                    return {parser: outer[0], state: outerState, fromInner: state};
+                }
+                */
+                // unknown, bypass, next char/token
+                stream.nxt( 1/*true*/ ) /*|| stream.spc( )*/;
+            }
         }
         
         T[$value$] = stream.cur( 1 );
@@ -3862,6 +4188,15 @@ var Parser = Class({
             type = DEFAULT;
         }
         T[$type$] = type;
+        if ( token.space )
+        {
+            // return the spaces first
+            state.token2 = [T, stream.pos, just_space, state.token];
+            state.token = null;
+            stream.start = token.space[0]; stream.pos = token.space[1];
+            T = {}; T[$name$] = null; T[$type$] = DEFAULT; T[$value$] = stream.cur( 1 );
+            just_space = true;
+        }
         state.$eol$ = stream.eol();
         state.$blank$ = state.$blank$ && (just_space || state.$eol$);
         // update count of blank lines at start of file
@@ -3900,8 +4235,8 @@ var Parser = Class({
         return ret;
     }
     
-    ,tokenize: function( stream, mode, row ) {
-        var tokens = [];
+    ,tokenize: function( stream, mode, row, tokens ) {
+        tokens = tokens || [];
         //mode.state.line = row || 0;
         if ( stream.eol() ) { mode.state.line++; if ( mode.state.$blank$ ) mode.state.bline++; }
         else while ( !stream.eol() ) tokens.push( mode.parser.get( stream, mode ) );
@@ -3924,11 +4259,11 @@ var Parser = Class({
         if ( parse_tokens ) 
             linetokens = iterate(parse_type & FLAT
             ? function( i, linetokens ) {
-                linetokens._ = linetokens._.concat( mode.parser.tokenize( Stream( lines[i] ), mode, i ) );
+                mode.parser.tokenize( Stream( lines[i] ), mode, i, linetokens );
             }
             : function( i, linetokens ) {
-                linetokens._.push( mode.parser.tokenize( Stream( lines[i] ), mode, i ) );
-            }, 0, l-1, {_:[]} )._;
+                linetokens.push( mode.parser.tokenize( Stream( lines[i] ), mode, i ) );
+            }, 0, l-1, [] );
         
         else 
             iterate(function( i ) {
@@ -3938,12 +4273,13 @@ var Parser = Class({
             }, 0, l-1);
         
         state = mode.state;
-        if ( parse_errors && state.queu && state.queu.length )
+        
+        if ( parse_errors && state.queu /*&& state.queu.length*/ )
         {
             // generate errors for unmatched tokens, if needed
-            while( state.queu.length )
+            while( state.queu/*.length*/ )
             {
-                err = state.queu.shift( );
+                err = state.queu.val/*shift()*/; state.queu = state.queu.prev;
                 error_( state, err[1], err[2], err[3], err[4], null, err[5] );
             }
         }
@@ -4173,7 +4509,7 @@ function find_match( dir, iter, row, col, tokenType, S, E, T, folding, commentTy
                 // NOTE: token can fail on some lines that continue e.g blocks
                 // since the previous line will have ended the block
                 // and the position of the new end delimiter will NOT be recognised as in the block
-                // FIXED partialy by semantic iunformation about comments, since this occurs mostly in comment delims
+                // FIXED partialy by semantic information about comments, since this occurs mostly in comment delims
                 if ( unconditional || commentType || (iter.token(i, pos+1) == tokenType) )
                 {
                     if ( pos === nextOpen ) ++depth;
@@ -4404,7 +4740,7 @@ var Matcher = {
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 4.0.1
+*   @version: 4.1.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -4947,7 +5283,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = {
     
-    VERSION: "4.0.1",
+    VERSION: "4.1.0",
     
     // clone a grammar
     /**[DOC_MARKDOWN]

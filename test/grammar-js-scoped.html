@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+    <head>
+        
+        <meta charset="utf-8">
+        
+        <link rel="stylesheet" href="codemirror/codemirror.css">
+        <link rel="stylesheet" href="codemirror/addon/lint/lint.css">
+        <link rel="stylesheet" href="codemirror/addon/hint/show-hint.css">
+        <link rel="stylesheet" href="codemirror/addon/fold/foldgutter.css" />
+        <style type="text/css">
+            body {
+                position: relative;
+            }
+
+            .CodeMirror {
+                margin: 0;
+                position: relative;
+                width: 100%;
+                height: 100%;
+                min-width:500px;
+                min-height:500px;
+            }
+        </style>
+        
+        <script src="codemirror/codemirror.js"></script>
+        <script src="codemirror/addon/comment/comment.js"></script>
+        <script src="codemirror/addon/lint/lint.js"></script>
+        <script src="codemirror/addon/hint/show-hint.js"></script>
+        <script src="codemirror/addon/fold/foldcode.js"></script>
+        <script src="codemirror/addon/fold/foldgutter.js"></script>
+        <!--<script src="codemirror/addon/fold/brace-fold.js"></script>
+        <script src="codemirror/addon/fold/comment-fold.js"></script>-->
+        <script src="../build/codemirror_grammar.js"></script>
+        <script src="grammars/javascript-scoped.js"></script>
+        <script src="demo.js"></script>
+        
+        <title>CodeMirror: Dynamic JavaScript Scoped Grammar Demo</title>
+    </head>
+    <body>
+        
+        <h3>CodeMirror (v.<span id="editor-version">0</span>) Grammar (v.<span id="grammar-version">0</span>): Dynamic JavaScript Scoped Grammar</h3>
+
+<textarea id="code" name="code">/* highlight localy-scoped variables differently */
+var aglobal = 123;
+function afunc( a, b /* function arguments */ )
+{
+    var alocal = 456, b = alocal+789; /* b is a local variable */
+    var c = {a:12, b:a+b+34, "a":45};
+    return aglobal + alocal + a + b;
+}
+console.log(aglobal);
+</textarea>
+        <p></p>
+
+        <script>
+        // <![CDATA[
+        codemirror_grammar_demo(document.getElementById("code"), [
+            {language : "javascript", grammar : js_grammar}
+        ]);
+        // ]]>
+        </script>
+    </body>
+</html>
