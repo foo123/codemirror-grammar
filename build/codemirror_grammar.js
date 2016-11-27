@@ -2521,39 +2521,58 @@ function error_( state, l1, c1, l2, c2, t, err )
     //return state;
 }
 
-function find_key( list, key, least, hash )
+function find_key( list, key/*, recursive, least, hash*/ )
 {
-    if ( hash )
+    /*if ( hash )
     {
         return list && list[HAS](key) ? list[key] : null;
     }
-    else
+    else if ( recursive )
     {
+        var nodeNext, listNext, node, match;
+        listNext = null;
+        while ( list )
+        {
+            node = list.val.symb; nodeNext = null;
+            while ( node )
+            {
+                if ( key === node.val[0] )
+                {
+                    match = {list:list, listPrev:list.prev, listNext:listNext, node:node, nodePrev:node.prev, nodeNext:nodeNext, val:node.val[1]};
+                    return match;
+                }
+                nodeNext = node; node = node.prev;
+            }
+            listNext = list; list = list.prev;
+        }
+    }
+    else
+    {*/
         var next = null, match = null;
         while ( list )
         {
             if ( key === list.val[0] )
             {
-                match = {prev:list.prev, next:next, node:list, val:list.val[1]};
-                if ( !least ) return match;
+                match = {node:list, nodePrev:list.prev, nodeNext:next, val:list.val[1]};
+                /*if ( !least )*/ return match;
             }
             next = list; list = list.prev;
         }
         return match;
-    }
+    /*}*/
 }
 
-function add_key( list, key, val, hash )
+function add_key( list, key, val/*, hash*/ )
 {
-    if ( hash )
+    /*if ( hash )
     {
         list[key] = val;
         return list;
     }
     else
-    {
+    {*/
         return new Stack([key,val], list);
-    }
+    /*}*/
 }
 
 function push_at( state, pos, token )
@@ -2750,92 +2769,102 @@ function t_action( a, stream, state, token )
 
     else if ( A_DEFINE === action )
     {
-        symb = in_hctx && state.hctx ? state.hctx.val.symb : (in_ctx && state.ctx ? state.ctx.val.symb : state.symb);
         t0 = t[1]; ns = t[0];
         t0 = group_replace( t0, t_str, true );
         if ( case_insensitive ) t0 = t0[LOWER]();
-        ns += '::'+t0; found = find_key(symb, ns);
-        if ( !found || (found.val[0] > l1) || ((found.val[0] === l1) && (found.val[1] > c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] > l2) || (found.val[3] > c2))) )
+        ns += '::'+t0;
+        if ( in_hctx && state.hctx )
         {
-            if ( found )
+            found = find_key(state.hctx.val.symb, ns);
+        }
+        else if ( in_ctx && state.ctx )
+        {
+            found = find_key(state.ctx.val.symb, ns);
+        }
+        else if ( state.symb )
+        {
+            found = find_key(state.symb, ns);
+        }
+        else
+        {
+            found = null;
+        }
+        if ( !found /*|| (found.val[0] > l1) || ((found.val[0] === l1) && (found.val[1] > c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] > l2) || (found.val[3] > c2)))*/ )
+        {
+            /*if ( found )
             {
                 found.val[0] = l1; found.val[1] = c1;
                 found.val[2] = l2; found.val[3] = c2;
             }
             else
+            {*/
+            if ( in_hctx && state.hctx )
             {
-                if ( in_hctx && state.hctx )
-                {
-                    state.hctx.val.symb = add_key(state.hctx.val.symb, ns, [l1, c1, l2, c2]);
-                }
-                else if ( in_ctx && state.ctx )
-                {
-                    state.ctx.val.symb = add_key(state.ctx.val.symb, ns, [l1, c1, l2, c2]);
-                }
-                else
-                {
-                    state.symb = add_key(state.symb, ns, [l1, c1, l2, c2]);
-                }
+                state.hctx.val.symb = add_key(state.hctx.val.symb, ns, [l1, c1, l2, c2]);
             }
+            else if ( in_ctx && state.ctx )
+            {
+                state.ctx.val.symb = add_key(state.ctx.val.symb, ns, [l1, c1, l2, c2]);
+            }
+            else
+            {
+                state.symb = add_key(state.symb, ns, [l1, c1, l2, c2]);
+            }
+            /*}*/
         }
     }
     
     else if ( A_UNDEFINE === action )
     {
-        symb = in_hctx && state.hctx ? state.hctx.val.symb : (in_ctx && state.ctx ? state.ctx.val.symb : state.symb);
-        if ( !symb ) return true;
         t0 = t[1]; ns = t[0];
         t0 = group_replace( t0, t_str, true );
         if ( case_insensitive ) t0 = t0[LOWER]();
-        ns += '::'+t0; found = find_key(symb, ns);
-        if ( found && ((found.val[0] < l1) || ((found.val[0] === l1) && (found.val[1] <= c1))) )
+        ns += '::'+t0;
+        if ( in_hctx && state.hctx )
         {
-            if ( found.next )
+            found = find_key(state.hctx.val.symb, ns);
+        }
+        else if ( in_ctx && state.ctx )
+        {
+            found = find_key(state.ctx.val.symb, ns);
+        }
+        else if ( state.symb )
+        {
+            found = find_key(state.symb, ns);
+        }
+        else
+        {
+            return true;
+        }
+        if ( found /*&& ((found.val[0] < l1) || ((found.val[0] === l1) && (found.val[1] <= c1)))*/ )
+        {
+            /*if ( found.list )
             {
-                found.next.prev = found.prev;
-            }
-            else
-            {
-                if ( in_hctx && state.hctx )
+                if ( found.nodeNext )
                 {
-                    state.hctx.val.symb = state.hctx.val.symb.prev;
-                }
-                else if ( in_ctx && state.ctx )
-                {
-                    state.ctx.val.symb = state.ctx.val.symb.prev;
+                    found.nodeNext.prev = found.nodePrev;
                 }
                 else
                 {
-                    state.symb = state.symb.prev;
+                    if ( in_hctx && state.hctx )
+                    {
+                        state.hctx.val.symb = found.listPrev;
+                    }
+                    else if ( in_ctx && state.ctx )
+                    {
+                        state.ctx.val.symb = found.listPrev;
+                    }
+                    else
+                    {
+                        state.symb = found.listPrev;
+                    }
                 }
             }
-        }
-    }
-    
-    else if ( A_DEFINED === action )
-    {
-        symb = in_hctx && state.hctx ? state.hctx.val.symb : (in_ctx && state.ctx ? state.ctx.val.symb : state.symb);
-        t0 = t[1]; ns = t[0];
-        t0 = group_replace( t0, t_str, true );
-        if ( case_insensitive ) t0 = t0[LOWER]();
-        ns += '::'+t0; found = find_key(symb, ns);
-        if ( !found || (found.val[0] > l1) || ((found.val[0] === l1) && (found.val[1] > c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] > l2) || (found.val[3] > c2))) )
-        {
-            // undefined
-            if ( false !== msg )
-            {
-                self.$msg = msg
-                    ? group_replace( msg, t0, true )
-                    : 'Undefined "'+t0+'"';
-                err = t_err( self );
-                error_( state, l1, c1, l2, c2, self, err );
-                self.status |= ERROR;
-            }
-            if ( found )
-            {
-                if ( found.next )
+            else
+            {*/
+                if ( found.nodeNext )
                 {
-                    found.next.prev = found.prev;
+                    found.nodeNext.prev = found.nodePrev;
                 }
                 else
                 {
@@ -2852,6 +2881,43 @@ function t_action( a, stream, state, token )
                         state.symb = state.symb.prev;
                     }
                 }
+            /*}*/
+        }
+    }
+    
+    else if ( A_DEFINED === action )
+    {
+        t0 = t[1]; ns = t[0];
+        t0 = group_replace( t0, t_str, true );
+        if ( case_insensitive ) t0 = t0[LOWER]();
+        ns += '::'+t0;
+        if ( in_hctx && state.hctx )
+        {
+            found = find_key(state.hctx.val.symb, ns);
+        }
+        else if ( in_ctx && state.ctx )
+        {
+            found = find_key(state.ctx.val.symb, ns);
+        }
+        else if ( state.symb )
+        {
+            found = find_key(state.symb, ns);
+        }
+        else
+        {
+            found = null;
+        }
+        if ( !found /*|| (found.val[0] > l1) || ((found.val[0] === l1) && (found.val[1] > c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] > l2) || (found.val[3] > c2)))*/ )
+        {
+            // undefined
+            if ( false !== msg )
+            {
+                self.$msg = msg
+                    ? group_replace( msg, t0, true )
+                    : 'Undefined "'+t0+'"';
+                err = t_err( self );
+                error_( state, l1, c1, l2, c2, self, err );
+                self.status |= ERROR;
             }
             return false;
         }
@@ -2859,13 +2925,27 @@ function t_action( a, stream, state, token )
     
     else if ( A_NOTDEFINED === action )
     {
-        symb = in_hctx && state.hctx ? state.hctx.val.symb : (in_ctx && state.ctx ? state.ctx.val.symb : state.symb);
-        if ( !symb ) return true;
         t0 = t[1]; ns = t[0];
         t0 = group_replace( t0, t_str, true );
         if ( case_insensitive ) t0 = t0[LOWER]();
-        ns += '::'+t0; found = find_key(symb, ns, 1);
-        if ( found && ((found.val[0] < l1) || ((found.val[0] === l1) && (found.val[1] <= c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] <= l2) && (found.val[3] <= c2)))) )
+        ns += '::'+t0;
+        if ( in_hctx && state.hctx )
+        {
+            found = find_key(state.hctx.val.symb, ns);
+        }
+        else if ( in_ctx && state.ctx )
+        {
+            found = find_key(state.ctx.val.symb, ns);
+        }
+        else if ( state.symb )
+        {
+            found = find_key(state.symb, ns);
+        }
+        else
+        {
+            return true;
+        }
+        if ( found /*&& ((found.val[0] < l1) || ((found.val[0] === l1) && (found.val[1] <= c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] <= l2) && (found.val[3] <= c2))))*/ )
         {
             // defined
             if ( false !== msg )
@@ -3632,8 +3712,8 @@ function State( unique, s )
         self.outer = s.outer ? [s.outer[0], s.outer[1], new State(unique, s.outer[2])] : null;
         self.queu = s.queu || null;
         self.symb = s.symb || null;
-        self.ctx = s.ctx || null;
-        self.hctx = s.hctx || null;
+        self.ctx = s.ctx ? new Stack({symb:s.ctx.val.symb,queu:s.ctx.val.queu}, s.ctx.prev) : null;
+        self.hctx = s.hctx ? new Stack({symb:s.hctx.val.symb,queu:s.hctx.val.queu}, s.hctx.prev) : null;
         self.err = s.err || null;
         self.$eol$ = s.$eol$; self.$blank$ = s.$blank$;
     }
