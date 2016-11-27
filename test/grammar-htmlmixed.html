@@ -70,6 +70,14 @@ var bar = { foo: [1, 2, 3, {"foo3":"foo4"}],
         foo2: 123
 };
     &lt;/script&gt;
+	&lt;script&gt;
+/* this is also javascript content */
+var bar = "foo";
+    &lt;/script&gt;
+	&lt;script type="application/x-something"&gt;
+/* this is text by default */
+var bar = "foo";
+    &lt;/script&gt;
     &lt;/head&gt;
     &lt;body id="id1"&gt;
         &lt;!-- this is a 

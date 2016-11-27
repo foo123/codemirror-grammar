@@ -38,14 +38,15 @@ var htmlmixed_grammar = {
     ,"cdata:block"                  : ["<![CDATA[", "]]>"]
     ,"open_tag"                     : "RE::/<([_a-zA-Z][_a-zA-Z0-9\\-]*)/"
     ,"close_tag"                    : "RE::/<\\/([_a-zA-Z][_a-zA-Z0-9\\-]*)>/"
-    ,"open_script_tag"              : "RE::/<(script)/"
-    ,"open_style_tag"               : "RE::/<(style)/"
+    ,"open_script_tag"              : "RE::/<(script)\\b/"
+    ,"open_style_tag"               : "RE::/<(style)\\b/"
     ,"close_script_tag"             : "RE::/<\\/(script)>/"
     ,"close_style_tag"              : "RE::/<\\/(style)>/"
     ,"attribute"                    : "RE::/[_a-zA-Z][_a-zA-Z0-9\\-]*/"
     ,"string:line-block"            : [["\""], ["'"]]
     ,"number"                       : ["RE::/[0-9]\\d*/", "RE::/#[0-9a-fA-F]+/"]
     ,"atom"                         : ["RE::/&#x[a-fA-F\\d]+;/", "RE::/&#[\\d]+;/", "RE::/&[a-zA-Z][a-zA-Z0-9]*;/"]
+    ,"type_att"                     : "RE::/type\\b/"
     ,"text"                         : "RE::/[^<&]+/"
     
     // actions
@@ -63,11 +64,12 @@ var htmlmixed_grammar = {
 // Syntax model (optional)
 "Syntax"                            : {
      
-     "javascript"                   : {"subgrammar":"javascript"}
+     "otherscript"                  : {"subgrammar":"otherscript"}
+    ,"javascript"                   : {"subgrammar":"javascript"}
     ,"css"                          : {"subgrammar":"css"}
     ,"tag_att"                      : "'id'.attribute unique_att '=' string unique_id | attribute unique_att '=' (string | number)"
     ,"style_tag"                    : "(open_style_tag.tag tag_ctx tag_opened tag_att* '>'.tag \\tag_ctx) css close_style_tag.tag tag_closed"
-    ,"script_tag"                   : "(open_script_tag.tag tag_ctx tag_opened tag_att* '>'.tag \\tag_ctx) javascript close_script_tag.tag tag_closed"
+    ,"script_tag"                   : "open_script_tag.tag tag_ctx tag_opened (type_att! tag_att)* (type_att.attribute unique_att '=' ('\"text/javascript\"'.string (type_att! tag_att)*'>'.tag \\tag_ctx javascript | string  (type_att! tag_att)* '>'.tag \\tag_ctx otherscript) close_script_tag.tag tag_closed | '>'.tag \\tag_ctx javascript close_script_tag.tag tag_closed)"
     ,"start_tag"                    : "open_tag.tag tag_ctx tag_opened tag_att* ('>'.tag | '/>'.tag tag_autoclosed) \\tag_ctx"
     ,"end_tag"                      : "close_tag.tag tag_closed"
     ,"htmlmixed"                    : "(^^1 declaration? doctype?) (declaration.error out_of_place | doctype.error out_of_place | comment | meta | cdata | style_tag | script_tag | start_tag | end_tag | atom | text)*"

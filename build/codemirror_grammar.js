@@ -4153,7 +4153,7 @@ var Parser = Class({
             {
                 stream.start = token.space[0];
                 stream.pos = token.space[1];
-                token.space = null;
+                type = false; token.space = null;
             }
             else
             {
@@ -4174,8 +4174,8 @@ var Parser = Class({
         T[$value$] = stream.cur( 1 );
         if ( false !== type )
         {
-            type = Style[type] || DEFAULT;
-            T[$name$] = tokenizer.name;
+            type = type ? (Style[type] || DEFAULT) : DEFAULT;
+            T[$name$] = tokenizer ? tokenizer.name : null;
         }
         else if ( err )
         {
