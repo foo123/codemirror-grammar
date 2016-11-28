@@ -5,7 +5,7 @@ __Transform a JSON grammar into a CodeMirror syntax-highlight parser__
 
 
 
-A simple and light-weight (~ 37kB minified, ~ 13kB zipped) [CodeMirror](https://github.com/marijnh/codemirror) add-on
+A simple and light-weight (~ 55kB minified, ~ 18kB zipped) [CodeMirror](https://github.com/marijnh/codemirror) add-on
 
 to generate syntax-highlight parsers (codemirror modes) from a grammar specification in JSON format.
 
@@ -55,6 +55,7 @@ Code Indentation is Codemirror default, see [Modularity and Future Directions](h
 * `Grammar` can define [*action* tokens](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#action-tokens) to perform *complex context-specific* parsing functionality, including **associated tag matching** and **duplicate identifiers** (see for example `xml.grammar` example) (**NEW feature**)
 * Generated highlight modes can support **toggle comments** and **keyword autocompletion** functionality if defined in the grammar
 * **Context-sensitive autocompletion** extracted directly from the grammar specification  (**NEW feature**)
+* **Dynamic (Context-sensitive) autocompletion** from typed user actions like code/token/symbols  (**NEW feature**)
 * Generated highlight modes can support **lint-like syntax-annotation** functionality generated from the grammar
 * Generated highlight modes can support custom, user-defined, **code folding** functionality from the [grammar `fold` model](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#code-folding)  (**NEW feature**)
 * Generated highlight modes can support custom, user-defined, **code token matching** functionality from the [grammar `match` model](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md#code-matching)  (**NEW feature**)
@@ -186,6 +187,8 @@ CodeMirror.commands['my_autocompletion'] = function( cm ) {
 xml_mode.autocompleter.options = {prefixMatch:true, caseInsensitiveMatch:false};
 // or for context-sensitive autocompletion, extracted from the grammar
 xml_mode.autocompleter.options = {prefixMatch:true, caseInsensitiveMatch:false, inContext:true};
+// or for dynamic (context-sensitive) autocompletion, extracted from user actions
+xml_mode.autocompleter.options = {prefixMatch:true, caseInsensitiveMatch:false, inContext:true|false, dynamic:true};
 
 var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
     mode: "xml",
@@ -218,6 +221,7 @@ Result:
 ![js-recursive-grammar-autocomplete](/test/grammar-js-recursion-2.png)
 
 ![js-scoped-grammar](/test/grammar-js-scoped.png)
+![js-scoped-grammar](/test/grammar-js-scoped-2.png)
 
 ![css-grammar](/test/grammar-css.png)
 

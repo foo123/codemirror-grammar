@@ -3,6 +3,22 @@ function codemirror_grammar_demo(code, langs)
     document.getElementById('editor-version').innerHTML = CodeMirror.version;
     document.getElementById('grammar-version').innerHTML = CodeMirrorGrammar.VERSION;
     
+    if ( langs.mode )
+    {
+        var opts = {
+            mode: langs.mode,
+            lineNumbers: true,
+            indentUnit: 4,
+            indentWithTabs: false,
+            localVars: {},
+            gutters: ["CodeMirror-lint-markers", "CodeMirror-linenumbers", "CodeMirror-foldgutter"],
+            foldGutter: true
+        };
+        var editor = CodeMirror.fromTextArea(code, opts);
+        editor.setSize(null, 500);
+        return editor;
+    }
+
     var main_lang, main_mode;
     
     for (var i=0,l=langs.length; i<l; i++)
@@ -28,7 +44,7 @@ function codemirror_grammar_demo(code, langs)
         main_mode.supportCodeMatching = true;
         // enable autocomplete, have a unique cmd to not interfere with any default autocompletes
         main_mode.supportAutoCompletion = true;
-        main_mode.autocompleter.options =  {prefixMatch:true, caseInsensitiveMatch:false, inContext:true};
+        main_mode.autocompleter.options =  {prefixMatch:true, caseInsensitiveMatch:false, inContext:true, dynamic:true};
         
         CodeMirror.registerHelper("lint", main_lang, main_mode.linter);
         CodeMirror.registerHelper("fold", main_mode.foldType, main_mode.folder);

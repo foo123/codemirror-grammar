@@ -165,18 +165,19 @@ var CodeMirrorParser = Class(Parser, {
     
     // adapted from codemirror anyword-hint helper
     ,autocomplete: function( cm, options, CodeMirror ) {
+            options = options || {};
         var parser = this, list = [],
+            prefix_match = options[HAS]('prefixMatch') ? !!options.prefixMatch : true,
+            in_context = options[HAS]('inContext')? !!options.inContext : false,
+            dynamic = options[HAS]('dynamic')? !!options.dynamic : false,
+            case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false,
             cur = cm.getCursor(), curLine,
             start0 = cur.ch, start = start0, end0 = start0, end = end0,
             token, token_i, len, maxlen = 0, word_re, renderer,
-            case_insensitive_match, prefix_match, in_context, sort_by_score, score;
-        if ( !!parser.$grammar.$autocomplete )
+            case_insensitive_match, prefix_match, in_context, dynamic, sort_by_score, score;
+        if ( dynamic || !!parser.$grammar.$autocomplete )
         {
-            options = options || {};
             word_re = options.word || RE_W; curLine = cm.getLine(cur.line);
-            prefix_match = options[HAS]('prefixMatch') ? !!options.prefixMatch : true;
-            in_context = options[HAS]('inContext')? !!options.inContext : false;
-            case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false;
             while (start && word_re.test(curLine[CHAR](start - 1))) --start;
             // operate similar to current ACE autocompleter equivalent
             if ( !prefix_match ) while (end < curLine.length && word_re.test(curLine[CHAR](end))) ++end;
@@ -227,11 +228,11 @@ var CodeMirrorParser = Class(Parser, {
                 return list;
             };
             
-            if ( in_context )
+            if ( dynamic || in_context )
             {
                 sort_by_score = false;
-                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state.state ), suggest, list);
-                if ( !list.length )
+                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state.state, null, dynamic ), suggest, list);
+                if ( !list.length && !!self.$grammar.$autocomplete )
                 {
                     sort_by_score = true;
                     list = operate(parser.$grammar.$autocomplete, suggest, list);

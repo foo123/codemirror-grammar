@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 4.1.0
+*   @version: 4.2.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -23,7 +23,7 @@ else if ( !(name in root) ) /* Browser/WebWorker/.. */
 "use strict";
 /**
 *   EditorGrammar Codebase
-*   @version: 4.1.0
+*   @version: 4.2.0
 *
 *   https://github.com/foo123/editor-grammar
 **/
@@ -1174,6 +1174,7 @@ function preprocess_grammar( grammar )
         if ( 'action' === tok.type )
         {
             tok.ci = !!(tok.caseInsesitive||tok.ci);
+            tok.autocomplete = !!tok.autocomplete;
         }
         else if ( 'block' === tok.type || 'comment' === tok.type )
         {
@@ -1321,7 +1322,50 @@ function preprocess_grammar( grammar )
     return grammar;
 }
 
-function generate_autocompletion( token, follows, hash )
+function generate_dynamic_autocompletion( state, follows )
+{
+    follows = follows || [];
+    var list, symb;
+    list = state.ctx;
+    while ( list )
+    {
+        symb = list.val.symb;
+        while ( symb )
+        {
+            if ( symb.val[1][7] )
+            {
+                follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'<symbol>')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6]} );
+            }
+            symb = symb.prev;
+        }
+        list = list.prev;
+    }
+    list = state.hctx;
+    while ( list )
+    {
+        symb = list.val.symb;
+        while ( symb )
+        {
+            if ( symb.val[1][7] )
+            {
+                follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'<symbol>')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6]} );
+            }
+            symb = symb.prev;
+        }
+        list = list.prev;
+    }
+    symb = state.symb;
+    while ( symb )
+    {
+        if ( symb.val[1][7] )
+        {
+            follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'<symbol>')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6]} );
+        }
+        symb = symb.prev;
+    }
+    return follows;
+}
+function generate_autocompletion( token, follows, hash, dynamic )
 {
     hash = hash || {}; follows = follows || [];
     if ( !token || !token.length ) return follows;
@@ -1332,6 +1376,21 @@ function generate_autocompletion( token, follows, hash )
         if ( !tok ) continue;
         if ( T_SIMPLE === tok.type )
         {
+            if ( dynamic && dynamic.length )
+            {
+                for (j=dynamic.length-1; j>=0; j--)
+                {
+                    if ( !!tok.name && !!dynamic[j].token && (
+                        (tok.name === dynamic[j].token) ||
+                        (tok.name.length > dynamic[j].token.length && tok.name.slice(0,dynamic[j].token.length) === dynamic[j].token) ||
+                        (tok.name.length < dynamic[j].token.length && tok.name === dynamic[j].token.slice(0,tok.name.length))
+                    ) )
+                    {
+                        follows.push( dynamic[j] );
+                        dynamic.splice(j, 1);
+                    }
+                }
+            }
             if ( !!tok.autocompletions )
             {
                 for(j=0,m=tok.autocompletions.length; j<m; j++)
@@ -1355,18 +1414,18 @@ function generate_autocompletion( token, follows, hash )
         }
         else if ( T_ALTERNATION === tok.type )
         {
-            generate_autocompletion( tok.token, follows, hash );
+            generate_autocompletion( tok.token, follows, hash, dynamic );
         }
         else if ( T_SEQUENCE_OR_NGRAM & tok.type )
         {
             j = 0; m = tok.token.length;
             do{
-            generate_autocompletion( [tok2 = tok.token[j++]], follows, hash );
-            }while(j < m && (((T_REPEATED & tok2.type) && (1 > tok2.min)) || T_ACTION === tok2.type));
+            generate_autocompletion( [tok2 = tok.token[j++]], follows, hash, dynamic );
+            }while(j < m && (((T_REPEATED & tok2.type) && (1 > tok2.min)) || (T_ACTION === tok2.type)));
         }
         else if ( T_REPEATED & tok.type )
         {
-            generate_autocompletion( [tok.token[0]], follows, hash );
+            generate_autocompletion( [tok.token[0]], follows, hash, dynamic );
         }
     }
     return follows;
@@ -1907,23 +1966,23 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
     {
         if ( !token[HAS]('action') )
         {
-            if ( token[HAS]('nop') ) token.action = [A_NOP, token.nop, !!token['in-context']];
-            else if ( token[HAS]('error') ) token.action = [A_ERROR, token.error, !!token['in-context']];
-            else if ( token[HAS]('context') ) token.action = [!!token.context?A_CTXSTART:A_CTXEND, token['context'], !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('hypercontext') ) token.action = [!!token.hypercontext?A_HYPCTXSTART:A_HYPCTXEND, token['context'], !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('context-start') ) token.action = [A_CTXSTART, token['context-start'], !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('context-end') ) token.action = [A_CTXEND, token['context-end'], !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('hypercontext-start') ) token.action = [A_HYPCTXSTART, token['hypcontext-start'], !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('hypercontext-end') ) token.action = [A_HYPCTXEND, token['hypcontext-end'], !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('push') ) token.action = [A_MCHSTART, token.push, !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('pop') ) token.action = [A_MCHEND, token.pop, !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('define') ) token.action = [A_DEFINE, T_STR&get_type(token.define)?['*',token.define]:token.define, !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('undefine') ) token.action = [A_UNDEFINE, T_STR&get_type(token.undefine)?['*',token.undefine]:token.undefine, !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('defined') ) token.action = [A_DEFINED, T_STR&get_type(token.defined)?['*',token.defined]:token.defined, !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('notdefined') ) token.action = [A_NOTDEFINED, T_STR&get_type(token.notdefined)?['*',token.notdefined]:token.notdefined, !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('unique') ) token.action = [A_UNIQUE, T_STR&get_type(token.unique)?['*',token.unique]:token.unique, !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('indent') ) token.action = [A_INDENT, token.indent, !!token['in-context'], !!token['in-hypercontext']];
-            else if ( token[HAS]('outdent') ) token.action = [A_OUTDENT, token.outdent, !!token['in-context'], !!token['in-hypercontext']];
+            if ( token[HAS]('nop') ) token.action = [A_NOP, token.nop, !!token['in-context'], !!token['in-hypercontext'], false];
+            else if ( token[HAS]('error') ) token.action = [A_ERROR, token.error, false, false, false];
+            else if ( token[HAS]('context') ) token.action = [!!token.context?A_CTXSTART:A_CTXEND, token['context'], false, false, false];
+            else if ( token[HAS]('hypercontext') ) token.action = [!!token.hypercontext?A_HYPCTXSTART:A_HYPCTXEND, token['hypercontext'], false, false, false];
+            else if ( token[HAS]('context-start') ) token.action = [A_CTXSTART, token['context-start'], false, false, false];
+            else if ( token[HAS]('context-end') ) token.action = [A_CTXEND, token['context-end'], false, false, false];
+            else if ( token[HAS]('hypercontext-start') ) token.action = [A_HYPCTXSTART, token['hypcontext-start'], false, false, false];
+            else if ( token[HAS]('hypercontext-end') ) token.action = [A_HYPCTXEND, token['hypcontext-end'], false, false, false];
+            else if ( token[HAS]('push') ) token.action = [A_MCHSTART, token.push, !!token['in-context'], !!token['in-hypercontext'], token['autocomplete']];
+            else if ( token[HAS]('pop') ) token.action = [A_MCHEND, token.pop, !!token['in-context'], !!token['in-hypercontext'], false];
+            else if ( token[HAS]('define') ) token.action = [A_DEFINE, T_STR&get_type(token.define)?['*',token.define]:token.define, !!token['in-context'], !!token['in-hypercontext'], token['autocomplete']];
+            else if ( token[HAS]('undefine') ) token.action = [A_UNDEFINE, T_STR&get_type(token.undefine)?['*',token.undefine]:token.undefine, !!token['in-context'], !!token['in-hypercontext'], token['autocomplete']];
+            else if ( token[HAS]('defined') ) token.action = [A_DEFINED, T_STR&get_type(token.defined)?['*',token.defined]:token.defined, !!token['in-context'], !!token['in-hypercontext'], false];
+            else if ( token[HAS]('notdefined') ) token.action = [A_NOTDEFINED, T_STR&get_type(token.notdefined)?['*',token.notdefined]:token.notdefined, !!token['in-context'], !!token['in-hypercontext'], false];
+            else if ( token[HAS]('unique') ) token.action = [A_UNIQUE, T_STR&get_type(token.unique)?['*',token.unique]:token.unique, !!token['in-context'], !!token['in-hypercontext'], token['autocomplete']];
+            else if ( token[HAS]('indent') ) token.action = [A_INDENT, token.indent, !!token['in-context'], !!token['in-hypercontext'], false];
+            else if ( token[HAS]('outdent') ) token.action = [A_OUTDENT, token.outdent, !!token['in-context'], !!token['in-hypercontext'], false];
         }
         else
         {
@@ -2719,7 +2778,7 @@ function t_action( a, stream, state, token )
 {
     var self = a, action_def = self.token || null,
     action, case_insensitive = self.ci, aid = self.name,
-    t, t0, ns, msg, queu, symb, found,
+    t, t0, ns, msg, queu, symb, found, autocomplete,
     l1, c1, l2, c2, in_ctx, in_hctx, err, t_str, is_block,
     no_state_errors = !(state.status & ERRORS);
 
@@ -2732,7 +2791,7 @@ function t_action( a, stream, state, token )
     if ( A_NOP === action_def[ 0 ] || is_block && !token.block ) return true;
 
     action = action_def[ 0 ]; t = action_def[ 1 ]; in_ctx = action_def[ 2 ]; in_hctx = action_def[ 3 ];
-    msg = self.msg;
+    autocomplete = action_def[ 4 ]; msg = self.msg;
     
     if ( is_block /*&& token.block*/ )
     {
@@ -2800,15 +2859,15 @@ function t_action( a, stream, state, token )
             {*/
             if ( in_hctx && state.hctx )
             {
-                state.hctx.val.symb = add_key(state.hctx.val.symb, ns, [l1, c1, l2, c2]);
+                state.hctx.val.symb = add_key(state.hctx.val.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
             }
             else if ( in_ctx && state.ctx )
             {
-                state.ctx.val.symb = add_key(state.ctx.val.symb, ns, [l1, c1, l2, c2]);
+                state.ctx.val.symb = add_key(state.ctx.val.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
             }
             else
             {
-                state.symb = add_key(state.symb, ns, [l1, c1, l2, c2]);
+                state.symb = add_key(state.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
             }
             /*}*/
         }
@@ -3013,15 +3072,15 @@ function t_action( a, stream, state, token )
         {
             if ( in_hctx )
             {
-                state.hctx.val.symb = add_key(state.hctx.val.symb, ns, [l1, c1, l2, c2]);
+                state.hctx.val.symb = add_key(state.hctx.val.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
             }
             else if ( in_ctx )
             {
-                state.ctx.val.symb = add_key(state.ctx.val.symb, ns, [l1, c1, l2, c2]);
+                state.ctx.val.symb = add_key(state.ctx.val.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
             }
             else
             {
-                state.symb = add_key(state.symb, ns, [l1, c1, l2, c2]);
+                state.symb = add_key(state.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
             }
         }
     }
@@ -4373,26 +4432,27 @@ var Parser = Class({
         return ret;
     }
 
-    ,autocompletion: function( state, min_found ) {
+    ,autocompletion: function( state, min_found, dynamic ) {
         var stack = state.stack, token, type,
-            hash = {}, follows = generate_autocompletion( [ state.token ], [], hash );
+            hash = {}, dynToks = dynamic ? generate_dynamic_autocompletion( state ) : null,
+            follows = generate_autocompletion( [ state.token ], [], hash, dynToks );
         min_found  = min_found || 0;
         while( stack )
         {
             token = stack.val; type = token.type;
             if ( T_REPEATED & type )
             {
-                follows = generate_autocompletion( [ token ], follows, hash );
+                follows = generate_autocompletion( [ token ], follows, hash, dynToks );
                 if ( (0 < token.min) && (min_found < follows.length) ) break;
             }
             else if ( (T_SIMPLE === type) || (T_ALTERNATION === type) || (T_SEQUENCE_OR_NGRAM & type) )
             {
-                follows = generate_autocompletion( [ token ], follows, hash );
+                follows = generate_autocompletion( [ token ], follows, hash, dynToks );
                 if ( min_found < follows.length ) break;
             }
             stack = stack.prev;
         }
-        return follows;
+        return dynToks && dynToks.length ? dynToks.concat(follows) : follows;
     }
     
     // overriden
@@ -4820,7 +4880,7 @@ var Matcher = {
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 4.1.0
+*   @version: 4.2.0
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -4984,18 +5044,19 @@ var CodeMirrorParser = Class(Parser, {
     
     // adapted from codemirror anyword-hint helper
     ,autocomplete: function( cm, options, CodeMirror ) {
+            options = options || {};
         var parser = this, list = [],
+            prefix_match = options[HAS]('prefixMatch') ? !!options.prefixMatch : true,
+            in_context = options[HAS]('inContext')? !!options.inContext : false,
+            dynamic = options[HAS]('dynamic')? !!options.dynamic : false,
+            case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false,
             cur = cm.getCursor(), curLine,
             start0 = cur.ch, start = start0, end0 = start0, end = end0,
             token, token_i, len, maxlen = 0, word_re, renderer,
-            case_insensitive_match, prefix_match, in_context, sort_by_score, score;
-        if ( !!parser.$grammar.$autocomplete )
+            case_insensitive_match, prefix_match, in_context, dynamic, sort_by_score, score;
+        if ( dynamic || !!parser.$grammar.$autocomplete )
         {
-            options = options || {};
             word_re = options.word || RE_W; curLine = cm.getLine(cur.line);
-            prefix_match = options[HAS]('prefixMatch') ? !!options.prefixMatch : true;
-            in_context = options[HAS]('inContext')? !!options.inContext : false;
-            case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false;
             while (start && word_re.test(curLine[CHAR](start - 1))) --start;
             // operate similar to current ACE autocompleter equivalent
             if ( !prefix_match ) while (end < curLine.length && word_re.test(curLine[CHAR](end))) ++end;
@@ -5046,11 +5107,11 @@ var CodeMirrorParser = Class(Parser, {
                 return list;
             };
             
-            if ( in_context )
+            if ( dynamic || in_context )
             {
                 sort_by_score = false;
-                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state.state ), suggest, list);
-                if ( !list.length )
+                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state.state, null, dynamic ), suggest, list);
+                if ( !list.length && !!self.$grammar.$autocomplete )
                 {
                     sort_by_score = true;
                     list = operate(parser.$grammar.$autocomplete, suggest, list);
@@ -5363,7 +5424,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = {
     
-    VERSION: "4.1.0",
+    VERSION: "4.2.0",
     
     // clone a grammar
     /**[DOC_MARKDOWN]
