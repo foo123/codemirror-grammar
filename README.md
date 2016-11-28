@@ -217,6 +217,8 @@ Result:
 ![js-recursive-grammar](/test/grammar-js-recursion.png)
 ![js-recursive-grammar-autocomplete](/test/grammar-js-recursion-2.png)
 
+![js-scoped-grammar](/test/grammar-js-scoped.png)
+
 ![css-grammar](/test/grammar-css.png)
 
 ![python-grammar](/test/grammar-python.png)
