@@ -562,27 +562,68 @@ function new_re( re, fl )
 
 function get_delimited( src, delim, esc, collapse_esc )
 {
-    var c, i=src.pos, l=src.length, s='', escaped, is_esc, esc_cnt, can_be_escaped=!!esc;
-    if ( can_be_escaped )
+    var c, i=src.pos||0, l=src.length, s='', escaped;
+    if ( !!esc )
     {
-        collapse_esc = !!collapse_esc; escaped = false; esc_cnt = 0;
-        while ( i<l )
+        if ( !!collapse_esc )
         {
-            c = src[CHAR](i++);
-            if ( delim === c && !escaped ) break;
-            is_esc = esc === c; escaped = !escaped && is_esc;
-            if ( collapse_esc )
+            while ( i<l )
             {
-                if ( is_esc ) esc_cnt++;
-                if ( !is_esc || esc_cnt&2 )
+                escaped = false;
+                c = src[CHAR](i++);
+                if ( esc === c )
+                {
+                    escaped = true;
+                    c = src[CHAR](i++);
+                }
+                if ( delim === c )
+                {
+                    if ( escaped )
+                    {
+                        s += c;
+                        continue;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                else
                 {
                     s += c;
-                    esc_cnt = 0;
                 }
             }
-            else s += c;
         }
-        if ( esc_cnt&2 ) s += esc;
+        else
+        {
+            while ( i<l )
+            {
+                escaped = false;
+                c = src[CHAR](i++);
+                if ( esc === c )
+                {
+                    escaped = true;
+                    s += c;
+                    c = src[CHAR](i++);
+                }
+                if ( delim === c )
+                {
+                    if ( escaped )
+                    {
+                        s += c;
+                        continue;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    s += c;
+                }
+            }
+        }
     }
     else
     {
@@ -1334,7 +1375,7 @@ function generate_dynamic_autocompletion( state, follows )
         {
             if ( symb.val[1][7] )
             {
-                follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'<symbol>')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6]} );
+                follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6], pos:[symb.val[1][0]+1,symb.val[1][1]+1,symb.val[1][2]+1,symb.val[1][3]+1]} );
             }
             symb = symb.prev;
         }
@@ -1348,7 +1389,7 @@ function generate_dynamic_autocompletion( state, follows )
         {
             if ( symb.val[1][7] )
             {
-                follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'<symbol>')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6]} );
+                follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6], pos:[symb.val[1][0]+1,symb.val[1][1]+1,symb.val[1][2]+1,symb.val[1][3]+1]} );
             }
             symb = symb.prev;
         }
@@ -1359,7 +1400,7 @@ function generate_dynamic_autocompletion( state, follows )
     {
         if ( symb.val[1][7] )
         {
-            follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'<symbol>')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6]} );
+            follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6], pos:[symb.val[1][0]+1,symb.val[1][1]+1,symb.val[1][2]+1,symb.val[1][3]+1]} );
         }
         symb = symb.prev;
     }
@@ -1376,16 +1417,17 @@ function generate_autocompletion( token, follows, hash, dynamic )
         if ( !tok ) continue;
         if ( T_SIMPLE === tok.type )
         {
-            if ( dynamic && dynamic.length )
+            if ( dynamic && dynamic.length && !!tok.name )
             {
                 for (j=dynamic.length-1; j>=0; j--)
                 {
-                    if ( !!tok.name && !!dynamic[j].token && (
+                    if ( !!dynamic[j].token && (
                         (tok.name === dynamic[j].token) ||
                         (tok.name.length > dynamic[j].token.length && tok.name.slice(0,dynamic[j].token.length) === dynamic[j].token) ||
                         (tok.name.length < dynamic[j].token.length && tok.name === dynamic[j].token.slice(0,tok.name.length))
                     ) )
                     {
+                        dynamic[j].meta = tok.name + ' at ('+dynamic[j].pos[0]+','+dynamic[j].pos[1]+')';
                         follows.push( dynamic[j] );
                         dynamic.splice(j, 1);
                     }
@@ -1558,10 +1600,10 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     else token += c;
                 }
                 
-                else if ( ('"' === c) || ("'" === c) )
+                else if ( ('"' === c) || ('\'' === c) )
                 {
                     // literal token, quoted
-                    literal = get_delimited( t, c, '\\', true );
+                    literal = get_delimited( t, c, '\\', 1 );
                     if ( literal.length )
                     {
                         curr_token = '' + literal;
@@ -1581,7 +1623,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     // start of character select
                     /*if ( !token.length )
                     {*/
-                    literal = get_delimited( t, ']', '\\', true );
+                    literal = get_delimited( t, ']', '\\', 1 );
                     curr_token = '[' + literal + ']';
                     if ( !Lex[curr_token] )
                         Lex[curr_token] = {
@@ -1607,7 +1649,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     // literal regex token
                     /*if ( !token.length )
                     {*/
-                    literal = get_delimited( t, c, '\\', false ); fl = '';
+                    literal = get_delimited( t, c, '\\', 0 ); fl = '';
                     if ( literal.length )
                     {
                         if ( t.pos < t.length && 'i' === t[CHAR](t.pos) ) { t.pos++; fl = 'i'; }
@@ -1641,7 +1683,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     // literal repeat modifier, applies to token that comes before
                     if ( sequence.length )
                     {
-                        repeat = get_delimited( t, '}', false );
+                        repeat = get_delimited( t, '}', 0 );
                         repeat = map( repeat.split( ',' ), trim );
                         
                         if ( !repeat[0].length ) repeat[0] = 0; // {,m} match 0 times or more
