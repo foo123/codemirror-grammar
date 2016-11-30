@@ -4,6 +4,7 @@ codemirror-grammar
 __Transform a JSON grammar into a CodeMirror syntax-highlight parser__
 
 
+![CodeMirror Grammar](/codemirror-grammar.png)
 
 A simple and light-weight (~ 55kB minified, ~ 18kB zipped) [CodeMirror](https://github.com/marijnh/codemirror) add-on
 
