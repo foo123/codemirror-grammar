@@ -562,7 +562,7 @@ function new_re( re, fl )
 
 function get_delimited( src, delim, esc, collapse_esc )
 {
-    var c, i=src.pos||0, l=src.length, s='', escaped;
+    var i = src.pos||0, l = src.length, dl = delim.length, s = '', escaped;
     if ( !!esc )
     {
         if ( !!collapse_esc )
@@ -570,27 +570,20 @@ function get_delimited( src, delim, esc, collapse_esc )
             while ( i<l )
             {
                 escaped = false;
-                c = src[CHAR](i++);
-                if ( esc === c )
+                if ( esc === src[CHAR](i) )
                 {
                     escaped = true;
-                    c = src[CHAR](i++);
+                    i += 1;
                 }
-                if ( delim === c )
+                if ( delim === src.substr(i,dl) )
                 {
-                    if ( escaped )
-                    {
-                        s += c;
-                        continue;
-                    }
-                    else
-                    {
-                        break;
-                    }
+                    i += dl;
+                    if ( escaped ) s += delim;
+                    else break;
                 }
                 else
                 {
-                    s += c;
+                    s += src[CHAR](i++);
                 }
             }
         }
@@ -599,28 +592,21 @@ function get_delimited( src, delim, esc, collapse_esc )
             while ( i<l )
             {
                 escaped = false;
-                c = src[CHAR](i++);
-                if ( esc === c )
+                if ( esc === src[CHAR](i) )
                 {
                     escaped = true;
-                    s += c;
-                    c = src[CHAR](i++);
+                    i += 1;
+                    s += esc;
                 }
-                if ( delim === c )
+                if ( delim === src.substr(i,dl) )
                 {
-                    if ( escaped )
-                    {
-                        s += c;
-                        continue;
-                    }
-                    else
-                    {
-                        break;
-                    }
+                    i += dl;
+                    if ( escaped ) s += delim;
+                    else break;
                 }
                 else
                 {
-                    s += c;
+                    s += src[CHAR](i++);
                 }
             }
         }
@@ -629,9 +615,8 @@ function get_delimited( src, delim, esc, collapse_esc )
     {
         while ( i<l )
         {
-            c = src[CHAR](i++);
-            if ( delim === c ) break;
-            s += c;
+            if ( delim === src.substr(i,dl) ) { i += dl; break; }
+            s += src[CHAR](i++);
         }
     }
     src.pos = i;
@@ -1626,12 +1611,12 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     c = t[CHAR]( t.pos+1 );
                     if ( '^' === c ) t.pos++;
                     else c = '';
-                    literal = get_delimited( t, ']', '\\', 1 );
+                    literal = get_delimited( t, ']', '\\', 0 );
                     curr_token = '[' + c+literal + ']';
                     if ( !Lex[curr_token] )
                         Lex[curr_token] = {
                             type:'simple',
-                            tokens:new_re("^(["+c+esc_re(literal)+"])")
+                            tokens:new_re("^(["+c+/*esc_re(*/literal/*)*/+"])")
                             //                                          negative match,      else   positive match
                         /*literal.split('')*/};
                     sequence.push( curr_token );
@@ -1686,7 +1671,7 @@ function parse_peg_bnf_notation( tok, Lex, Syntax )
                     // literal repeat modifier, applies to token that comes before
                     if ( sequence.length )
                     {
-                        repeat = get_delimited( t, '}', 0 );
+                        repeat = get_delimited( t, '}', 0, 0 );
                         repeat = map( repeat.split( ',' ), trim );
                         
                         if ( !repeat[0].length ) repeat[0] = 0; // {,m} match 0 times or more
