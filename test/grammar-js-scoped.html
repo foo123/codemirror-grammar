@@ -45,6 +45,7 @@
 var aglobal = 123;
 function afunc( a, b /* function arguments */ )
 {
+    b = 12;
     var alocal = 456, b = alocal+789; /* b is a local variable */
     var c = {a:12, b:a+b+34, "a":45};
     return aglobal + alocal + a + b;

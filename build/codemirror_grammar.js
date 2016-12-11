@@ -1,7 +1,7 @@
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 4.2.0
+*   @version: 4.2.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -23,7 +23,7 @@ else if ( !(name in root) ) /* Browser/WebWorker/.. */
 "use strict";
 /**
 *   EditorGrammar Codebase
-*   @version: 4.2.0
+*   @version: 4.2.1
 *
 *   https://github.com/foo123/editor-grammar
 **/
@@ -84,9 +84,9 @@ $T_EMPTY$ = '$|EMPTY|$', $T_NONSPACE$ = '$|NONSPACE|$'
 ;
 
 var undef = undefined, 
-    PROTO = 'prototype', HAS = 'hasOwnProperty', IS_ENUM = 'propertyIsEnumerable',
-    OP = Object[PROTO], toString = OP.toString, Extend = Object.create,
+    PROTO = 'prototype', OP = Object[PROTO], Extend = Object.create,
     MAX = Math.max, MIN = Math.min, LOWER = 'toLowerCase', CHAR = 'charAt',
+    toString = OP.toString, HAS = OP.hasOwnProperty, IS_ENUM = OP.propertyIsEnumerable,
     
     // types
     INF = Infinity,
@@ -259,7 +259,7 @@ function clone( o, deep )
         co = { };
         for (k in o) 
         {
-            if ( !o[HAS](k) || !o[IS_ENUM](k) ) continue;
+            if ( !HAS.call(o,k) || !IS_ENUM.call(o,k) ) continue;
             T2 = get_type( o[k] );
             
             if ( T_OBJ === T2 )         co[k] = deep ? clone( o[k], level>0 ? level-1 : deep ) : o[k];
@@ -321,8 +321,8 @@ function extend(/* var args here.. */)
         
         for (k in o2) 
         { 
-            if ( !o2[HAS](k) || !o2[IS_ENUM](k) ) continue;
-            if ( o[HAS](k) && o[IS_ENUM](k) ) 
+            if ( !HAS.call(o2,k) || !IS_ENUM.call(o2,k) ) continue;
+            if ( HAS.call(o,k) && IS_ENUM.call(o,k) ) 
             { 
                 T = get_type( o[k] ); T2 = get_type( o2[k] );
                 if ( T_OBJ === T && T_OBJ === T2 )
@@ -409,7 +409,7 @@ function Merge(/* var args here.. */)
         {
             for (p in o2)
             {            
-                if ( !o2[HAS](p) || !o2[IS_ENUM](p) ) continue;
+                if ( !HAS.call(o2,p) || !IS_ENUM.call(o2,p) ) continue;
                 
                 v = o2[p]; T = get_type( v );
                 
@@ -448,7 +448,7 @@ function Class( O, C )
         O = O || Object;
         C = C || { };
     }
-    if ( !C[HAS](CTOR) ) C[CTOR] = function( ){ };
+    if ( !HAS.call(C,CTOR) ) C[CTOR] = function( ){ };
     ctor = C[CTOR]; delete C[CTOR];
     ctor[PROTO] = Merge( Extend(O[PROTO]), C );
     ctor[PROTO][CTOR] = ctor;
@@ -933,7 +933,7 @@ function preprocess_grammar( grammar )
         G = conf[i++];
         for (t in G)
         {
-            if ( !G[HAS](t) ) continue;
+            if ( !HAS.call(G,t) ) continue;
             id = t.split(':');
             type = id[1] && trim(id[1]).length ? trim(id[1]) : null;
             id = trim(id[0]);
@@ -1019,7 +1019,7 @@ function preprocess_grammar( grammar )
     G = Lex;
     for (id in G)
     {
-        if ( !G[HAS](id) ) continue;
+        if ( !HAS.call(G,id) ) continue;
         tok = G[id];
         // allow tokens to extend / reference other tokens
         while ( tok['extend'] )
@@ -1045,12 +1045,16 @@ function preprocess_grammar( grammar )
     G = Lex;
     for (id in G)
     {
-        if ( !G[HAS](id) ) continue;
+        if ( !HAS.call(G,id) ) continue;
         tok = G[id];
         if ( tok.type )
         {
             tl = tok.type = tok.type[LOWER]();
-            if ( 'line-block' === tl )
+            if ( 'action' === tl )
+            {
+                tok.options = tok.options||{};
+            }
+            else if ( 'line-block' === tl )
             {
                 tok.type = 'block';
                 tok.multiline = false;
@@ -1117,79 +1121,92 @@ function preprocess_grammar( grammar )
             else if ( tok['nop'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'nop', tok.nop, false ];
+                tok.options = tok.options||{};
+                tok.action = [ 'nop', tok.nop, tok.options ];
                 tok.nop = true;
             }
             else if ( tok['error'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'error', tok.error, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ 'error', tok.error, tok.options ];
                 del(tok,'error');
             }
-            else if ( tok[HAS]('hypercontext') )
+            else if ( HAS.call(tok,'hypercontext') )
             {
                 tok.type = 'action';
-                tok.action = [ !!tok.hypercontext ? 'hypercontext-start' : 'hypercontext-end', tok['hypercontext'], !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ !!tok.hypercontext ? 'hypercontext-start' : 'hypercontext-end', tok['hypercontext'], tok.options ];
                 del(tok,'hypercontext');
             }
-            else if ( tok[HAS]('context') )
+            else if ( HAS.call(tok,'context') )
             {
                 tok.type = 'action';
-                tok.action = [ !!tok.context ? 'context-start' : 'context-end', tok['context'], !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ !!tok.context ? 'context-start' : 'context-end', tok['context'], tok.options ];
                 del(tok,'context');
             }
             else if ( tok['indent'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'indent', tok.indent, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ 'indent', tok.indent, tok.options ];
                 del(tok,'indent');
             }
             else if ( tok['outdent'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'outdent', tok.outdent, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ 'outdent', tok.outdent, tok.options ];
                 del(tok,'outdent');
             }
             else if ( tok['define'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'define', T_STR&get_type(tok.define) ? ['*', tok.define] : tok.define, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ 'define', T_STR&get_type(tok.define) ? ['*', tok.define] : tok.define, tok.options ];
                 del(tok,'define');
             }
             else if ( tok['undefine'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'undefine', T_STR&get_type(tok.undefine) ? ['*', tok.undefine] : tok.undefine, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ 'undefine', T_STR&get_type(tok.undefine) ? ['*', tok.undefine] : tok.undefine, tok.options ];
                 del(tok,'undefine');
             }
             else if ( tok['defined'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'defined', T_STR&get_type(tok.defined) ? ['*', tok.defined] : tok.defined, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ 'defined', T_STR&get_type(tok.defined) ? ['*', tok.defined] : tok.defined, tok.options ];
                 del(tok,'defined');
             }
             else if ( tok['notdefined'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'notdefined', T_STR&get_type(tok.notdefined) ? ['*', tok.notdefined] : tok.notdefined, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ 'notdefined', T_STR&get_type(tok.notdefined) ? ['*', tok.notdefined] : tok.notdefined, tok.options ];
                 del(tok,'notdefined');
             }
             else if ( tok['unique'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'unique', T_STR&get_type(tok.unique) ? ['*', tok.unique] : tok.unique, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ 'unique', T_STR&get_type(tok.unique) ? ['*', tok.unique] : tok.unique, tok.options ];
                 del(tok,'unique');
             }
             else if ( tok['push'] )
             {
                 tok.type = 'action';
-                tok.action = [ 'push', tok.push, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ 'push', tok.push, tok.options ];
                 del(tok,'push');
             }
-            else if ( tok[HAS]('pop') )
+            else if ( HAS.call(tok,'pop') )
             {
                 tok.type = 'action';
-                tok.action = [ 'pop', tok.pop, !!tok['in-context'], !!tok['in-hypercontext'] ];
+                tok.options = tok.options||{};
+                tok.action = [ 'pop', tok.pop, tok.options ];
                 del(tok,'pop');
             }
             else
@@ -1199,19 +1216,23 @@ function preprocess_grammar( grammar )
         }
         if ( 'action' === tok.type )
         {
-            tok.ci = !!(tok.caseInsesitive||tok.ci);
-            tok.autocomplete = !!tok.autocomplete;
+            tok.options = tok.options||{};
+            tok.options['in-context'] = !!(tok.options['in-context'] || tok['in-context']);
+            tok.options['in-hypercontext'] = !!(tok.options['in-hypercontext'] || tok['in-hypercontext']);
+            tok.options.ci = tok.ci = !!(tok.options.caseInsesitive || tok.options.ci || tok.caseInsesitive || tok.ci);
+            tok.options.autocomplete = !!(tok.options.autocomplete || tok.autocomplete);
+            tok.options.mode = tok.options.mode || tok.mode;
         }
         else if ( 'block' === tok.type || 'comment' === tok.type )
         {
-            tok.multiline = tok[HAS]('multiline') ? !!tok.multiline : true;
+            tok.multiline = HAS.call(tok,'multiline') ? !!tok.multiline : true;
             if ( !(T_STR & get_type(tok.escape)) ) tok.escape = false;
         }
         else if ( 'simple' === tok.type )
         {
             //tok.autocomplete = !!tok.autocomplete;
             tok.meta = !!tok.autocomplete && (T_STR & get_type(tok.meta)) ? tok.meta : null;
-            //tok.combine = !tok[HAS]('combine') ? true : tok.combine;
+            //tok.combine = !HAS.call(tok,'combine') ? true : tok.combine;
             tok.ci = !!(tok.caseInsesitive||tok.ci);
         }
     }
@@ -1220,7 +1241,7 @@ function preprocess_grammar( grammar )
     G = Syntax;
     for (id in G)
     {
-        if ( !G[HAS](id) ) continue;
+        if ( !HAS.call(G,id) ) continue;
         tok = G[id];
         if ( T_OBJ === get_type(tok) && !tok.type )
         {
@@ -1351,18 +1372,26 @@ function preprocess_grammar( grammar )
 function generate_dynamic_autocompletion( state, follows )
 {
     follows = follows || [];
-    var list, symb;
+    var list, symb, n, entry;
     list = state.ctx;
     while ( list )
     {
         symb = list.val.symb;
         while ( symb )
         {
-            if ( symb.val[1][7] )
+            entry = symb.val[1];
+            if ( entry[7] )
             {
-                follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6], pos:[symb.val[1][0]+1,symb.val[1][1]+1,symb.val[1][2]+1,symb.val[1][3]+1]} );
+                follows.push( {word:entry[5], meta:(entry[6]||'')+' at ('+(entry[0]+1)+','+(entry[1]+1)+')', ci:entry[8], token:entry[6], pos:[entry[0]+1,entry[1]+1,entry[2]+1,entry[3]+1]} );
             }
             symb = symb.prev;
+        }
+        symb = list.val.tabl;
+        for(n in symb)
+        {
+            if ( !HAS.call(symb, n) || !symb[n][7] ) continue;
+            entry = symb[n];
+            follows.push( {word:entry[5], meta:(entry[6]||'')+' at ('+(entry[0]+1)+','+(entry[1]+1)+')', ci:entry[8], token:entry[6], pos:[entry[0]+1,entry[1]+1,entry[2]+1,entry[3]+1]} );
         }
         list = list.prev;
     }
@@ -1372,22 +1401,38 @@ function generate_dynamic_autocompletion( state, follows )
         symb = list.val.symb;
         while ( symb )
         {
-            if ( symb.val[1][7] )
+            entry = symb.val[1];
+            if ( entry[7] )
             {
-                follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6], pos:[symb.val[1][0]+1,symb.val[1][1]+1,symb.val[1][2]+1,symb.val[1][3]+1]} );
+                follows.push( {word:entry[5], meta:(entry[6]||'')+' at ('+(entry[0]+1)+','+(entry[1]+1)+')', ci:entry[8], token:entry[6], pos:[entry[0]+1,entry[1]+1,entry[2]+1,entry[3]+1]} );
             }
             symb = symb.prev;
+        }
+        symb = list.val.tabl;
+        for(n in symb)
+        {
+            if ( !HAS.call(symb, n) || !symb[n][7] ) continue;
+            entry = symb[n];
+            follows.push( {word:entry[5], meta:(entry[6]||'')+' at ('+(entry[0]+1)+','+(entry[1]+1)+')', ci:entry[8], token:entry[6], pos:[entry[0]+1,entry[1]+1,entry[2]+1,entry[3]+1]} );
         }
         list = list.prev;
     }
     symb = state.symb;
     while ( symb )
     {
-        if ( symb.val[1][7] )
+        entry = symb.val[1];
+        if ( entry[7] )
         {
-            follows.push( {word:symb.val[1][5], meta:(symb.val[1][6]||'')+' at ('+(symb.val[1][0]+1)+','+(symb.val[1][1]+1)+')', ci:symb.val[1][8], token:symb.val[1][6], pos:[symb.val[1][0]+1,symb.val[1][1]+1,symb.val[1][2]+1,symb.val[1][3]+1]} );
+            follows.push( {word:entry[5], meta:(entry[6]||'')+' at ('+(entry[0]+1)+','+(entry[1]+1)+')', ci:entry[8], token:entry[6], pos:[entry[0]+1,entry[1]+1,entry[2]+1,entry[3]+1]} );
         }
         symb = symb.prev;
+    }
+    symb = state.tabl;
+    for(n in symb)
+    {
+        if ( !HAS.call(symb, n) || !symb[n][7] ) continue;
+        entry = symb[n];
+        follows.push( {word:entry[5], meta:(entry[6]||'')+' at ('+(entry[0]+1)+','+(entry[1]+1)+')', ci:entry[8], token:entry[6], pos:[entry[0]+1,entry[1]+1,entry[2]+1,entry[3]+1]} );
     }
     return follows;
 }
@@ -1423,7 +1468,7 @@ function generate_autocompletion( token, follows, hash, dynamic )
                 for(j=0,m=tok.autocompletions.length; j<m; j++)
                 {
                     w = tok.autocompletions[j];
-                    if ( !hash[HAS]('w_'+w.word) )
+                    if ( !HAS.call(hash,'w_'+w.word) )
                     {
                         follows.push( w );
                         hash['w_'+w.word] = 1;
@@ -1432,7 +1477,7 @@ function generate_autocompletion( token, follows, hash, dynamic )
             }
             else if ( (T_STR === tok.token.ptype) && (T_STR&get_type(tok.token.pattern)) && (tok.token.pattern.length > 1) )
             {
-                if ( !hash[HAS]('w_'+tok.token.pattern) )
+                if ( !HAS.call(hash,'w_'+tok.token.pattern) )
                 {
                     follows.push( {word:''+tok.token.pattern, meta:tok.name, ci:!!tok.ci} );
                     hash['w_'+tok.token.pattern] = 1;
@@ -1994,25 +2039,32 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
 
     if ( T_ACTION & $type$ )
     {
-        if ( !token[HAS]('action') )
+        token.options = token.options||{};
+        token.options['in-context'] = !!(token.options['in-context'] || token['in-context']);
+        token.options['in-hypercontext'] = !!(token.options['in-hypercontext'] || token['in-hypercontext']);
+        token.options.ci = token.ci = !!(token.options.caseInsesitive || token.options.ci || token.caseInsesitive || token.ci);
+        token.options.autocomplete = !!(token.options.autocomplete || token.autocomplete);
+        token.options.mode = token.options.mode || token.mode;
+        
+        if ( !HAS.call(token,'action') )
         {
-            if ( token[HAS]('nop') ) token.action = [A_NOP, token.nop, !!token['in-context'], !!token['in-hypercontext'], false];
-            else if ( token[HAS]('error') ) token.action = [A_ERROR, token.error, false, false, false];
-            else if ( token[HAS]('context') ) token.action = [!!token.context?A_CTXSTART:A_CTXEND, token['context'], false, false, false];
-            else if ( token[HAS]('hypercontext') ) token.action = [!!token.hypercontext?A_HYPCTXSTART:A_HYPCTXEND, token['hypercontext'], false, false, false];
-            else if ( token[HAS]('context-start') ) token.action = [A_CTXSTART, token['context-start'], false, false, false];
-            else if ( token[HAS]('context-end') ) token.action = [A_CTXEND, token['context-end'], false, false, false];
-            else if ( token[HAS]('hypercontext-start') ) token.action = [A_HYPCTXSTART, token['hypcontext-start'], false, false, false];
-            else if ( token[HAS]('hypercontext-end') ) token.action = [A_HYPCTXEND, token['hypcontext-end'], false, false, false];
-            else if ( token[HAS]('push') ) token.action = [A_MCHSTART, token.push, !!token['in-context'], !!token['in-hypercontext'], token['autocomplete']];
-            else if ( token[HAS]('pop') ) token.action = [A_MCHEND, token.pop, !!token['in-context'], !!token['in-hypercontext'], false];
-            else if ( token[HAS]('define') ) token.action = [A_DEFINE, T_STR&get_type(token.define)?['*',token.define]:token.define, !!token['in-context'], !!token['in-hypercontext'], token['autocomplete']];
-            else if ( token[HAS]('undefine') ) token.action = [A_UNDEFINE, T_STR&get_type(token.undefine)?['*',token.undefine]:token.undefine, !!token['in-context'], !!token['in-hypercontext'], token['autocomplete']];
-            else if ( token[HAS]('defined') ) token.action = [A_DEFINED, T_STR&get_type(token.defined)?['*',token.defined]:token.defined, !!token['in-context'], !!token['in-hypercontext'], false];
-            else if ( token[HAS]('notdefined') ) token.action = [A_NOTDEFINED, T_STR&get_type(token.notdefined)?['*',token.notdefined]:token.notdefined, !!token['in-context'], !!token['in-hypercontext'], false];
-            else if ( token[HAS]('unique') ) token.action = [A_UNIQUE, T_STR&get_type(token.unique)?['*',token.unique]:token.unique, !!token['in-context'], !!token['in-hypercontext'], token['autocomplete']];
-            else if ( token[HAS]('indent') ) token.action = [A_INDENT, token.indent, !!token['in-context'], !!token['in-hypercontext'], false];
-            else if ( token[HAS]('outdent') ) token.action = [A_OUTDENT, token.outdent, !!token['in-context'], !!token['in-hypercontext'], false];
+            if ( HAS.call(token,'nop') ) token.action = [A_NOP, token.nop, token['options']];
+            else if ( HAS.call(token,'error') ) token.action = [A_ERROR, token.error, token['options']];
+            else if ( HAS.call(token,'context') ) token.action = [!!token.context?A_CTXSTART:A_CTXEND, token['context'], token['options']];
+            else if ( HAS.call(token,'hypercontext') ) token.action = [!!token.hypercontext?A_HYPCTXSTART:A_HYPCTXEND, token['hypercontext'], token['options']];
+            else if ( HAS.call(token,'context-start') ) token.action = [A_CTXSTART, token['context-start'], token['options']];
+            else if ( HAS.call(token,'context-end') ) token.action = [A_CTXEND, token['context-end'], token['options']];
+            else if ( HAS.call(token,'hypercontext-start') ) token.action = [A_HYPCTXSTART, token['hypcontext-start'], token['options']];
+            else if ( HAS.call(token,'hypercontext-end') ) token.action = [A_HYPCTXEND, token['hypcontext-end'], token['options']];
+            else if ( HAS.call(token,'push') ) token.action = [A_MCHSTART, token.push, token['options']];
+            else if ( HAS.call(token,'pop') ) token.action = [A_MCHEND, token.pop, token['options']];
+            else if ( HAS.call(token,'define') ) token.action = [A_DEFINE, T_STR&get_type(token.define)?['*',token.define]:token.define, token['options']];
+            else if ( HAS.call(token,'undefine') ) token.action = [A_UNDEFINE, T_STR&get_type(token.undefine)?['*',token.undefine]:token.undefine, token['options']];
+            else if ( HAS.call(token,'defined') ) token.action = [A_DEFINED, T_STR&get_type(token.defined)?['*',token.defined]:token.defined, token['options']];
+            else if ( HAS.call(token,'notdefined') ) token.action = [A_NOTDEFINED, T_STR&get_type(token.notdefined)?['*',token.notdefined]:token.notdefined, token['options']];
+            else if ( HAS.call(token,'unique') ) token.action = [A_UNIQUE, T_STR&get_type(token.unique)?['*',token.unique]:token.unique, token['options']];
+            else if ( HAS.call(token,'indent') ) token.action = [A_INDENT, token.indent, token['options']];
+            else if ( HAS.call(token,'outdent') ) token.action = [A_OUTDENT, token.outdent, token['options']];
         }
         else
         {
@@ -2035,8 +2087,9 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
         if ( false === token.msg ) $msg$ = false;
         // NOP action, no action
         if ( token.nop ) token.action[0] = A_NOP;
+        //if ( token.action.length < 3 ) token.action.push( token.options );
         $token$ = new tokenizer( T_ACTION, tokenID, token.action.slice(), $msg$, $modifier$ );
-        $token$.ci = !!token.caseInsensitive||token.ci;
+        $token$.ci = !!(token.options.caseInsensitive || token.options.ci || token.caseInsensitive || token.ci);
         // pre-cache tokenizer to handle recursive calls to same tokenizer
         cachedTokens[ tokenID ] = $token$;
     }
@@ -2099,9 +2152,9 @@ function get_tokenizer( tokenID, RegExpID, Lex, Syntax, Style,
                         get_blockmatcher( tokenID, $tokens$.slice(), RegExpID, cachedRegexes, cachedMatchers ), 
                         $msg$
                     );
-            $token$.empty = token[HAS]('empty') ? !!token.empty : true;
-            $token$.mline = token[HAS]('multiline') ? !!token.multiline : true;
-            $token$.esc = token[HAS]('escape') ? token.escape : false;
+            $token$.empty = HAS.call(token,'empty') ? !!token.empty : true;
+            $token$.mline = HAS.call(token,'multiline') ? !!token.multiline : true;
+            $token$.esc = HAS.call(token,'escape') ? token.escape : false;
             // allow block delims / block interior to have different styles
             $token$.inter = !!Style[ tokenID + '.inside' ];
             if ( (T_COMMENT === $type$) && token.interleave ) interleavedTokens.push( t_clone( $token$ ) );
@@ -2196,14 +2249,14 @@ function get_block_types( grammar, the_styles )
         blocks = [], visited = {};
     for (t in Style )
     {
-        if ( !Style[HAS](t) ) continue;
+        if ( !HAS.call(Style,t) ) continue;
         T = Lex[t] || Syntax[t];
         if ( T && ('block' == T.type || 'comment' === T.type) )
         {
             if ( the_styles && (Style[ t+'.inside' ]||Style[ t ]) )
             {
                 t = Style[ t+'.inside' ] || Style[ t ];
-                if ( !visited[HAS](t) )
+                if ( !HAS.call(visited,t) )
                 {
                     blocks.push( t );
                     visited[t] = 1;
@@ -2211,7 +2264,7 @@ function get_block_types( grammar, the_styles )
             }
             else if ( !the_styles )
             {
-                if ( !visited[HAS](t) )
+                if ( !HAS.call(visited,t) )
                 {
                     blocks.push( t );
                     visited[t] = 1;
@@ -2610,58 +2663,63 @@ function error_( state, l1, c1, l2, c2, t, err )
     //return state;
 }
 
-function find_key( list, key/*, recursive, least, hash*/ )
+function find_key( list, key, hash )
 {
-    /*if ( hash )
+    var match = null;
+    if ( hash )
     {
-        return list && list[HAS](key) ? list[key] : null;
-    }
-    else if ( recursive )
-    {
-        var nodeNext, listNext, node, match;
-        listNext = null;
-        while ( list )
+        if ( list && HAS.call(list,key) )
         {
-            node = list.val.symb; nodeNext = null;
-            while ( node )
-            {
-                if ( key === node.val[0] )
-                {
-                    match = {list:list, listPrev:list.prev, listNext:listNext, node:node, nodePrev:node.prev, nodeNext:nodeNext, val:node.val[1]};
-                    return match;
-                }
-                nodeNext = node; node = node.prev;
-            }
-            listNext = list; list = list.prev;
+            match = {list:list, key:key, val:list[key]};
         }
     }
     else
-    {*/
-        var next = null, match = null;
+    {
+        var next = null, root = list;
         while ( list )
         {
             if ( key === list.val[0] )
             {
-                match = {node:list, nodePrev:list.prev, nodeNext:next, val:list.val[1]};
-                /*if ( !least )*/ return match;
+                match = {list:root, node:list, nodePrev:list.prev, nodeNext:next, key:key, val:list.val[1]};
+                break;
             }
             next = list; list = list.prev;
         }
-        return match;
-    /*}*/
+    }
+    return match;
 }
 
-function add_key( list, key, val/*, hash*/ )
+function add_key( list, key, val, hash )
 {
-    /*if ( hash )
+    if ( hash )
     {
         list[key] = val;
         return list;
     }
     else
-    {*/
+    {
         return new Stack([key,val], list);
-    /*}*/
+    }
+}
+
+function del_key( match, hash )
+{
+    if ( hash )
+    {
+        delete match.list[match.key];
+    }
+    else
+    {
+        if ( match.nodeNext )
+        {
+            match.nodeNext.prev = match.nodePrev;
+        }
+        else
+        {
+            match.list = match.list.prev;
+        }
+    }
+    return match.list;
 }
 
 function push_at( state, pos, token )
@@ -2808,9 +2866,9 @@ function t_action( a, stream, state, token )
 {
     var self = a, action_def = self.token || null,
     action, case_insensitive = self.ci, aid = self.name,
-    t, t0, ns, msg, queu, symb, found, autocomplete,
+    t, t0, ns, msg, queu, symb, found, raw = false,
     l1, c1, l2, c2, in_ctx, in_hctx, err, t_str, is_block,
-    no_state_errors = !(state.status & ERRORS);
+    options, hash, list, no_state_errors = !(state.status & ERRORS);
 
     self.status = 0; self.$msg = null;
 
@@ -2820,20 +2878,22 @@ function t_action( a, stream, state, token )
     // NOP action, return OR partial block not completed yet, postpone
     if ( A_NOP === action_def[ 0 ] || is_block && !token.block ) return true;
 
-    action = action_def[ 0 ]; t = action_def[ 1 ]; in_ctx = action_def[ 2 ]; in_hctx = action_def[ 3 ];
-    autocomplete = action_def[ 4 ]; msg = self.msg;
+    action = action_def[ 0 ]; t = action_def[ 1 ]; options = action_def[ 2 ] || {}; msg = self.msg;
+    in_ctx = options['in-context']; in_hctx = options['in-hypercontext'];
     
     if ( is_block /*&& token.block*/ )
     {
         t_str = token.block.match || token.block.str;
         l1 = token.block.pos[0][0];     c1 = token.block.pos[0][1];
         l2 = token.block.pos[0][2];     c2 = token.block.pos[0][3];
+        raw = true;
     }
     else
     {
         t_str = token.match || token.str;
         l1 = token.pos[0];              c1 = token.pos[1];
         l2 = token.pos[2];              c2 = token.pos[3];
+        raw = false;
     }
 
     if ( A_CTXEND === action )
@@ -2843,7 +2903,7 @@ function t_action( a, stream, state, token )
 
     else if ( A_CTXSTART === action )
     {
-        state.ctx = new Stack({symb:null,queu:null}, state.ctx);
+        state.ctx = new Stack({tabl:{},symb:null,queu:null}, state.ctx);
     }
 
     else if ( A_HYPCTXEND === action )
@@ -2853,150 +2913,92 @@ function t_action( a, stream, state, token )
 
     else if ( A_HYPCTXSTART === action )
     {
-        state.hctx = new Stack({symb:null,queu:null}, state.hctx);
+        state.hctx = new Stack({tabl:{},symb:null,queu:null}, state.hctx);
     }
 
     else if ( A_DEFINE === action )
     {
+        hash = "hash" === options.mode;
+        list = hash ? "tabl" : "symb";
         t0 = t[1]; ns = t[0];
-        t0 = group_replace( t0, t_str, true );
+        t0 = group_replace( t0, t_str, raw );
         if ( case_insensitive ) t0 = t0[LOWER]();
         ns += '::'+t0;
         if ( in_hctx && state.hctx )
         {
-            found = find_key(state.hctx.val.symb, ns);
+            found = find_key(state.hctx.val[list], ns, hash);
         }
         else if ( in_ctx && state.ctx )
         {
-            found = find_key(state.ctx.val.symb, ns);
-        }
-        else if ( state.symb )
-        {
-            found = find_key(state.symb, ns);
+            found = find_key(state.ctx.val[list], ns, hash);
         }
         else
         {
-            found = null;
+            found = find_key(state[list], ns, hash);
         }
-        if ( !found /*|| (found.val[0] > l1) || ((found.val[0] === l1) && (found.val[1] > c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] > l2) || (found.val[3] > c2)))*/ )
+        if ( !found )
         {
-            /*if ( found )
-            {
-                found.val[0] = l1; found.val[1] = c1;
-                found.val[2] = l2; found.val[3] = c2;
-            }
-            else
-            {*/
             if ( in_hctx && state.hctx )
-            {
-                state.hctx.val.symb = add_key(state.hctx.val.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
-            }
+                state.hctx.val[list] = add_key(state.hctx.val[list], ns, [l1, c1, l2, c2, ns, t0, token.type, !!options.autocomplete, case_insensitive], hash);
             else if ( in_ctx && state.ctx )
-            {
-                state.ctx.val.symb = add_key(state.ctx.val.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
-            }
+                state.ctx.val[list] = add_key(state.ctx.val[list], ns, [l1, c1, l2, c2, ns, t0, token.type, !!options.autocomplete, case_insensitive], hash);
             else
-            {
-                state.symb = add_key(state.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
-            }
-            /*}*/
+                state[list] = add_key(state[list], ns, [l1, c1, l2, c2, ns, t0, token.type, !!options.autocomplete, case_insensitive], hash);
         }
     }
     
     else if ( A_UNDEFINE === action )
     {
+        hash = "hash" === options.mode;
+        list = hash ? "tabl" : "symb";
         t0 = t[1]; ns = t[0];
-        t0 = group_replace( t0, t_str, true );
+        t0 = group_replace( t0, t_str, raw );
         if ( case_insensitive ) t0 = t0[LOWER]();
         ns += '::'+t0;
         if ( in_hctx && state.hctx )
         {
-            found = find_key(state.hctx.val.symb, ns);
+            found = find_key(state.hctx.val[list], ns, hash);
         }
         else if ( in_ctx && state.ctx )
         {
-            found = find_key(state.ctx.val.symb, ns);
-        }
-        else if ( state.symb )
-        {
-            found = find_key(state.symb, ns);
+            found = find_key(state.ctx.val[list], ns, hash);
         }
         else
         {
-            return true;
+            found = find_key(state[list], ns, hash);
         }
-        if ( found /*&& ((found.val[0] < l1) || ((found.val[0] === l1) && (found.val[1] <= c1)))*/ )
+        if ( found )
         {
-            /*if ( found.list )
-            {
-                if ( found.nodeNext )
-                {
-                    found.nodeNext.prev = found.nodePrev;
-                }
-                else
-                {
-                    if ( in_hctx && state.hctx )
-                    {
-                        state.hctx.val.symb = found.listPrev;
-                    }
-                    else if ( in_ctx && state.ctx )
-                    {
-                        state.ctx.val.symb = found.listPrev;
-                    }
-                    else
-                    {
-                        state.symb = found.listPrev;
-                    }
-                }
-            }
+            if ( in_hctx && state.hctx )
+                state.hctx.val[list] = del_key( found, hash );
+            else if ( in_ctx && state.ctx )
+                state.ctx.val[list] = del_key( found, hash );
             else
-            {*/
-                if ( found.nodeNext )
-                {
-                    found.nodeNext.prev = found.nodePrev;
-                }
-                else
-                {
-                    if ( in_hctx && state.hctx )
-                    {
-                        state.hctx.val.symb = state.hctx.val.symb.prev;
-                    }
-                    else if ( in_ctx && state.ctx )
-                    {
-                        state.ctx.val.symb = state.ctx.val.symb.prev;
-                    }
-                    else
-                    {
-                        state.symb = state.symb.prev;
-                    }
-                }
-            /*}*/
+                state[list] = del_key( found, hash );
         }
     }
     
     else if ( A_DEFINED === action )
     {
+        hash = "hash" === options.mode;
+        list = hash ? "tabl" : "symb";
         t0 = t[1]; ns = t[0];
-        t0 = group_replace( t0, t_str, true );
+        t0 = group_replace( t0, t_str, raw );
         if ( case_insensitive ) t0 = t0[LOWER]();
         ns += '::'+t0;
         if ( in_hctx && state.hctx )
         {
-            found = find_key(state.hctx.val.symb, ns);
+            found = find_key(state.hctx.val[list], ns, hash);
         }
         else if ( in_ctx && state.ctx )
         {
-            found = find_key(state.ctx.val.symb, ns);
-        }
-        else if ( state.symb )
-        {
-            found = find_key(state.symb, ns);
+            found = find_key(state.ctx.val[list], ns, hash);
         }
         else
         {
-            found = null;
+            found = find_key(state[list], ns, hash);
         }
-        if ( !found /*|| (found.val[0] > l1) || ((found.val[0] === l1) && (found.val[1] > c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] > l2) || (found.val[3] > c2)))*/ )
+        if ( !found )
         {
             // undefined
             if ( false !== msg )
@@ -3014,27 +3016,25 @@ function t_action( a, stream, state, token )
     
     else if ( A_NOTDEFINED === action )
     {
+        hash = "hash" === options.mode;
+        list = hash ? "tabl" : "symb";
         t0 = t[1]; ns = t[0];
-        t0 = group_replace( t0, t_str, true );
+        t0 = group_replace( t0, t_str, raw );
         if ( case_insensitive ) t0 = t0[LOWER]();
         ns += '::'+t0;
         if ( in_hctx && state.hctx )
         {
-            found = find_key(state.hctx.val.symb, ns);
+            found = find_key(state.hctx.val[list], ns, hash);
         }
         else if ( in_ctx && state.ctx )
         {
-            found = find_key(state.ctx.val.symb, ns);
-        }
-        else if ( state.symb )
-        {
-            found = find_key(state.symb, ns);
+            found = find_key(state.ctx.val[list], ns, hash);
         }
         else
         {
-            return true;
+            found = find_key(state[list], ns, hash);
         }
-        if ( found /*&& ((found.val[0] < l1) || ((found.val[0] === l1) && (found.val[1] <= c1)) || ((found.val[0] === l1) && (found.val[1] === c1) && ((found.val[2] <= l2) && (found.val[3] <= c2))))*/ )
+        if ( found )
         {
             // defined
             if ( false !== msg )
@@ -3065,24 +3065,26 @@ function t_action( a, stream, state, token )
 
     else if ( A_UNIQUE === action )
     {
+        hash = "hash" === options.mode;
+        list = hash ? "tabl" : "symb";
         if ( in_hctx )
         {
-            if ( state.hctx ) symb = state.hctx.val.symb;
+            if ( state.hctx ) symb = state.hctx.val[list];
             else return true;
         }
         else if ( in_ctx )
         {
-            if ( state.ctx ) symb = state.ctx.val.symb;
+            if ( state.ctx ) symb = state.ctx.val[list];
             else return true;
         }
         else
         {
-            symb = state.symb;
+            symb = state[list];
         }
         t0 = t[1]; ns = t[0];
-        t0 = group_replace( t0, t_str, true );
+        t0 = group_replace( t0, t_str, raw );
         if ( case_insensitive ) t0 = t0[LOWER]();
-        ns += '::'+t0; found = find_key(symb, ns);
+        ns += '::'+t0; found = find_key(symb, ns, hash);
         if ( found )
         {
             // duplicate
@@ -3101,17 +3103,11 @@ function t_action( a, stream, state, token )
         else
         {
             if ( in_hctx )
-            {
-                state.hctx.val.symb = add_key(state.hctx.val.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
-            }
+                state.hctx.val[list] = add_key(state.hctx.val[list], ns, [l1, c1, l2, c2, ns, t0, token.type, !!options.autocomplete, case_insensitive], hash);
             else if ( in_ctx )
-            {
-                state.ctx.val.symb = add_key(state.ctx.val.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
-            }
+                state.ctx.val[list] = add_key(state.ctx.val[list], ns, [l1, c1, l2, c2, ns, t0, token.type, !!options.autocomplete, case_insensitive], hash);
             else
-            {
-                state.symb = add_key(state.symb, ns, [l1, c1, l2, c2, ns, t0, token.type, autocomplete, case_insensitive]);
-            }
+                state[list] = add_key(state[list], ns, [l1, c1, l2, c2, ns, t0, token.type, !!options.autocomplete, case_insensitive], hash);
         }
     }
     
@@ -3133,7 +3129,7 @@ function t_action( a, stream, state, token )
         }
         if ( t )
         {
-            t = group_replace( t, t_str );
+            t = group_replace( t, t_str, raw );
             if ( case_insensitive ) t = t[LOWER]();
             if ( !queu || t !== queu.val[0] ) 
             {
@@ -3214,7 +3210,7 @@ function t_action( a, stream, state, token )
         {
             queu = state.queu;
         }
-        t = group_replace( t, t_str );
+        t = group_replace( t, t_str, raw );
         if ( case_insensitive ) t = t[LOWER]();
         self.$msg = msg
             ? group_replace( msg, t, true )
@@ -3801,8 +3797,9 @@ function State( unique, s )
         self.outer = s.outer ? [s.outer[0], s.outer[1], new State(unique, s.outer[2])] : null;
         self.queu = s.queu || null;
         self.symb = s.symb || null;
-        self.ctx = s.ctx ? new Stack({symb:s.ctx.val.symb,queu:s.ctx.val.queu}, s.ctx.prev) : null;
-        self.hctx = s.hctx ? new Stack({symb:s.hctx.val.symb,queu:s.hctx.val.queu}, s.hctx.prev) : null;
+        self.tabl = s.tabl || null;
+        self.ctx = s.ctx ? new Stack({tabl:s.ctx.val.tabl,symb:s.ctx.val.symb,queu:s.ctx.val.queu}, s.ctx.prev) : null;
+        self.hctx = s.hctx ? new Stack({tabl:s.hctx.val.tabl,symb:s.hctx.val.symb,queu:s.hctx.val.queu}, s.hctx.prev) : null;
         self.err = s.err || null;
         self.$eol$ = s.$eol$; self.$blank$ = s.$blank$;
     }
@@ -3818,6 +3815,7 @@ function State( unique, s )
         self.outer = null;
         self.queu = null;
         self.symb = null;
+        self.tabl = {};
         self.ctx = null;
         self.hctx = null;
         self.err = self.status & ERRORS ? {} : null;
@@ -3867,6 +3865,7 @@ function state_dispose( state )
     state.outer = null;
     state.queu = null;
     state.symb = null;
+    state.tabl = null;
     state.ctx = null;
     state.hctx = null;
     state.err = null;
@@ -4462,27 +4461,30 @@ var Parser = Class({
         return ret;
     }
 
-    ,autocompletion: function( state, min_found, dynamic ) {
-        var stack = state.stack, token, type,
-            hash = {}, dynToks = dynamic ? generate_dynamic_autocompletion( state ) : null,
-            follows = generate_autocompletion( [ state.token ], [], hash, dynToks );
+    ,autocompletion: function( state, min_found, dynamic_tokens ) {
+        var stack = state.stack, token, type, hash = {},
+            follows = generate_autocompletion( [ state.token ], [], hash, dynamic_tokens );
         min_found  = min_found || 0;
         while( stack )
         {
             token = stack.val; type = token.type;
             if ( T_REPEATED & type )
             {
-                follows = generate_autocompletion( [ token ], follows, hash, dynToks );
+                follows = generate_autocompletion( [ token ], follows, hash, dynamic_tokens );
                 if ( (0 < token.min) && (min_found < follows.length) ) break;
             }
             else if ( (T_SIMPLE === type) || (T_ALTERNATION === type) || (T_SEQUENCE_OR_NGRAM & type) )
             {
-                follows = generate_autocompletion( [ token ], follows, hash, dynToks );
+                follows = generate_autocompletion( [ token ], follows, hash, dynamic_tokens );
                 if ( min_found < follows.length ) break;
             }
             stack = stack.prev;
         }
-        return dynToks && dynToks.length ? dynToks.concat(follows) : follows;
+        return dynamic_tokens && dynamic_tokens.length ? dynamic_tokens.concat(follows) : follows;
+    }
+    
+    ,dynamic_autocompletion: function( state ) {
+        return state ? generate_dynamic_autocompletion( state ) || null : null;
     }
     
     // overriden
@@ -4491,7 +4493,7 @@ var Parser = Class({
         if ( false === parser )
         {
             // remove
-            if ( self.$subgrammars[HAS](name) )
+            if ( HAS.call(self.$subgrammars,name) )
                 delete self.$subgrammars[name];
         }
         else if ( parser )
@@ -4910,7 +4912,7 @@ var Matcher = {
 /**
 *
 *   CodeMirrorGrammar
-*   @version: 4.2.0
+*   @version: 4.2.1
 *
 *   Transform a grammar specification in JSON format, into a syntax-highlight parser mode for CodeMirror
 *   https://github.com/foo123/codemirror-grammar
@@ -5055,12 +5057,12 @@ var CodeMirrorParser = Class(Parser, {
         if ( !code_errors ) return errors;
         
         options = options || {};
-        err_type = options[HAS]('type') ? options.type : "error";
-        err_msg = options[HAS]('msg') ? options.msg : "Syntax Error";
+        err_type = HAS.call(options,'type') ? options.type : "error";
+        err_msg = HAS.call(options,'msg') ? options.msg : "Syntax Error";
         
         for (err in code_errors)
         {
-            if ( !code_errors[HAS](err) ) continue;
+            if ( !HAS.call(code_errors,err) ) continue;
             error = code_errors[err];
             errors.push({
                 message: error[4] || err_msg,
@@ -5075,16 +5077,18 @@ var CodeMirrorParser = Class(Parser, {
     // adapted from codemirror anyword-hint helper
     ,autocomplete: function( cm, options, CodeMirror ) {
             options = options || {};
-        var parser = this, list = [],
-            prefix_match = options[HAS]('prefixMatch') ? !!options.prefixMatch : true,
-            in_context = options[HAS]('inContext')? !!options.inContext : false,
-            dynamic = options[HAS]('dynamic')? !!options.dynamic : false,
-            case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false,
+        var parser = this, state, list = [],
+            prefix_match = HAS.call(options,'prefixMatch') ? !!options.prefixMatch : true,
+            in_context = HAS.call(options,'inContext')? !!options.inContext : false,
+            dynamic = HAS.call(options,'dynamic')? !!options.dynamic : false,
+            case_insensitive_match = HAS.call(options,'caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false,
             cur = cm.getCursor(), curLine,
             start0 = cur.ch, start = start0, end0 = start0, end = end0,
-            token, token_i, len, maxlen = 0, word_re, renderer,
-            case_insensitive_match, prefix_match, in_context, dynamic, sort_by_score, score;
-        if ( dynamic || !!parser.$grammar.$autocomplete )
+            token, token_i, len, maxlen = 0, word_re, renderer, sort_by_score, score,
+            grammar_tokens = parser.$grammar.$autocomplete && parser.$grammar.$autocomplete.length ? parser.$grammar.$autocomplete : null,
+            dynamic_tokens
+        ;
+        if ( dynamic || grammar_tokens )
         {
             word_re = options.word || RE_W; curLine = cm.getLine(cur.line);
             while (start && word_re.test(curLine[CHAR](start - 1))) --start;
@@ -5093,6 +5097,8 @@ var CodeMirrorParser = Class(Parser, {
             token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
             renderer = options.renderer || null;
             sort_by_score = false; score = 1000;
+            
+            state = cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state.state;
             
             var suggest = function suggest( list, word ){
                 var w = word.word, wl = w.length, 
@@ -5137,20 +5143,18 @@ var CodeMirrorParser = Class(Parser, {
                 return list;
             };
             
-            if ( dynamic || in_context )
+            dynamic_tokens = dynamic ? parser.dynamic_autocompletion( state ) : null;
+            
+            if ( in_context )
             {
                 sort_by_score = false;
-                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state.state, null, dynamic ), suggest, list);
-                if ( !list.length && !!self.$grammar.$autocomplete )
-                {
-                    sort_by_score = true;
-                    list = operate(parser.$grammar.$autocomplete, suggest, list);
-                }
+                list = operate(parser.autocompletion( state, null, dynamic_tokens ), suggest, list);
             }
-            else
+            if ( dynamic_tokens && !dynamic_tokens.length ) dynamic_tokens = null;
+            if ( !list.length && (dynamic_tokens || grammar_tokens) )
             {
                 sort_by_score = true;
-                list = operate(parser.$grammar.$autocomplete, suggest, list);
+                list = operate((dynamic_tokens || []).concat(grammar_tokens || []), suggest, list);
             }
             if ( list.length ) list = list.sort( by_score );
             list.maxlen = maxlen; 
@@ -5331,7 +5335,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
         {
             var s = cm.getTokenAt( cm.getCursor() ).state, parser = (s && s.parser) || CMode.$parser;
             options = autocompleter.options /*|| Mode.autocompleter.options*/ || options || {};
-            if ( !options[HAS]('renderer') ) options.renderer = autocompleter.renderer /*|| Mode.autocompleter.renderer*/ || autocomplete_renderer;
+            if ( !HAS.call(options,'renderer') ) options.renderer = autocompleter.renderer /*|| Mode.autocompleter.renderer*/ || autocomplete_renderer;
             return parser.autocomplete( cm, options, CodeMirror );
         }
     };
@@ -5454,7 +5458,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
 [/DOC_MARKDOWN]**/
 var CodeMirrorGrammar = {
     
-    VERSION: "4.2.0",
+    VERSION: "4.2.1",
     
     // clone a grammar
     /**[DOC_MARKDOWN]

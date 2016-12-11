@@ -82,9 +82,9 @@ var js_grammar = {
     ,"@paren:action"            : {"push":")"}
     ,"@bracket:action"          : {"push":"]"}
     ,"@close:action"            : {"pop":"$0","msg":"Brackets do not match"}
-    ,"@define:action"           : {"define":["local","$0"],"msg":false,"in-hypercontext":true,"autocomplete":true}
-    ,"@ifscoped:action"         : {"defined":["local","$0"],"msg":false,"in-hypercontext":true}
-    ,"@unique:action"           : {"unique":["prop","$1"],"msg":"Duplicate object property \"$0\"","in-context":true}
+    ,"@define:action"           : {"define":["local","$0"],"msg":false,"in-hypercontext":true,"mode":"list","autocomplete":true}
+    ,"@ifscoped:action"         : {"defined":["local","$0"],"msg":false,"mode":"list","in-hypercontext":true}
+    ,"@unique:action"           : {"unique":["prop","$1"],"msg":"Duplicate object property \"$0\"","mode":"hash","in-context":true}
     
 },
 

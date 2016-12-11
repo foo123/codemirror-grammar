@@ -146,12 +146,12 @@ var CodeMirrorParser = Class(Parser, {
         if ( !code_errors ) return errors;
         
         options = options || {};
-        err_type = options[HAS]('type') ? options.type : "error";
-        err_msg = options[HAS]('msg') ? options.msg : "Syntax Error";
+        err_type = HAS.call(options,'type') ? options.type : "error";
+        err_msg = HAS.call(options,'msg') ? options.msg : "Syntax Error";
         
         for (err in code_errors)
         {
-            if ( !code_errors[HAS](err) ) continue;
+            if ( !HAS.call(code_errors,err) ) continue;
             error = code_errors[err];
             errors.push({
                 message: error[4] || err_msg,
@@ -166,16 +166,18 @@ var CodeMirrorParser = Class(Parser, {
     // adapted from codemirror anyword-hint helper
     ,autocomplete: function( cm, options, CodeMirror ) {
             options = options || {};
-        var parser = this, list = [],
-            prefix_match = options[HAS]('prefixMatch') ? !!options.prefixMatch : true,
-            in_context = options[HAS]('inContext')? !!options.inContext : false,
-            dynamic = options[HAS]('dynamic')? !!options.dynamic : false,
-            case_insensitive_match = options[HAS]('caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false,
+        var parser = this, state, list = [],
+            prefix_match = HAS.call(options,'prefixMatch') ? !!options.prefixMatch : true,
+            in_context = HAS.call(options,'inContext')? !!options.inContext : false,
+            dynamic = HAS.call(options,'dynamic')? !!options.dynamic : false,
+            case_insensitive_match = HAS.call(options,'caseInsensitiveMatch') ? !!options.caseInsensitiveMatch : false,
             cur = cm.getCursor(), curLine,
             start0 = cur.ch, start = start0, end0 = start0, end = end0,
-            token, token_i, len, maxlen = 0, word_re, renderer,
-            case_insensitive_match, prefix_match, in_context, dynamic, sort_by_score, score;
-        if ( dynamic || !!parser.$grammar.$autocomplete )
+            token, token_i, len, maxlen = 0, word_re, renderer, sort_by_score, score,
+            grammar_tokens = parser.$grammar.$autocomplete && parser.$grammar.$autocomplete.length ? parser.$grammar.$autocomplete : null,
+            dynamic_tokens
+        ;
+        if ( dynamic || grammar_tokens )
         {
             word_re = options.word || RE_W; curLine = cm.getLine(cur.line);
             while (start && word_re.test(curLine[CHAR](start - 1))) --start;
@@ -184,6 +186,8 @@ var CodeMirrorParser = Class(Parser, {
             token = curLine.slice(start, end); token_i = token[LOWER](); len = token.length;
             renderer = options.renderer || null;
             sort_by_score = false; score = 1000;
+            
+            state = cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state.state;
             
             var suggest = function suggest( list, word ){
                 var w = word.word, wl = w.length, 
@@ -228,20 +232,18 @@ var CodeMirrorParser = Class(Parser, {
                 return list;
             };
             
-            if ( dynamic || in_context )
+            dynamic_tokens = dynamic ? parser.dynamic_autocompletion( state ) : null;
+            
+            if ( in_context )
             {
                 sort_by_score = false;
-                list = operate(parser.autocompletion( cm.getTokenAt( CodeMirror.Pos( cur.line, start ), true ).state.state, null, dynamic ), suggest, list);
-                if ( !list.length && !!self.$grammar.$autocomplete )
-                {
-                    sort_by_score = true;
-                    list = operate(parser.$grammar.$autocomplete, suggest, list);
-                }
+                list = operate(parser.autocompletion( state, null, dynamic_tokens ), suggest, list);
             }
-            else
+            if ( dynamic_tokens && !dynamic_tokens.length ) dynamic_tokens = null;
+            if ( !list.length && (dynamic_tokens || grammar_tokens) )
             {
                 sort_by_score = true;
-                list = operate(parser.$grammar.$autocomplete, suggest, list);
+                list = operate((dynamic_tokens || []).concat(grammar_tokens || []), suggest, list);
             }
             if ( list.length ) list = list.sort( by_score );
             list.maxlen = maxlen; 
@@ -422,7 +424,7 @@ function get_mode( grammar, DEFAULT, CodeMirror )
         {
             var s = cm.getTokenAt( cm.getCursor() ).state, parser = (s && s.parser) || CMode.$parser;
             options = autocompleter.options /*|| Mode.autocompleter.options*/ || options || {};
-            if ( !options[HAS]('renderer') ) options.renderer = autocompleter.renderer /*|| Mode.autocompleter.renderer*/ || autocomplete_renderer;
+            if ( !HAS.call(options,'renderer') ) options.renderer = autocompleter.renderer /*|| Mode.autocompleter.renderer*/ || autocomplete_renderer;
             return parser.autocomplete( cm, options, CodeMirror );
         }
     };
