@@ -1,6 +1,6 @@
 
 
-###CodeMirrorGrammar Methods
+### CodeMirrorGrammar Methods
 
 __For node:__
 
