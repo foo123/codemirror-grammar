@@ -18,7 +18,7 @@ See also: [ace-grammar](https://github.com/foo123/ace-grammar), [prism-grammar](
 
 ### Contents
 
-* [Live Playground Example](http://foo123.github.io/examples/codemirror-grammar)
+* [Live Playground Example](https://foo123.github.io/examples/codemirror-grammar)
 * [Todo](#todo)
 * [Features](#features)
 * [How To use](#how-to-use)
@@ -26,7 +26,7 @@ See also: [ace-grammar](https://github.com/foo123/ace-grammar), [prism-grammar](
 * [Grammar Reference](https://github.com/foo123/editor-grammar/blob/master/grammar-reference.md)
 * [Other Examples](#other-examples)
 
-[![Build your own syntax-highlight mode on the fly](/test/screenshot.png)](http://foo123.github.io/examples/codemirror-grammar)
+[![Build your own syntax-highlight mode on the fly](/test/screenshot.png)](https://foo123.github.io/examples/codemirror-grammar)
 
 
 ### Todo
